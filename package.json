@@ -1,0 +1,38 @@
+{
+  "name": "aiskualerts",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/bun": "latest",
+    "@types/eslint-plugin-security": "^3.0.0",
+    "@types/eslint__js": "^9.14.0",
+    "eslint": "^9.39.2",
+    "eslint-plugin-security": "^3.0.1",
+    "typescript-eslint": "^8.51.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test tests/**/*.test.ts",
+    "test:unit": "bun test tests/**/*.test.ts",
+    "test:integration": "op run --env-file=.env.tpl -- bun test tests/**/!(db)/*.integration.test.ts",
+    "test:integration:bsale": "op run --env-file=.env.tpl -- bun test tests/bsale/*.integration.test.ts",
+    "test:integration:db": "bun test tests/db/*.integration.test.ts",
+    "test:e2e": "op run --env-file=.env.tpl -- bun test tests/**/*.integration.test.ts",
+    "test:all": "bun test",
+    "test:coverage": "bun test tests/**/*.test.ts --coverage",
+    "db:start": "docker compose -f docker-compose.test.yml up -d",
+    "db:stop": "docker compose -f docker-compose.test.yml down",
+    "db:logs": "docker compose -f docker-compose.test.yml logs -f postgres-test",
+    "db:clean": "docker compose -f docker-compose.test.yml down -v",
+    "check": "bun run lint && bun run typecheck && bun run test"
+  },
+  "dependencies": {
+    "zod": "^4.2.1"
+  }
+}
