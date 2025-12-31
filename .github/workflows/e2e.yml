@@ -14,6 +14,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          BSALE_ACCESS_TOKEN: op://Dev/BSALE_DEMO_ACCESS_TOKEN/credential
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -25,8 +33,7 @@ jobs:
       - name: Run Bsale integration tests
         run: bun run test:integration:bsale
         env:
-          BSALE_ACCESS_TOKEN: ${{ secrets.BSALE_ACCESS_TOKEN }}
-          BSALE_API_BASE_URL: ${{ secrets.BSALE_API_BASE_URL }}
+          BSALE_API_BASE_URL: https://api.bsale.io
 
       - name: Notify on failure
         if: failure()

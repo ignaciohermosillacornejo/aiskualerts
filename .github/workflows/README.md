@@ -41,6 +41,7 @@ This directory contains CI/CD workflows for the AI SKU Alerts project.
 
 **Jobs:**
 1. **E2E Tests (Bsale API)**
+   - Loads secrets from 1Password using service account
    - Tests against live Bsale demo API
    - Validates real-world integration
    - Verifies API contract compliance
@@ -48,23 +49,50 @@ This directory contains CI/CD workflows for the AI SKU Alerts project.
 **Duration:** ~30-40 seconds
 
 **Requirements:**
-- GitHub Secrets must be configured:
-  - `BSALE_ACCESS_TOKEN`: Access token for Bsale demo API
-  - `BSALE_API_BASE_URL`: Base URL for Bsale API (e.g., `https://api.bsale.io`)
+- GitHub Secret (only one needed!):
+  - `OP_SERVICE_ACCOUNT_TOKEN`: 1Password service account token
+- 1Password vault with Bsale credentials (auto-loaded at runtime)
 
 ---
 
 ## Setting Up Secrets
 
-To enable E2E tests, configure the following secrets in your repository:
+### Zero-Secrets Architecture with 1Password ✅
 
-1. Go to **Settings** → **Secrets and variables** → **Actions**
-2. Add the following secrets:
+This project uses **1Password service accounts** for secret management in CI/CD, maintaining the same zero-secrets-on-disk philosophy from local development.
 
-| Secret Name | Description | Example Value |
-|-------------|-------------|---------------|
-| `BSALE_ACCESS_TOKEN` | Access token for Bsale demo API | `your-token-here` |
-| `BSALE_API_BASE_URL` | Base URL for Bsale API | `https://api.bsale.io` |
+**Setup Steps:**
+
+1. **Create a 1Password Service Account**
+   ```bash
+   # Via 1Password web console or CLI
+   # Save the service account token securely
+   ```
+
+2. **Add Service Account Token to GitHub**
+   - Go to **Settings** → **Secrets and variables** → **Actions**
+   - Click **New repository secret**
+   - Name: `OP_SERVICE_ACCOUNT_TOKEN`
+   - Value: Your 1Password service account token
+   - Click **Add secret**
+
+3. **Ensure 1Password Vault Contains Required Items**
+   - Vault: `Dev`
+   - Item: `BSALE_DEMO_ACCESS_TOKEN`
+   - Field: `credential` (contains the API token)
+
+**That's it!** The E2E workflow will automatically:
+1. Authenticate with 1Password using the service account
+2. Fetch secrets from your vault at runtime
+3. Inject them into the test environment
+4. Clear them when the workflow completes
+
+**Benefits:**
+- ✅ Only **one** secret in GitHub (service account token)
+- ✅ All other secrets managed in 1Password
+- ✅ Same `.env.tpl` references work locally and in CI
+- ✅ Centralized secret rotation (update once in 1Password)
+- ✅ Audit trail via 1Password access logs
 
 ---
 
@@ -134,8 +162,18 @@ bun test
 
 ### E2E Tests Failing
 
-**Issue:** Missing secrets
-**Solution:** Ensure `BSALE_ACCESS_TOKEN` and `BSALE_API_BASE_URL` are configured in GitHub Secrets.
+**Issue:** Missing or invalid 1Password service account token
+**Solution:**
+1. Verify `OP_SERVICE_ACCOUNT_TOKEN` is configured in GitHub Secrets
+2. Ensure the service account has access to the `Dev` vault
+3. Check that the token hasn't expired
+
+**Issue:** Secret not found in 1Password
+**Solution:**
+1. Verify the vault name matches: `Dev`
+2. Verify the item exists: `BSALE_DEMO_ACCESS_TOKEN`
+3. Verify the field name matches: `credential`
+4. Check service account permissions
 
 **Issue:** API rate limiting
 **Solution:** E2E tests are scheduled to run daily to avoid rate limits. Manual runs should be spaced out.
@@ -152,10 +190,34 @@ bun test
 
 ---
 
+## Production Deployment (Hetzner)
+
+The same 1Password approach extends to production deployments:
+
+**Setup:**
+1. Create a separate 1Password service account for production
+2. Store `OP_SERVICE_ACCOUNT_TOKEN` on Hetzner server (secure location)
+3. Use `op inject` in Docker Compose startup script:
+   ```bash
+   # In production startup script
+   export OP_SERVICE_ACCOUNT_TOKEN="ops_..."
+   op inject -i .env.tpl -o /tmp/.env
+   docker compose --env-file /tmp/.env up -d
+   rm /tmp/.env  # Clean up after injection
+   ```
+
+**Benefits:**
+- Same `.env.tpl` file works across all environments
+- Secrets never committed to Git
+- Single source of truth (1Password)
+- Easy secret rotation without redeployment
+
+---
+
 ## Future Improvements
 
 - [ ] Add performance benchmarking
 - [ ] Add security scanning (Dependabot, CodeQL)
-- [ ] Add deployment workflows
+- [ ] Add deployment workflows with 1Password integration
 - [ ] Add release automation
 - [ ] Add changelog generation

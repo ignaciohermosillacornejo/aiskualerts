@@ -158,10 +158,16 @@ GitHub Actions workflows run automatically on every push and pull request:
 
 **E2E Workflow** (`.github/workflows/e2e.yml`):
 - 🌐 Bsale API integration tests
+- 🔐 Uses 1Password service account (zero secrets in GitHub!)
 - ⏰ Runs daily at 2 AM UTC
 - 🔧 Manual trigger available
 
-See [.github/workflows/README.md](.github/workflows/README.md) for details.
+**Secret Management:**
+- Only `OP_SERVICE_ACCOUNT_TOKEN` stored in GitHub
+- All other secrets fetched from 1Password at runtime
+- Same zero-secrets philosophy as local development
+
+See [.github/workflows/README.md](.github/workflows/README.md) for setup.
 
 ## Documentation
 
