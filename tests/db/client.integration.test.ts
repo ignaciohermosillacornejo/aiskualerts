@@ -36,16 +36,18 @@ describe("DatabaseClient Integration Tests", () => {
     // Initialize schema
     await dropAllTables(db);
     await db.initSchema();
-  });
+  }, 60000); // 60s timeout for database setup in CI
 
   afterAll(async () => {
-    await db.close();
+    if (db) {
+      await db.close();
+    }
   });
 
   beforeEach(async () => {
     // Clean tables before each test
     await cleanDatabase(db);
-  });
+  }, 10000); // 10s timeout for cleanup
 
   describe("Connection & Setup", () => {
     test("should connect to test database", async () => {
