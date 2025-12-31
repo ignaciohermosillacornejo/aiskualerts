@@ -92,7 +92,7 @@ jobs:
           PGPASSWORD: test
 
       - name: Run database integration tests
-        run: bun run test:integration:db
+        run: bun test tests/integration/db/*.test.ts
         env:
           TEST_DATABASE_URL: postgresql://test:test@localhost:5433/aiskualerts_test
 
