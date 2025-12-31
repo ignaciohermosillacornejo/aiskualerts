@@ -85,6 +85,12 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Initialize database schema
+        run: |
+          PGPASSWORD=test psql -h localhost -p 5433 -U test -d aiskualerts_test -f src/db/schema.sql
+        env:
+          PGPASSWORD: test
+
       - name: Run database integration tests
         run: bun run test:integration:db
         env:

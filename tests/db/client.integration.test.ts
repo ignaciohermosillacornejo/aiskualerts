@@ -33,10 +33,14 @@ describe("DatabaseClient Integration Tests", () => {
 
     db = createTestDb();
 
-    // Initialize schema
-    await dropAllTables(db);
-    await db.initSchema();
-  }, 45000); // 45s timeout - accommodates connection retries + schema init
+    // In CI, schema is initialized as a separate workflow step before tests
+    // Locally, we need to initialize it here
+    const isCI = process.env["CI"] === "true";
+    if (!isCI) {
+      await dropAllTables(db);
+      await db.initSchema();
+    }
+  }, 30000); // 30s timeout - schema init is done separately in CI
 
   afterAll(async () => {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition

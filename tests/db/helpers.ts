@@ -110,7 +110,7 @@ export async function waitForDatabase(
       await db.close();
 
       if (i > 0) {
-        console.log(`✅ Database ready after ${i + 1} attempt(s)`);
+        console.info(`✅ Database ready after ${String(i + 1)} attempt(s)`);
       }
       return;
     } catch (error) {
@@ -118,11 +118,11 @@ export async function waitForDatabase(
 
       // Only log periodically to avoid spam
       if (i === 0 || i % 10 === 9) {
-        console.log(`⏳ Waiting for database connection... (attempt ${i + 1}/${maxRetries})`);
+        console.info(`⏳ Waiting for database connection... (attempt ${String(i + 1)}/${String(maxRetries)})`);
       }
 
       if (i === maxRetries - 1) {
-        console.error(`\n❌ Database connection failed after ${maxRetries} retries`);
+        console.error(`\n❌ Database connection failed after ${String(maxRetries)} retries`);
         console.error(`Connection string: ${TEST_DB_URL}`);
         console.error(`Last error:`, lastError);
         throw new Error(
