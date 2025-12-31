@@ -1,5 +1,8 @@
 # AI SKU Alerts
 
+[![CI](https://github.com/ignaciohermosillacornejo/aiskualerts/actions/workflows/ci.yml/badge.svg)](https://github.com/ignaciohermosillacornejo/aiskualerts/actions/workflows/ci.yml)
+[![E2E Tests](https://github.com/ignaciohermosillacornejo/aiskualerts/actions/workflows/e2e.yml/badge.svg)](https://github.com/ignaciohermosillacornejo/aiskualerts/actions/workflows/e2e.yml)
+
 Multi-tenant SaaS that connects to Bsale accounts via OAuth, monitors stock levels, and alerts users of critical shortages via daily email digests.
 
 ## Quick Start
@@ -25,7 +28,7 @@ bun run check
 - **Frontend:** React + Tailwind + shadcn/ui
 - **Infrastructure:** Hetzner VPS + Terraform + Docker Compose + Caddy
 - **Source Control:** Sapling SCM (Git-compatible stacked PRs)
-- **CI/CD:** GitHub Actions + AI code review
+- **CI/CD:** GitHub Actions (lint, typecheck, unit tests, database tests, E2E tests)
 
 ## Project Status
 
@@ -143,6 +146,22 @@ bun run typecheck
 # Full check (lint + typecheck + test)
 bun run check
 ```
+
+### CI/CD
+
+GitHub Actions workflows run automatically on every push and pull request:
+
+**CI Workflow** (`.github/workflows/ci.yml`):
+- ✅ Lint & type check
+- ✅ Unit tests with coverage
+- ✅ Database integration tests (PostgreSQL service)
+
+**E2E Workflow** (`.github/workflows/e2e.yml`):
+- 🌐 Bsale API integration tests
+- ⏰ Runs daily at 2 AM UTC
+- 🔧 Manual trigger available
+
+See [.github/workflows/README.md](.github/workflows/README.md) for details.
 
 ## Documentation
 
