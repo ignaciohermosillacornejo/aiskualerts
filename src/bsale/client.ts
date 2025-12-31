@@ -12,6 +12,12 @@ import {
 
 type Country = "CL" | "PE" | "MX";
 
+/** Default page size for Bsale API pagination */
+const DEFAULT_PAGE_SIZE = 50;
+
+/** Default delay between requests to respect rate limits (ms) */
+const DEFAULT_REQUEST_DELAY = 100;
+
 export interface BsaleClientOptions {
   country?: Country;
   requestDelay?: number;
@@ -27,12 +33,12 @@ export class BsaleClient {
     this.accessToken = accessToken;
     this.baseUrl =
       options.baseUrl ?? `https://api.bsale.${(options.country ?? "CL").toLowerCase()}`;
-    this.requestDelay = options.requestDelay ?? 100;
+    this.requestDelay = options.requestDelay ?? DEFAULT_REQUEST_DELAY;
   }
 
   async *getAllStocks(): AsyncGenerator<StockItem, void, undefined> {
     let offset = 0;
-    const limit = 50;
+    const limit = DEFAULT_PAGE_SIZE;
     let hasMore = true;
 
     while (hasMore) {
