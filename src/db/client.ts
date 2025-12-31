@@ -11,7 +11,7 @@ export class DatabaseClient {
     query: string,
     params: unknown[] = []
   ): Promise<T[]> {
-    const result = await this.sql.unsafe(query, params);
+    const result: unknown = await this.sql.unsafe(query, params);
     return result as T[];
   }
 
@@ -54,7 +54,7 @@ let dbInstance: DatabaseClient | null = null;
 export function getDb(): DatabaseClient {
   if (!dbInstance) {
     const connectionString =
-      process.env.DATABASE_URL ??
+      process.env["DATABASE_URL"] ??
       "postgres://postgres:postgres@localhost:5432/aiskualerts";
     dbInstance = new DatabaseClient(connectionString);
   }

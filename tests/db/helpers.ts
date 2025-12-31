@@ -5,7 +5,7 @@ import { DatabaseClient } from "@/db/client";
  */
 
 export const TEST_DB_URL =
-  process.env.TEST_DATABASE_URL ||
+  process.env["TEST_DATABASE_URL"] ??
   "postgres://test:test@localhost:5433/aiskualerts_test";
 
 /**
@@ -104,7 +104,7 @@ export async function waitForDatabase(
       await db.query("SELECT 1");
       await db.close();
       return;
-    } catch (_error) {
+    } catch {
       if (i === maxRetries - 1) {
         throw new Error(
           "Database not ready after maximum retries. Is docker-compose running?"

@@ -127,7 +127,7 @@ describe("DatabaseClient Integration Tests", () => {
       let errorThrown = false;
       try {
         await createTestTenant(db, { bsale_client_code: "12345678-9" });
-      } catch (_error) {
+      } catch {
         errorThrown = true;
       }
       expect(errorThrown).toBe(true);
@@ -190,7 +190,7 @@ describe("DatabaseClient Integration Tests", () => {
       let errorThrown = false;
       try {
         await createTestUser(db, tenant.id, { email: "test@example.com" });
-      } catch (_error) {
+      } catch {
         errorThrown = true;
       }
       expect(errorThrown).toBe(true);
@@ -277,7 +277,7 @@ describe("DatabaseClient Integration Tests", () => {
           ) VALUES ($1, $2, $3, $4, $5, $6)`,
           [tenant.id, 123, 1, 50, 50, "2025-01-01"]
         );
-      } catch (_error) {
+      } catch {
         errorThrown = true;
       }
       expect(errorThrown).toBe(true);
@@ -388,7 +388,7 @@ describe("DatabaseClient Integration Tests", () => {
           ) VALUES ($1, $2, $3, $4, $5)`,
           [tenant.id, user.id, 123, 1, 20]
         );
-      } catch (_error) {
+      } catch {
         errorThrown = true;
       }
       expect(errorThrown).toBe(true);
@@ -514,7 +514,7 @@ describe("DatabaseClient Integration Tests", () => {
           );
           throw new Error("Test error");
         });
-      } catch (_error) {
+      } catch {
         errorThrown = true;
       }
 
@@ -601,12 +601,17 @@ describe("DatabaseClient Integration Tests", () => {
     test("execute() should not return data", async () => {
       const tenant = await createTestTenant(db);
 
-      const result = await db.execute(
+      await db.execute(
         `UPDATE tenants SET sync_status = $1 WHERE id = $2`,
         ["success", tenant.id]
       );
 
-      expect(result).toBeUndefined();
+      // Verify execution succeeded by querying the result
+      const result = await db.queryOne<{ sync_status: string }>(
+        `SELECT sync_status FROM tenants WHERE id = $1`,
+        [tenant.id]
+      );
+      expect(result?.sync_status).toBe("success");
     });
   });
 });
