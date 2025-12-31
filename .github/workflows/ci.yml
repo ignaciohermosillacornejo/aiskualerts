@@ -95,7 +95,7 @@ jobs:
       - name: Run database integration tests
         run: bun run test:integration:db
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5433/aiskualerts_test
+          TEST_DATABASE_URL: postgresql://test:test@localhost:5433/aiskualerts_test
 
   all-tests-passed:
     name: All Tests Passed

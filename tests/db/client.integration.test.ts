@@ -39,6 +39,7 @@ describe("DatabaseClient Integration Tests", () => {
   }, 60000); // 60s timeout for database setup in CI
 
   afterAll(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (db) {
       await db.close();
     }
