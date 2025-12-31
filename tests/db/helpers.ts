@@ -93,28 +93,43 @@ export async function createTestUser(
 
 /**
  * Wait for database to be ready
- * In CI, the GitHub Actions service health check ensures the database is ready.
- * This function is mainly for local development.
+ * In CI, the GitHub Actions service health check ensures PostgreSQL is running.
+ * This function handles the final connection initialization which may need a few retries.
  */
 export async function waitForDatabase(
-  maxRetries = 30,
-  delayMs = 1000
+  maxRetries = 50,
+  delayMs = 500
 ): Promise<void> {
+  let lastError: unknown;
+
   for (let i = 0; i < maxRetries; i++) {
     try {
       const db = createTestDb();
-      await db.query("SELECT 1");
+      // Test with a simple query
+      await db.query("SELECT 1 as connection_test");
       await db.close();
+
+      if (i > 0) {
+        console.log(`✅ Database ready after ${i + 1} attempt(s)`);
+      }
       return;
     } catch (error) {
+      lastError = error;
+
+      // Only log periodically to avoid spam
+      if (i === 0 || i % 10 === 9) {
+        console.log(`⏳ Waiting for database connection... (attempt ${i + 1}/${maxRetries})`);
+      }
+
       if (i === maxRetries - 1) {
-        console.error(`❌ Database connection failed after ${maxRetries} retries`);
+        console.error(`\n❌ Database connection failed after ${maxRetries} retries`);
         console.error(`Connection string: ${TEST_DB_URL}`);
-        console.error(`Last error:`, error);
+        console.error(`Last error:`, lastError);
         throw new Error(
           "Database not ready. In CI, check service health. Locally, run: docker compose -f docker-compose.test.yml up -d"
         );
       }
+
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
