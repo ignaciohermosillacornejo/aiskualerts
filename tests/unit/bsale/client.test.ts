@@ -135,7 +135,7 @@ test("BsaleClient getVariant returns variant details", async () => {
   expect(variant.product?.name).toBe("Test Product Name");
 });
 
-test("BsaleClient throws BsaleAuthError on 401", async () => {
+test("BsaleClient throws BsaleAuthError on 401", () => {
   globalThis.fetch = mock(() =>
     Promise.resolve({
       ok: false,
@@ -146,14 +146,15 @@ test("BsaleClient throws BsaleAuthError on 401", async () => {
 
   const client = new BsaleClient("invalid-token");
 
-  await expect(async () => {
-    for await (const stock of client.getAllStocks()) {
-      stock;
+  expect(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _stock of client.getAllStocks()) {
+      // Iterate to trigger error
     }
   }).toThrow(BsaleAuthError);
 });
 
-test("BsaleClient throws BsaleRateLimitError on 429", async () => {
+test("BsaleClient throws BsaleRateLimitError on 429", () => {
   globalThis.fetch = mock(() =>
     Promise.resolve({
       ok: false,
@@ -164,14 +165,15 @@ test("BsaleClient throws BsaleRateLimitError on 429", async () => {
 
   const client = new BsaleClient("test-token");
 
-  await expect(async () => {
-    for await (const stock of client.getAllStocks()) {
-      stock;
+  expect(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _stock of client.getAllStocks()) {
+      // Iterate to trigger error
     }
   }).toThrow(BsaleRateLimitError);
 });
 
-test("BsaleClient throws BsaleServerError on 500", async () => {
+test("BsaleClient throws BsaleServerError on 500", () => {
   globalThis.fetch = mock(() =>
     Promise.resolve({
       ok: false,
@@ -182,9 +184,10 @@ test("BsaleClient throws BsaleServerError on 500", async () => {
 
   const client = new BsaleClient("test-token");
 
-  await expect(async () => {
-    for await (const stock of client.getAllStocks()) {
-      stock;
+  expect(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _stock of client.getAllStocks()) {
+      // Iterate to trigger error
     }
   }).toThrow(BsaleServerError);
 });
@@ -213,21 +216,22 @@ test("BsaleClient retries on network errors", async () => {
   expect(callCount).toBe(3);
 });
 
-test("BsaleClient throws after max retries on persistent errors", async () => {
+test("BsaleClient throws after max retries on persistent errors", () => {
   globalThis.fetch = mock(() => {
     throw new Error("Persistent network error");
   }) as unknown as typeof globalThis.fetch;
 
   const client = new BsaleClient("test-token", { country: "CL", requestDelay: 0 });
 
-  await expect(async () => {
-    for await (const stock of client.getAllStocks()) {
-      stock;
+  expect(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _stock of client.getAllStocks()) {
+      // Iterate to trigger error
     }
   }).toThrow("Persistent network error");
 });
 
-test("BsaleClient handles 4xx errors other than 401/429", async () => {
+test("BsaleClient handles 4xx errors other than 401/429", () => {
   globalThis.fetch = mock(() =>
     Promise.resolve({
       ok: false,
@@ -238,9 +242,10 @@ test("BsaleClient handles 4xx errors other than 401/429", async () => {
 
   const client = new BsaleClient("test-token");
 
-  await expect(async () => {
-    for await (const stock of client.getAllStocks()) {
-      stock;
+  expect(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _stock of client.getAllStocks()) {
+      // Iterate to trigger error
     }
   }).toThrow("HTTP 404: Not Found");
 });

@@ -33,6 +33,6 @@
     "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": true,
 
-    "types": ["bun", "@types/eslint__js"]
+    "types": ["bun"]
   }
 }
