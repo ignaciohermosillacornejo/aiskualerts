@@ -1,0 +1,69 @@
+name: AI Author Response
+
+on:
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+
+jobs:
+  respond:
+    # Only respond to AI reviewer comments
+    if: |
+      github.event.comment.user.login == 'github-actions[bot]' &&
+      contains(github.event.comment.body, '[AI Review]')
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: AI Author Response
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
+          prompt: |
+            You are the AI author responding to code review feedback.
+
+            REPO: ${{ github.repository }}
+            PR: #${{ github.event.pull_request.number || github.event.issue.number }}
+
+            Review comment to address:
+            ---
+            ${{ github.event.comment.body }}
+            ---
+
+            Analyze the feedback and decide:
+
+            **Option A: Rebuff** - If the code is correct:
+            - Reply with a comment explaining your reasoning
+            - Reference relevant docs, patterns, or constraints from CLAUDE.md
+            - Be respectful but firm
+            - Use `gh pr comment` to post your response
+
+            **Option B: Fix** - If the feedback is valid:
+            - Read the relevant code files
+            - Implement the fix (consider the proposed solution)
+            - Commit with message: "fix: address review feedback - <brief description>"
+            - Push the commit
+            - Reply confirming the fix with `gh pr comment`
+
+            Always read CLAUDE.md first for project conventions.
+            Read the relevant code files before deciding.
+
+          claude_args: '--model claude-sonnet-4-20250514 --allowed-tools "Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr comment:*),Read,Write,Edit,Grep,Glob"'
