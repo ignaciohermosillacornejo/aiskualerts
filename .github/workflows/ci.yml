@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches:
+      - feat/phase-1-database-bsale-integration  # Run on default branch
+      - main
+      - master
   pull_request:
-    branches: ['**']
+    branches: ['**']  # Run on all PRs
 
 jobs:
   lint-and-typecheck:
