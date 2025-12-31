@@ -69,9 +69,9 @@ jobs:
           - 5433:5432
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 20
 
     steps:
       - name: Checkout code
@@ -87,10 +87,17 @@ jobs:
 
       - name: Wait for PostgreSQL
         run: |
-          until pg_isready -h localhost -p 5433 -U test; do
-            echo "Waiting for PostgreSQL..."
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..60}; do
+            if pg_isready -h localhost -p 5433 -U test; then
+              echo "✅ PostgreSQL is ready after $i attempts"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/60: PostgreSQL not ready yet..."
             sleep 2
           done
+          echo "❌ PostgreSQL failed to become ready after 120 seconds"
+          exit 1
 
       - name: Run database integration tests
         run: bun run test:integration:db

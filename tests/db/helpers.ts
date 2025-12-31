@@ -95,20 +95,27 @@ export async function createTestUser(
  * Wait for database to be ready
  */
 export async function waitForDatabase(
-  maxRetries = 30,
-  delayMs = 1000
+  maxRetries = 60,
+  delayMs = 2000
 ): Promise<void> {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const db = createTestDb();
       await db.query("SELECT 1");
       await db.close();
+      console.log(`✅ Database ready after ${i + 1} attempts`);
       return;
-    } catch {
+    } catch (error) {
       if (i === maxRetries - 1) {
+        console.error(`❌ Database connection failed after ${maxRetries} retries`);
+        console.error(`Connection string: ${TEST_DB_URL}`);
+        console.error(`Last error:`, error);
         throw new Error(
           "Database not ready after maximum retries. Is docker-compose running?"
         );
+      }
+      if (i % 10 === 0) {
+        console.log(`⏳ Waiting for database... attempt ${i + 1}/${maxRetries}`);
       }
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }

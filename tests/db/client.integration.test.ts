@@ -36,7 +36,7 @@ describe("DatabaseClient Integration Tests", () => {
     // Initialize schema
     await dropAllTables(db);
     await db.initSchema();
-  }, 60000); // 60s timeout for database setup in CI
+  }, 150000); // 150s timeout for database setup in CI (allows up to 120s for DB wait)
 
   afterAll(async () => {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
