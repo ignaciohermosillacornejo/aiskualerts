@@ -28,7 +28,7 @@ describe("DatabaseClient Integration Tests", () => {
   let db: DatabaseClient;
 
   beforeAll(async () => {
-    // Wait for database to be ready
+    // Wait for database to be ready (health check ensures it's ready in CI)
     await waitForDatabase();
 
     db = createTestDb();
@@ -36,7 +36,7 @@ describe("DatabaseClient Integration Tests", () => {
     // Initialize schema
     await dropAllTables(db);
     await db.initSchema();
-  }, 150000); // 150s timeout for database setup in CI (allows up to 120s for DB wait)
+  }, 60000); // 60s timeout - service health check ensures DB is ready in CI
 
   afterAll(async () => {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition

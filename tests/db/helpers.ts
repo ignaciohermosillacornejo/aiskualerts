@@ -93,17 +93,18 @@ export async function createTestUser(
 
 /**
  * Wait for database to be ready
+ * In CI, the GitHub Actions service health check ensures the database is ready.
+ * This function is mainly for local development.
  */
 export async function waitForDatabase(
-  maxRetries = 60,
-  delayMs = 2000
+  maxRetries = 30,
+  delayMs = 1000
 ): Promise<void> {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const db = createTestDb();
       await db.query("SELECT 1");
       await db.close();
-      console.log(`✅ Database ready after ${i + 1} attempts`);
       return;
     } catch (error) {
       if (i === maxRetries - 1) {
@@ -111,11 +112,8 @@ export async function waitForDatabase(
         console.error(`Connection string: ${TEST_DB_URL}`);
         console.error(`Last error:`, error);
         throw new Error(
-          "Database not ready after maximum retries. Is docker-compose running?"
+          "Database not ready. In CI, check service health. Locally, run: docker compose -f docker-compose.test.yml up -d"
         );
-      }
-      if (i % 10 === 0) {
-        console.log(`⏳ Waiting for database... attempt ${i + 1}/${maxRetries}`);
       }
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
