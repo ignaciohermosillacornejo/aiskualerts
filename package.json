@@ -5,6 +5,7 @@
   "private": true,
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@tailwindcss/cli": "^4.1.18",
     "@types/bun": "latest",
     "@types/eslint-plugin-security": "^3.0.0",
     "@types/eslint__js": "^9.14.0",
@@ -21,8 +22,10 @@
     "typescript": "^5"
   },
   "scripts": {
-    "dev": "bun --hot src/server.ts",
-    "start": "bun src/server.ts",
+    "build:css": "bunx tailwindcss -i ./src/frontend/styles/index.css -o ./src/frontend/styles/output.css --minify",
+    "watch:css": "bunx tailwindcss -i ./src/frontend/styles/index.css -o ./src/frontend/styles/output.css --watch",
+    "dev": "bun run build:css && bun --hot src/server.ts",
+    "start": "bun run build:css && bun src/server.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "bun test tests/**/*.test.ts",

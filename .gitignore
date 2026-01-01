@@ -39,3 +39,4 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Claude stuff
 plan
 .claude/settings.local.json
+src/frontend/styles/output.css
