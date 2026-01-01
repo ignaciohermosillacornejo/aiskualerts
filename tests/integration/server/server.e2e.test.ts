@@ -9,7 +9,7 @@ import { $ } from "bun";
  */
 
 const TEST_PORT = 3001; // Use different port to avoid conflicts
-const BASE_URL = `http://localhost:${TEST_PORT}`;
+const BASE_URL = `http://localhost:${String(TEST_PORT)}`;
 
 let serverProcess: ReturnType<typeof Bun.spawn> | null = null;
 
@@ -47,7 +47,7 @@ describe("Server E2E Tests", () => {
     }
   }, 10000); // 10s timeout for server startup
 
-  afterAll(async () => {
+  afterAll(() => {
     if (serverProcess) {
       serverProcess.kill();
       console.info("✅ Test server stopped");
@@ -56,7 +56,7 @@ describe("Server E2E Tests", () => {
 
   test("GET /health should return 200 with status ok", async () => {
     const response = await fetch(`${BASE_URL}/health`);
-    const data = await response.json();
+    const data = (await response.json()) as { status: string; timestamp: string };
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("application/json");
@@ -67,7 +67,7 @@ describe("Server E2E Tests", () => {
 
   test("GET /health timestamp should be valid ISO date", async () => {
     const response = await fetch(`${BASE_URL}/health`);
-    const data = await response.json();
+    const data = (await response.json()) as { timestamp: string };
 
     const timestamp = new Date(data.timestamp);
     expect(timestamp.toString()).not.toBe("Invalid Date");
@@ -86,7 +86,7 @@ describe("Server E2E Tests", () => {
 
   test("GET /api/auth/bsale/start should return 501 Not Implemented", async () => {
     const response = await fetch(`${BASE_URL}/api/auth/bsale/start`);
-    const data = await response.json();
+    const data = (await response.json()) as { message: string };
 
     expect(response.status).toBe(501);
     expect(data.message).toBe("OAuth not yet implemented");
