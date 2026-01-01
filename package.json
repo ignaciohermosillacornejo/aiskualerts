@@ -8,14 +8,19 @@
     "@types/bun": "latest",
     "@types/eslint-plugin-security": "^3.0.0",
     "@types/eslint__js": "^9.14.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.2",
     "eslint-plugin-security": "^3.0.1",
+    "tailwindcss": "^4.1.18",
     "typescript-eslint": "^8.51.0"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "scripts": {
+    "dev": "bun --hot src/server.ts",
+    "start": "bun src/server.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "bun test tests/**/*.test.ts",
@@ -33,6 +38,8 @@
     "check": "bun run lint && bun run typecheck && bun run test"
   },
   "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "zod": "^3.23.8"
   }
 }
