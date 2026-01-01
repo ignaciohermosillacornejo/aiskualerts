@@ -5,17 +5,27 @@
   "private": true,
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@tailwindcss/cli": "^4.1.18",
     "@types/bun": "latest",
     "@types/eslint-plugin-security": "^3.0.0",
     "@types/eslint__js": "^9.14.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.23",
     "eslint": "^9.39.2",
     "eslint-plugin-security": "^3.0.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
     "typescript-eslint": "^8.51.0"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "scripts": {
+    "build:css": "bunx tailwindcss -i ./src/frontend/styles/index.css -o ./src/frontend/styles/output.css --minify",
+    "watch:css": "bunx tailwindcss -i ./src/frontend/styles/index.css -o ./src/frontend/styles/output.css --watch",
+    "dev": "bun run build:css && bun --hot src/server.ts",
+    "start": "bun run build:css && bun src/server.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "bun test tests/**/*.test.ts",
@@ -23,6 +33,7 @@
     "test:integration": "bun test tests/integration/**/*.test.ts",
     "test:integration:bsale": "op run --env-file=.env.tpl -- bun test tests/integration/bsale/*.test.ts",
     "test:integration:db": "bun test tests/integration/db/*.test.ts",
+    "test:integration:server": "bun test tests/integration/server/*.test.ts",
     "test:e2e": "op run --env-file=.env.tpl -- bun test tests/integration/**/*.test.ts",
     "test:all": "bun test",
     "test:coverage": "bun test tests/unit/**/*.test.ts --coverage",
@@ -33,6 +44,8 @@
     "check": "bun run lint && bun run typecheck && bun run test"
   },
   "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "zod": "^3.23.8"
   }
 }
