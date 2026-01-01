@@ -33,6 +33,7 @@
     "test:integration": "bun test tests/integration/**/*.test.ts",
     "test:integration:bsale": "op run --env-file=.env.tpl -- bun test tests/integration/bsale/*.test.ts",
     "test:integration:db": "bun test tests/integration/db/*.test.ts",
+    "test:integration:server": "bun test tests/integration/server/*.test.ts",
     "test:e2e": "op run --env-file=.env.tpl -- bun test tests/integration/**/*.test.ts",
     "test:all": "bun test",
     "test:coverage": "bun test tests/unit/**/*.test.ts --coverage",
