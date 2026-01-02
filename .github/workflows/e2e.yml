@@ -31,7 +31,7 @@ jobs:
         run: bun install
 
       - name: Run Bsale integration tests
-        run: bun run test:integration:bsale
+        run: bun test tests/integration/bsale/*.test.ts
         env:
           BSALE_API_BASE_URL: https://api.bsale.io
 
