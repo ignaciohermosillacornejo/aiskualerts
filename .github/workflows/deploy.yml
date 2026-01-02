@@ -1,0 +1,126 @@
+name: Deploy to Hetzner
+
+on:
+  workflow_dispatch:  # Manual deployment only
+
+jobs:
+  deploy:
+    name: Deploy to Hetzner Cloud
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@v1
+
+      - name: Load SSH key and server IP from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          # Get SSH private key
+          mkdir -p ~/.ssh
+          op read "op://Dev/HETZNER_SSH_KEY/private key" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          # Get server IP
+          HETZNER_SERVER_IP=$(op read "op://Dev/HETZNER_SERVER_IP/credential")
+          echo "HETZNER_SERVER_IP=$HETZNER_SERVER_IP" >> $GITHUB_ENV
+
+          # Add server to known hosts
+          ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
+
+          echo "✅ Loaded SSH key and server IP from 1Password"
+
+      - name: Generate .env file from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          # Use op inject to generate .env from .env.tpl
+          op inject -i .env.tpl -o .env
+          chmod 600 .env
+
+          echo "✅ Generated .env file with secrets from 1Password"
+
+      - name: Rsync files to server
+        run: |
+          # Create deployment directory on server
+          ssh root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts"
+
+          # Rsync project files
+          rsync -avz --delete \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude 'tests' \
+            --exclude 'coverage' \
+            --exclude '.env.tpl' \
+            ./ root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+
+          echo "✅ Files synced to server"
+
+      - name: Deploy with Docker Compose
+        run: |
+          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
+            set -euo pipefail
+            cd /opt/aiskualerts
+
+            # Install Docker if not present
+            if ! command -v docker &> /dev/null; then
+              echo "Installing Docker..."
+              apt-get update
+              apt-get install -y ca-certificates curl
+              install -m 0755 -d /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+              chmod a+r /etc/apt/keyrings/docker.asc
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+              apt-get update
+              apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            fi
+
+            # Stop existing containers
+            docker compose down || true
+
+            # Build and start containers
+            docker compose up -d --build
+
+            echo "✅ Deployment complete"
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
+            set -euo pipefail
+            cd /opt/aiskualerts
+
+            # Wait for services to be healthy
+            echo "Waiting for application to be healthy..."
+            for i in {1..30}; do
+              if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+                echo "✅ Application is healthy!"
+                docker compose ps
+                exit 0
+              fi
+              echo "Waiting... ($i/30)"
+              sleep 2
+            done
+
+            echo "❌ Application failed health check"
+            docker compose logs --tail=50
+            exit 1
+          ENDSSH
+
+      - name: Cleanup sensitive files
+        if: always()
+        run: |
+          rm -f .env
+          rm -f ~/.ssh/id_ed25519
+          echo "✅ Cleaned up sensitive files"
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "Server: $HETZNER_SERVER_IP"
+          echo "Branch: ${GITHUB_REF_NAME}"
+          echo "Commit: ${GITHUB_SHA::8}"
