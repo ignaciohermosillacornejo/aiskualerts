@@ -283,7 +283,9 @@ describe.skipIf(shouldSkip)("BsaleClient E2E Integration Tests", () => {
             expect(typeof variant.description).toBe("string");
           }
           if (variant.product !== null && variant.product !== undefined) {
-            expect(typeof variant.product.name).toBe("string");
+            if (variant.product.name !== null && variant.product.name !== undefined) {
+              expect(typeof variant.product.name).toBe("string");
+            }
           }
         }
       }

@@ -19,9 +19,9 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          # Get SSH private key
+          # Get SSH private key (preserve formatting with -n)
           mkdir -p ~/.ssh
-          op read "op://Dev/HETZNER_SSH_KEY/private key" > ~/.ssh/id_ed25519
+          op read -n "op://Dev/HETZNER_SSH_KEY/private key" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
           # Get server IP
