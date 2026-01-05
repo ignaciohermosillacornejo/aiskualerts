@@ -282,10 +282,9 @@ describe.skipIf(shouldSkip)("BsaleClient E2E Integration Tests", () => {
           if (variant.description !== null) {
             expect(typeof variant.description).toBe("string");
           }
-          if (variant.product !== null && variant.product !== undefined) {
-            if (variant.product.name !== null && variant.product.name !== undefined) {
-              expect(typeof variant.product.name).toBe("string");
-            }
+          // Product can exist but have undefined/null name in real API data
+          if (variant.product?.name) {
+            expect(typeof variant.product.name).toBe("string");
           }
         }
       }
