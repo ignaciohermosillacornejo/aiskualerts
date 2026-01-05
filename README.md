@@ -169,11 +169,75 @@ GitHub Actions workflows run automatically on every push and pull request:
 
 See [.github/workflows/README.md](.github/workflows/README.md) for setup.
 
+## Deployment
+
+### One-Time Server Setup
+
+Provision a new Hetzner server with Docker:
+
+```bash
+# Get server IP from 1Password
+SERVER_IP=$(op read "op://Dev/HETZNER_SERVER_IP/credential")
+
+# Run provisioning script
+scp scripts/provision.sh root@$SERVER_IP:/tmp/
+ssh root@$SERVER_IP 'bash /tmp/provision.sh'
+```
+
+See [docs/SERVER_SETUP.md](docs/SERVER_SETUP.md) for detailed setup guide.
+
+### Deploying to Production
+
+**Automatic**: Push to `main` branch triggers GitHub Actions deployment
+
+**Manual**: Run via GitHub Actions UI:
+1. Go to Actions → Deploy to Hetzner
+2. Click "Run workflow"
+3. Select branch and deploy
+
+**Deployment Process** (Automated via GitHub Actions):
+1. 🔐 Inject secrets from 1Password → `.env`
+2. 🐳 Build Docker image with Bun + dependencies
+3. 📦 Export image to `aiskualerts.tar.gz`
+4. 🚀 SCP tar + `.env` + configs to Hetzner server
+5. ⚡ Load image + start containers via `docker compose`
+6. ✅ Verify health check
+
+**What's on the server**:
+- Docker image (built in CI)
+- `.env` file (generated fresh each deployment)
+- `docker-compose.yml` (orchestration)
+
+**What's NOT on the server**:
+- No 1Password CLI or tokens
+- No source code
+- No git repository
+- No build dependencies
+
+### Server Operations
+
+```bash
+# View logs
+ssh root@SERVER_IP
+cd /opt/aiskualerts
+docker compose logs -f
+
+# Restart services
+docker compose restart
+
+# Rollback to previous version
+docker load < backups/aiskualerts-YYYYMMDD-HHMMSS.tar.gz
+docker compose up -d
+```
+
+See [docs/SERVER_SETUP.md](docs/SERVER_SETUP.md) for complete operations guide.
+
 ## Documentation
 
 ### Knowledge Base
 - [docs/TESTING.md](docs/TESTING.md) - Testing guide
 - [docs/SECRETS.md](docs/SECRETS.md) - 1Password secret management
+- [docs/SERVER_SETUP.md](docs/SERVER_SETUP.md) - Server setup & operations guide
 
 ### Planning
 - [plan/plan.md](plan/plan.md) - Implementation roadmap

@@ -5,7 +5,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Hetzner Cloud
+    name: Build and Deploy to Hetzner
     runs-on: ubuntu-latest
 
     steps:
@@ -43,46 +43,61 @@ jobs:
 
           echo "✅ Generated .env file with secrets from 1Password"
 
-      - name: Rsync files to server
+      - name: Build Docker image
+        run: |
+          docker build -t aiskualerts:latest .
+          echo "✅ Docker image built successfully"
+
+      - name: Export Docker image to tar
+        run: |
+          docker save aiskualerts:latest | gzip > aiskualerts.tar.gz
+          ls -lh aiskualerts.tar.gz
+          echo "✅ Docker image exported to tar.gz"
+
+      - name: Transfer files to server
         run: |
           # Create deployment directory on server
-          ssh root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts"
+          ssh root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts/backups"
 
-          # Rsync project files
-          rsync -avz --delete \
-            --exclude 'node_modules' \
-            --exclude '.git' \
-            --exclude 'tests' \
-            --exclude 'coverage' \
-            --exclude '.env.tpl' \
-            ./ root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          # Backup previous tar if it exists (for rollback)
+          ssh root@"$HETZNER_SERVER_IP" "
+            if [ -f /opt/aiskualerts/aiskualerts.tar.gz ]; then
+              mv /opt/aiskualerts/aiskualerts.tar.gz /opt/aiskualerts/backups/aiskualerts-\$(date +%Y%m%d-%H%M%S).tar.gz
+            fi
+          "
 
-          echo "✅ Files synced to server"
+          # Transfer new deployment files
+          scp aiskualerts.tar.gz root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp .env root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp docker-compose.yml root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp nginx.conf root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp -r src/db root@"$HETZNER_SERVER_IP":/opt/aiskualerts/src/
 
-      - name: Deploy with Docker Compose
+          # Set permissions
+          ssh root@"$HETZNER_SERVER_IP" "chmod 600 /opt/aiskualerts/.env"
+
+          echo "✅ Files transferred to server"
+
+      - name: Deploy on server
         run: |
           ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
             set -euo pipefail
             cd /opt/aiskualerts
 
-            # Install Docker if not present
-            if ! command -v docker &> /dev/null; then
-              echo "Installing Docker..."
-              apt-get update
-              apt-get install -y ca-certificates curl
-              install -m 0755 -d /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-              chmod a+r /etc/apt/keyrings/docker.asc
-              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-              apt-get update
-              apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-            fi
+            # Load Docker image from tar
+            echo "Loading Docker image..."
+            docker load < aiskualerts.tar.gz
 
             # Stop existing containers
+            echo "Stopping existing containers..."
             docker compose down || true
 
-            # Build and start containers
-            docker compose up -d --build
+            # Start new containers
+            echo "Starting containers..."
+            docker compose up -d
+
+            # Clean up old images
+            docker image prune -f
 
             echo "✅ Deployment complete"
           ENDSSH
@@ -93,7 +108,7 @@ jobs:
             set -euo pipefail
             cd /opt/aiskualerts
 
-            # Wait for services to be healthy
+            # Wait for application to be healthy
             echo "Waiting for application to be healthy..."
             for i in {1..30}; do
               if curl -f http://localhost:3000/health > /dev/null 2>&1; then
@@ -110,10 +125,20 @@ jobs:
             exit 1
           ENDSSH
 
+      - name: Cleanup old backups
+        if: success()
+        run: |
+          # Keep only last 3 backups
+          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
+            cd /opt/aiskualerts/backups
+            ls -t aiskualerts-*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm
+          ENDSSH
+
       - name: Cleanup sensitive files
         if: always()
         run: |
           rm -f .env
+          rm -f aiskualerts.tar.gz
           rm -f ~/.ssh/id_ed25519
           echo "✅ Cleaned up sensitive files"
 
@@ -124,3 +149,4 @@ jobs:
           echo "Server: $HETZNER_SERVER_IP"
           echo "Branch: ${GITHUB_REF_NAME}"
           echo "Commit: ${GITHUB_SHA::8}"
+          echo "Image: aiskualerts:latest"

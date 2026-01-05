@@ -21,6 +21,7 @@ services:
 
   # Application server
   app:
+    image: aiskualerts:latest  # Pre-built image (loaded from tar in production, built locally in dev)
     build:
       context: .
       dockerfile: Dockerfile
