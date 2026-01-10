@@ -1,43 +1,41 @@
-/**
- * Production Server
- *
- * Minimal HTTP server with health check endpoint for deployment verification.
- * TODO: Add full application routes when Phase 2 (OAuth & Tenant Onboarding) begins.
- */
+import type { Server } from "bun";
+import { loadConfig, type Config } from "@/config";
 
-Bun.serve({
-  port: 3000,
-  hostname: "0.0.0.0",
-  fetch(req) {
-    const url = new URL(req.url);
+export interface HealthResponse {
+  status: "ok";
+  timestamp: string;
+}
 
-    // Health check endpoint for deployment verification
-    if (url.pathname === "/health") {
-      return new Response(
-        JSON.stringify({
-          status: "ok",
-          timestamp: new Date().toISOString(),
-          phase: "Phase 1 Complete - Database & Bsale Integration",
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
+export function createHealthResponse(): HealthResponse {
+  return {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  };
+}
 
-    // Default response
-    return new Response(
-      JSON.stringify({
-        message: "AI SKU Alerts - Phase 1 Complete",
-        phase: "Waiting for Bsale OAuth approval to begin Phase 2",
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
+export function createServer(config: Config): Server<undefined> {
+  return Bun.serve({
+    port: config.port,
+    fetch(request: Request): Response {
+      const url = new URL(request.url);
+
+      if (url.pathname === "/health" && request.method === "GET") {
+        return Response.json(createHealthResponse());
       }
-    );
-  },
-});
 
-console.log("🚀 Server running on http://0.0.0.0:3000");
-console.log("📊 Health check: http://0.0.0.0:3000/health");
+      return new Response("Not Found", { status: 404 });
+    },
+  });
+}
+
+export function startServer(config?: Config): Server<undefined> {
+  const resolvedConfig = config ?? loadConfig();
+  const server = createServer(resolvedConfig);
+  console.info(`Server started on port ${String(resolvedConfig.port)}`);
+  return server;
+}
+
+// Only run when executed directly (not imported)
+if (import.meta.main) {
+  startServer();
+}
