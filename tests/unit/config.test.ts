@@ -88,8 +88,8 @@ describe("loadConfig", () => {
   test("parses sync config from environment", () => {
     const config = loadConfig({
       SYNC_ENABLED: "false",
-      SYNC_SCHEDULE_HOUR: "10",
-      SYNC_SCHEDULE_MINUTE: "30",
+      SYNC_HOUR: "10",
+      SYNC_MINUTE: "30",
       SYNC_BATCH_SIZE: "50",
       SYNC_TENANT_DELAY_MS: "3000",
     });
@@ -102,10 +102,10 @@ describe("loadConfig", () => {
   });
 
   test("throws on invalid sync hour (out of range)", () => {
-    expect(() => loadConfig({ SYNC_SCHEDULE_HOUR: "25" })).toThrow();
+    expect(() => loadConfig({ SYNC_HOUR: "25" })).toThrow();
   });
 
   test("throws on invalid sync minute (out of range)", () => {
-    expect(() => loadConfig({ SYNC_SCHEDULE_MINUTE: "60" })).toThrow();
+    expect(() => loadConfig({ SYNC_MINUTE: "60" })).toThrow();
   });
 });

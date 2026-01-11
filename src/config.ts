@@ -20,8 +20,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port: env["PORT"],
     nodeEnv: env["NODE_ENV"],
     syncEnabled: env["SYNC_ENABLED"],
-    syncHour: env["SYNC_SCHEDULE_HOUR"],
-    syncMinute: env["SYNC_SCHEDULE_MINUTE"],
+    syncHour: env["SYNC_HOUR"],
+    syncMinute: env["SYNC_MINUTE"],
     syncBatchSize: env["SYNC_BATCH_SIZE"],
     syncTenantDelay: env["SYNC_TENANT_DELAY_MS"],
   });
