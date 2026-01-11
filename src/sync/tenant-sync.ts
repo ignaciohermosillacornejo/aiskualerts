@@ -13,6 +13,13 @@ export interface TenantSyncDependencies {
   createBsaleClient: (accessToken: string) => BsaleClient;
 }
 
+/**
+ * Convert Bsale stock item to StockSnapshotInput
+ *
+ * NOTE: SKU, barcode, and product_name are currently set to null because
+ * the stock API response only includes variant.id without detailed variant info.
+ * Future enhancement: Make additional API call to /v1/variants/:id for complete data.
+ */
 function stockToSnapshot(
   stock: StockItem,
   tenantId: string,
@@ -22,7 +29,8 @@ function stockToSnapshot(
     tenant_id: tenantId,
     bsale_variant_id: stock.variant.id,
     bsale_office_id: stock.office?.id ?? null,
-    sku: null, // Variant details need separate API call
+    // TODO: Fetch variant details for complete product information
+    sku: null,
     barcode: null,
     product_name: null,
     quantity: stock.quantity,
@@ -76,13 +84,30 @@ export async function syncTenant(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
-    // Handle specific error types
+    // Distinguish error types for better retry logic
     if (error instanceof BsaleAuthError) {
+      // Authentication errors are permanent - mark as failed
       await deps.tenantRepo.updateSyncStatus(tenant.id, "failed");
+      console.error(`Authentication failed for tenant ${tenant.id}`);
     } else if (error instanceof BsaleRateLimitError) {
-      // Leave as syncing so it can be retried
+      // Rate limit errors are temporary - mark as pending for retry
       await deps.tenantRepo.updateSyncStatus(tenant.id, "pending");
+      console.warn(`Rate limit hit for tenant ${tenant.id}, will retry`);
+    } else if (error instanceof Error) {
+      // Check for temporary database connectivity issues
+      if (errorMessage.includes('ECONNREFUSED') ||
+          errorMessage.includes('connection') ||
+          errorMessage.includes('timeout')) {
+        // Database connectivity issues are temporary - mark as pending for retry
+        await deps.tenantRepo.updateSyncStatus(tenant.id, "pending");
+        console.warn(`Temporary database error for tenant ${tenant.id}, will retry`);
+      } else {
+        // All other errors are permanent - mark as failed
+        await deps.tenantRepo.updateSyncStatus(tenant.id, "failed");
+        console.error(`Sync failed for tenant ${tenant.id}: ${errorMessage}`);
+      }
     } else {
+      // Unknown error type - mark as failed
       await deps.tenantRepo.updateSyncStatus(tenant.id, "failed");
     }
 

@@ -12,6 +12,19 @@ export class StockSnapshotRepository {
       throw new Error(`Batch size ${String(snapshots.length)} exceeds maximum ${String(MAX_BATCH_SIZE)}`);
     }
 
+    // Validate input data
+    for (const s of snapshots) {
+      if (!s.tenant_id || typeof s.tenant_id !== 'string') {
+        throw new Error('Invalid tenant_id in snapshot');
+      }
+      if (typeof s.bsale_variant_id !== 'number' || s.bsale_variant_id <= 0) {
+        throw new Error('Invalid bsale_variant_id in snapshot');
+      }
+      if (typeof s.quantity !== 'number' || s.quantity < 0) {
+        throw new Error('Invalid quantity in snapshot (must be >= 0)');
+      }
+    }
+
     const values: unknown[] = [];
     const placeholders: string[] = [];
 
@@ -54,6 +67,15 @@ export class StockSnapshotRepository {
     return snapshots.length;
   }
 
+  /**
+   * Get latest stock snapshots for all variants in a tenant
+   *
+   * Performance Note: This query uses DISTINCT ON which requires proper indexing.
+   * Recommended index (add to schema.sql or run migration):
+   *
+   * CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stock_snapshots_latest
+   * ON stock_snapshots (tenant_id, bsale_variant_id, bsale_office_id, snapshot_date DESC);
+   */
   async getLatestByTenant(tenantId: string): Promise<StockSnapshot[]> {
     return this.db.query<StockSnapshot>(
       `SELECT DISTINCT ON (bsale_variant_id, bsale_office_id) *
