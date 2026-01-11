@@ -66,7 +66,7 @@ export interface Alert {
   bsale_office_id: number | null;
   sku: string | null;
   product_name: string | null;
-  alert_type: "threshold_breach" | "low_velocity";
+  alert_type: "low_stock" | "out_of_stock" | "low_velocity";
   current_quantity: number;
   threshold_quantity: number | null;
   days_to_stockout: number | null;
@@ -82,7 +82,7 @@ export interface AlertInput {
   bsale_office_id: number | null;
   sku: string | null;
   product_name: string | null;
-  alert_type: "threshold_breach" | "low_velocity";
+  alert_type: "low_stock" | "out_of_stock" | "low_velocity";
   current_quantity: number;
   threshold_quantity: number | null;
   days_to_stockout: number | null;
