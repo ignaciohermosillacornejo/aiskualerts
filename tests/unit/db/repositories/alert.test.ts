@@ -170,7 +170,7 @@ describe("AlertRepository", () => {
         "user-456",
         100,
         1,
-        "threshold_breach"
+        "low_stock"
       );
 
       expect(result).toBe(true);
@@ -185,7 +185,7 @@ describe("AlertRepository", () => {
         "user-456",
         100,
         1,
-        "threshold_breach"
+        "low_stock"
       );
 
       expect(result).toBe(false);
