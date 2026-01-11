@@ -7,6 +7,11 @@ export class StockSnapshotRepository {
   async upsertBatch(snapshots: StockSnapshotInput[]): Promise<number> {
     if (snapshots.length === 0) return 0;
 
+    const MAX_BATCH_SIZE = 1000;
+    if (snapshots.length > MAX_BATCH_SIZE) {
+      throw new Error(`Batch size ${snapshots.length} exceeds maximum ${MAX_BATCH_SIZE}`);
+    }
+
     const values: unknown[] = [];
     const placeholders: string[] = [];
 
@@ -25,7 +30,7 @@ export class StockSnapshotRepository {
         s.quantity,
         s.quantity_reserved,
         s.quantity_available,
-        s.snapshot_date.toISOString().split("T")[0]
+        s.snapshot_date.toISOString().substring(0, 10)
       );
     });
 

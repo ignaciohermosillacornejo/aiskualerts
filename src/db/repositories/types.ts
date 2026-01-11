@@ -9,6 +9,15 @@ export interface Tenant {
   updated_at: Date;
 }
 
+export interface User {
+  id: string;
+  tenant_id: string;
+  email: string;
+  notification_enabled: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface StockSnapshot {
   id: string;
   tenant_id: string;

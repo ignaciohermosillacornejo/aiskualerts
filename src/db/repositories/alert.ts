@@ -35,6 +35,11 @@ export class AlertRepository {
   async createBatch(inputs: AlertInput[]): Promise<number> {
     if (inputs.length === 0) return 0;
 
+    const MAX_BATCH_SIZE = 1000;
+    if (inputs.length > MAX_BATCH_SIZE) {
+      throw new Error(`Batch size ${inputs.length} exceeds maximum ${MAX_BATCH_SIZE}`);
+    }
+
     const values: unknown[] = [];
     const placeholders: string[] = [];
 
