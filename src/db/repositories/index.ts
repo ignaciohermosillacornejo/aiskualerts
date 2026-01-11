@@ -2,6 +2,7 @@ export { TenantRepository } from "./tenant";
 export { StockSnapshotRepository } from "./stock-snapshot";
 export { ThresholdRepository } from "./threshold";
 export { AlertRepository } from "./alert";
+export { UserRepository } from "./user";
 
 export type {
   Tenant,
@@ -11,4 +12,5 @@ export type {
   Alert,
   AlertInput,
   SyncStatus,
+  User,
 } from "./types";
