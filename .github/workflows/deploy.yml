@@ -1,4 +1,4 @@
-name: Deploy to Hetzner
+name: Deploy
 
 on:
   workflow_dispatch:  # Manual deployment only
