@@ -70,13 +70,14 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p ~/.ssh
-          # Extract SSH key using jq to properly handle JSON format (jq is pre-installed on ubuntu-latest)
+          # Extract SSH key using jq to properly handle JSON format
           op item get "HETZNER_SSH_KEY" --vault="Dev" --format=json | \
             jq -r '.fields[] | select(.label=="private key") | .value' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Debug: verify key format
-          head -1 ~/.ssh/deploy_key
+          # Start ssh-agent and add key
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/deploy_key
 
           echo "✅ Loaded SSH key from 1Password"
 
@@ -86,22 +87,22 @@ jobs:
           ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
 
           # Create directory structure
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts/src"
+          ssh root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts/src"
 
           # Copy files
-          scp -i ~/.ssh/deploy_key .env root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp -i ~/.ssh/deploy_key docker-compose.yml root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp -i ~/.ssh/deploy_key nginx.conf root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp -i ~/.ssh/deploy_key -r src/db root@"$HETZNER_SERVER_IP":/opt/aiskualerts/src/
+          scp .env root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp docker-compose.yml root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp nginx.conf root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp -r src/db root@"$HETZNER_SERVER_IP":/opt/aiskualerts/src/
 
           # Set permissions
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "chmod 600 /opt/aiskualerts/.env"
+          ssh root@"$HETZNER_SERVER_IP" "chmod 600 /opt/aiskualerts/.env"
 
           echo "✅ Files copied to server"
 
       - name: Deploy on server
         run: |
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" << 'ENDSSH'
+          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
             set -euo pipefail
             cd /opt/aiskualerts
 
@@ -125,7 +126,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" << 'ENDSSH'
+          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
             set -euo pipefail
             cd /opt/aiskualerts
 
