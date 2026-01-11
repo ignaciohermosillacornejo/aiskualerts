@@ -1,0 +1,210 @@
+import { test, expect, describe, mock, type Mock } from "bun:test";
+import { AlertRepository } from "@/db/repositories/alert";
+import type { DatabaseClient } from "@/db/client";
+import type { Alert, AlertInput } from "@/db/repositories/types";
+
+const mockAlert: Alert = {
+  id: "123e4567-e89b-12d3-a456-426614174000",
+  tenant_id: "tenant-123",
+  user_id: "user-456",
+  bsale_variant_id: 100,
+  bsale_office_id: 1,
+  sku: "SKU-001",
+  product_name: "Test Product",
+  alert_type: "threshold_breach",
+  current_quantity: 5,
+  threshold_quantity: 10,
+  days_to_stockout: null,
+  status: "pending",
+  sent_at: null,
+  created_at: new Date(),
+};
+
+const mockAlertInput: AlertInput = {
+  tenant_id: "tenant-123",
+  user_id: "user-456",
+  bsale_variant_id: 100,
+  bsale_office_id: 1,
+  sku: "SKU-001",
+  product_name: "Test Product",
+  alert_type: "threshold_breach",
+  current_quantity: 5,
+  threshold_quantity: 10,
+  days_to_stockout: null,
+};
+
+interface MockDb {
+  query: Mock<() => Promise<unknown[]>>;
+  queryOne: Mock<() => Promise<unknown>>;
+  execute: Mock<() => Promise<void>>;
+}
+
+function createMockDb(): { db: DatabaseClient; mocks: MockDb } {
+  const mocks: MockDb = {
+    query: mock(() => Promise.resolve([])),
+    queryOne: mock(() => Promise.resolve(null)),
+    execute: mock(() => Promise.resolve()),
+  };
+  return {
+    db: mocks as unknown as DatabaseClient,
+    mocks,
+  };
+}
+
+describe("AlertRepository", () => {
+  describe("create", () => {
+    test("creates alert and returns it", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(mockAlert);
+
+      const repo = new AlertRepository(db);
+      const result = await repo.create(mockAlertInput);
+
+      expect(result).toEqual(mockAlert);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+
+    test("throws error when creation fails", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new AlertRepository(db);
+
+      let error: Error | null = null;
+      try {
+        await repo.create(mockAlertInput);
+      } catch (e) {
+        error = e as Error;
+      }
+      expect(error).not.toBeNull();
+      expect(error?.message).toBe("Failed to create alert");
+    });
+  });
+
+  describe("createBatch", () => {
+    test("returns 0 for empty array", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new AlertRepository(db);
+
+      const result = await repo.createBatch([]);
+
+      expect(result).toBe(0);
+      expect(mocks.execute).not.toHaveBeenCalled();
+    });
+
+    test("inserts batch of alerts", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new AlertRepository(db);
+
+      const result = await repo.createBatch([mockAlertInput]);
+
+      expect(result).toBe(1);
+      expect(mocks.execute).toHaveBeenCalled();
+    });
+  });
+
+  describe("getPendingByUser", () => {
+    test("returns pending alerts for user", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockAlert]);
+
+      const repo = new AlertRepository(db);
+      const result = await repo.getPendingByUser("user-456");
+
+      expect(result).toEqual([mockAlert]);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+  });
+
+  describe("getPendingByTenant", () => {
+    test("returns pending alerts for tenant", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockAlert]);
+
+      const repo = new AlertRepository(db);
+      const result = await repo.getPendingByTenant("tenant-123");
+
+      expect(result).toEqual([mockAlert]);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+  });
+
+  describe("markAsSent", () => {
+    test("does nothing for empty array", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new AlertRepository(db);
+
+      await repo.markAsSent([]);
+
+      expect(mocks.execute).not.toHaveBeenCalled();
+    });
+
+    test("updates status to sent", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new AlertRepository(db);
+
+      await repo.markAsSent(["alert-1", "alert-2"]);
+
+      expect(mocks.execute).toHaveBeenCalled();
+    });
+  });
+
+  describe("markAsDismissed", () => {
+    test("updates status to dismissed", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new AlertRepository(db);
+
+      await repo.markAsDismissed("alert-1");
+
+      expect(mocks.execute).toHaveBeenCalled();
+    });
+  });
+
+  describe("hasPendingAlert", () => {
+    test("returns true when pending alert exists", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ exists: true });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasPendingAlert(
+        "user-456",
+        100,
+        1,
+        "threshold_breach"
+      );
+
+      expect(result).toBe(true);
+    });
+
+    test("returns false when no pending alert exists", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ exists: false });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasPendingAlert(
+        "user-456",
+        100,
+        1,
+        "threshold_breach"
+      );
+
+      expect(result).toBe(false);
+    });
+
+    test("handles null office id", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ exists: true });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasPendingAlert(
+        "user-456",
+        100,
+        null,
+        "low_velocity"
+      );
+
+      expect(result).toBe(true);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+  });
+});
