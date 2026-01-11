@@ -72,10 +72,14 @@ jobs:
           mkdir -p ~/.ssh
           # Extract SSH key using jq to properly handle JSON format
           op item get "HETZNER_SSH_KEY" --vault="Dev" --format=json | \
-            jq -r '.fields[] | select(.label=="private key") | .value' > ~/.ssh/deploy_key
+            jq -r '.fields[] | select(.label=="private key") | .value' > ~/.ssh/deploy_key_temp
+
+          # Convert PKCS#8 format to OpenSSH format
+          ssh-keygen -p -N "" -m pem -f ~/.ssh/deploy_key_temp
+          mv ~/.ssh/deploy_key_temp ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          echo "✅ Loaded SSH key from 1Password"
+          echo "✅ Loaded and converted SSH key from 1Password"
 
       - name: Copy deployment files to server
         run: |
