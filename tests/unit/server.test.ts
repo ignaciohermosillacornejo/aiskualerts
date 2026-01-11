@@ -72,14 +72,15 @@ describe("createServer", () => {
     expect(putResponse.status).toBe(404);
   });
 
-  test("unknown routes return 404", async () => {
+  test("unknown routes return 404 with JSON error", async () => {
     serverInstance = createServer(testConfig);
 
     const response = await fetch(`http://localhost:${String(serverInstance.port)}/unknown`);
     expect(response.status).toBe(404);
+    expect(response.headers.get("content-type")).toContain("application/json");
 
-    const body = await response.text();
-    expect(body).toBe("Not Found");
+    const body = (await response.json()) as { error: string };
+    expect(body.error).toBe("Not Found");
   });
 
   test("root path returns 404", async () => {

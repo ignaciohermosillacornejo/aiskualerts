@@ -23,7 +23,7 @@ export function createServer(config: Config): Server<undefined> {
         return Response.json(createHealthResponse());
       }
 
-      return new Response("Not Found", { status: 404 });
+      return Response.json({ error: "Not Found" }, { status: 404 });
     },
   });
 }
