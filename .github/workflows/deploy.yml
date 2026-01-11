@@ -70,10 +70,14 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p ~/.ssh
-          # Extract SSH key using jq to properly handle JSON format
+          # Extract SSH key using jq to properly handle JSON format (jq is pre-installed on ubuntu-latest)
           op item get "HETZNER_SSH_KEY" --vault="Dev" --format=json | \
             jq -r '.fields[] | select(.label=="private key") | .value' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+
+          # Debug: verify key format
+          head -1 ~/.ssh/deploy_key
+
           echo "✅ Loaded SSH key from 1Password"
 
       - name: Copy deployment files to server
