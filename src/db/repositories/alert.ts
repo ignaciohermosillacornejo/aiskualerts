@@ -116,7 +116,7 @@ export class AlertRepository {
     userId: string,
     variantId: number,
     officeId: number | null,
-    alertType: "threshold_breach" | "low_velocity"
+    alertType: "low_stock" | "out_of_stock" | "low_velocity"
   ): Promise<boolean> {
     const result = await this.db.queryOne<{ exists: boolean }>(
       `SELECT EXISTS(
