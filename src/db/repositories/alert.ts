@@ -37,7 +37,7 @@ export class AlertRepository {
 
     const MAX_BATCH_SIZE = 1000;
     if (inputs.length > MAX_BATCH_SIZE) {
-      throw new Error(`Batch size ${inputs.length} exceeds maximum ${MAX_BATCH_SIZE}`);
+      throw new Error(`Batch size ${String(inputs.length)} exceeds maximum ${String(MAX_BATCH_SIZE)}`);
     }
 
     const values: unknown[] = [];

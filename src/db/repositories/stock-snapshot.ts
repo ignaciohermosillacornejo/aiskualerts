@@ -9,7 +9,7 @@ export class StockSnapshotRepository {
 
     const MAX_BATCH_SIZE = 1000;
     if (snapshots.length > MAX_BATCH_SIZE) {
-      throw new Error(`Batch size ${snapshots.length} exceeds maximum ${MAX_BATCH_SIZE}`);
+      throw new Error(`Batch size ${String(snapshots.length)} exceeds maximum ${String(MAX_BATCH_SIZE)}`);
     }
 
     const values: unknown[] = [];
