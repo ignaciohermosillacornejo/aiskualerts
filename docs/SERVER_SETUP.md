@@ -328,9 +328,82 @@ docker compose exec postgres psql -U aiskualerts -d aiskualerts -c "
 "
 ```
 
+## SSL Certificate Setup (Let's Encrypt)
+
+SSL is configured using Let's Encrypt with automatic renewal via certbot.
+
+### Initial Certificate Setup (One-Time)
+
+```bash
+# SSH into server
+ssh root@46.62.158.249
+
+# Install certbot
+apt update && apt install -y certbot
+
+# Stop nginx to free port 80
+cd /opt/aiskualerts && docker compose stop nginx
+
+# Obtain certificate
+certbot certonly --standalone -d aiskualerts.com -d www.aiskualerts.com
+
+# Create certbot webroot directory (for renewals)
+mkdir -p /var/www/certbot
+
+# Restart nginx
+docker compose up -d nginx
+
+# Verify HTTPS works
+curl -I https://aiskualerts.com/health
+```
+
+### Certificate Renewal
+
+Certbot automatically sets up a systemd timer for renewal. Verify it's active:
+
+```bash
+# Check timer status
+systemctl status certbot.timer
+
+# Test renewal (dry run)
+certbot renew --dry-run
+```
+
+For renewal to work with nginx running, you need to reload nginx after renewal:
+
+```bash
+# Create renewal hook
+cat > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh << 'EOF'
+#!/bin/bash
+cd /opt/aiskualerts && docker compose exec nginx nginx -s reload
+EOF
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+```
+
+### Certificate Locations
+
+- **Certificate**: `/etc/letsencrypt/live/aiskualerts.com/fullchain.pem`
+- **Private Key**: `/etc/letsencrypt/live/aiskualerts.com/privkey.pem`
+- **Renewal Config**: `/etc/letsencrypt/renewal/aiskualerts.com.conf`
+
+### Troubleshooting SSL
+
+```bash
+# Check certificate expiry
+openssl x509 -dates -noout -in /etc/letsencrypt/live/aiskualerts.com/fullchain.pem
+
+# Test SSL configuration
+curl -vI https://aiskualerts.com 2>&1 | grep -E "(SSL|subject|expire)"
+
+# Check nginx SSL config
+docker compose exec nginx nginx -t
+
+# View certbot logs
+tail -f /var/log/letsencrypt/letsencrypt.log
+```
+
 ## Next Steps
 
-- Configure domain name and SSL certificate
 - Set up automated backups
 - Configure monitoring and alerts
 - Review and optimize Docker image size
