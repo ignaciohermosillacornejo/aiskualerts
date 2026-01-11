@@ -75,10 +75,6 @@ jobs:
             jq -r '.fields[] | select(.label=="private key") | .value' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Start ssh-agent and add key
-          eval "$(ssh-agent -s)"
-          ssh-add ~/.ssh/deploy_key
-
           echo "✅ Loaded SSH key from 1Password"
 
       - name: Copy deployment files to server
@@ -87,22 +83,22 @@ jobs:
           ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
 
           # Create directory structure
-          ssh root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts/src"
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts/src"
 
           # Copy files
-          scp .env root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp docker-compose.yml root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp nginx.conf root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp -r src/db root@"$HETZNER_SERVER_IP":/opt/aiskualerts/src/
+          scp -i ~/.ssh/deploy_key .env root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp -i ~/.ssh/deploy_key docker-compose.yml root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp -i ~/.ssh/deploy_key nginx.conf root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp -i ~/.ssh/deploy_key -r src/db root@"$HETZNER_SERVER_IP":/opt/aiskualerts/src/
 
           # Set permissions
-          ssh root@"$HETZNER_SERVER_IP" "chmod 600 /opt/aiskualerts/.env"
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "chmod 600 /opt/aiskualerts/.env"
 
           echo "✅ Files copied to server"
 
       - name: Deploy on server
         run: |
-          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" << 'ENDSSH'
             set -euo pipefail
             cd /opt/aiskualerts
 
@@ -126,7 +122,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" << 'ENDSSH'
             set -euo pipefail
             cd /opt/aiskualerts
 
