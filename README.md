@@ -39,15 +39,18 @@ bun run check
 - E2E integration tests against live API
 - 1Password secret management
 
-### ⏸️ Phase 2: OAuth & Tenant Onboarding (Waiting for Bsale App Approval)
-- Bsale OAuth flow
-- Tenant creation with access token storage
-- Cookie-based session management
-- Initial stock sync trigger
+### ✅ Phase 2: Core Backend Infrastructure (Complete)
+- HTTP server with health endpoint
+- Database repositories (tenants, users, thresholds, stock snapshots, alerts)
+- Tenant sync service with Bsale integration
+- Scheduler infrastructure for daily sync jobs
+- Alert generation logic (low_stock, out_of_stock, low_velocity)
+- Full integration in main entry point
+- 120+ unit tests with comprehensive coverage
 
 ### 📋 Future Phases
-- Phase 3: Sync & Alert Engine
-- Phase 4: Notifications
+- Phase 3: OAuth & Tenant Onboarding
+- Phase 4: Notifications & Email Digests
 - Phase 5: Web App & Dashboard
 - Phase 6: Production Deployment
 
@@ -259,12 +262,14 @@ See [docs/SERVER_SETUP.md](docs/SERVER_SETUP.md) for complete operations guide.
 aiskualerts/
 ├── src/
 │   ├── bsale/          # Bsale API client
-│   ├── db/             # Database layer
+│   ├── db/             # Database layer & repositories
+│   ├── sync/           # Tenant sync service
+│   ├── alerts/         # Alert generation logic
+│   ├── scheduler/      # Job scheduler
+│   ├── jobs/           # Background jobs
 │   ├── lib/            # Shared utilities
-│   ├── sync/           # (Phase 3)
-│   ├── alerts/         # (Phase 3)
 │   ├── notifications/  # (Phase 4)
-│   ├── api/            # (Phase 2)
+│   ├── api/            # (Phase 3)
 │   └── frontend/       # (Phase 5)
 ├── tests/
 │   ├── bsale/
@@ -319,9 +324,10 @@ For Bsale app approval or questions, contact: [your-contact]
 
 ---
 
-**Current Phase:** 1 (Complete) ✅
-**Next Phase:** 2 (Waiting for Bsale approval) ⏸️
+**Current Phase:** 2 (Complete) ✅
+**Next Phase:** 3 (OAuth & Tenant Onboarding) 🚀
 **Test Coverage:** 100% ✅
 **Secrets on Disk:** Zero ✅
+**Unit Tests:** 120+ passing ✅
 **Production Status:** ✅ Live at http://46.62.158.249
-**Latest Deployment:** 2026-01-11 (commit `6706027`)
+**Latest Deployment:** 2026-01-11 (Phase 2 complete)
