@@ -188,23 +188,22 @@ See [docs/SERVER_SETUP.md](docs/SERVER_SETUP.md) for detailed setup guide.
 
 ### Deploying to Production
 
-**Automatic**: Push to `main` branch triggers GitHub Actions deployment
-
-**Manual**: Run via GitHub Actions UI:
+**Manual Deployment Only**: Run via GitHub Actions UI:
 1. Go to Actions → Deploy to Hetzner
 2. Click "Run workflow"
 3. Select branch and deploy
 
 **Deployment Process** (Automated via GitHub Actions):
-1. 🔐 Inject secrets from 1Password → `.env`
-2. 🐳 Build Docker image with Bun + dependencies
-3. 📦 Export image to `aiskualerts.tar.gz`
-4. 🚀 SCP tar + `.env` + configs to Hetzner server
-5. ⚡ Load image + start containers via `docker compose`
-6. ✅ Verify health check
+1. 🏗️ Build Docker image in CI
+2. 📦 Push to GitHub Container Registry (GHCR)
+3. 🔐 Inject secrets from 1Password → `.env`
+4. 🚀 SCP `.env` + configs to Hetzner server
+5. ⬇️ Server pulls pre-built image from GHCR
+6. ⚡ Start containers via `docker compose`
+7. ✅ Verify health check
 
 **What's on the server**:
-- Docker image (built in CI)
+- Pre-built Docker image (from GHCR)
 - `.env` file (generated fresh each deployment)
 - `docker-compose.yml` (orchestration)
 
@@ -213,6 +212,12 @@ See [docs/SERVER_SETUP.md](docs/SERVER_SETUP.md) for detailed setup guide.
 - No source code
 - No git repository
 - No build dependencies
+
+**Benefits**:
+- ✅ Faster deployments (no building on server)
+- ✅ Built-in rollback via GHCR tags
+- ✅ GitHub Actions cache for faster CI builds
+- ✅ No secrets in container registry (injected at runtime)
 
 ### Server Operations
 
@@ -226,7 +231,8 @@ docker compose logs -f
 docker compose restart
 
 # Rollback to previous version
-docker load < backups/aiskualerts-YYYYMMDD-HHMMSS.tar.gz
+docker pull ghcr.io/ignaciohermosillacornejo/aiskualerts:<commit-sha>
+docker tag ghcr.io/ignaciohermosillacornejo/aiskualerts:<commit-sha> ghcr.io/ignaciohermosillacornejo/aiskualerts:latest
 docker compose up -d
 ```
 

@@ -4,8 +4,38 @@ on:
   workflow_dispatch:  # Manual deployment only
 
 jobs:
+  build-and-push:
+    name: Build and Push to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   deploy:
-    name: Build and Deploy to Hetzner
+    name: Deploy to Server
+    needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
@@ -15,25 +45,6 @@ jobs:
       - name: Install 1Password CLI
         uses: 1password/install-cli-action@v1
 
-      - name: Load SSH key and server IP from 1Password
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          # Get SSH private key and ensure proper format
-          mkdir -p ~/.ssh
-          op read "op://Dev/HETZNER_SSH_KEY/private key" > ~/.ssh/id_ed25519
-          echo "" >> ~/.ssh/id_ed25519  # Ensure trailing newline
-          chmod 600 ~/.ssh/id_ed25519
-
-          # Get server IP
-          HETZNER_SERVER_IP=$(op read "op://Dev/HETZNER_SERVER_IP/credential")
-          echo "HETZNER_SERVER_IP=$HETZNER_SERVER_IP" >> $GITHUB_ENV
-
-          # Add server to known hosts
-          ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
-
-          echo "✅ Loaded SSH key and server IP from 1Password"
-
       - name: Generate .env file from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -41,60 +52,61 @@ jobs:
           # Use op inject to generate .env from .env.tpl
           op inject -i .env.tpl -o .env
           chmod 600 .env
-
           echo "✅ Generated .env file with secrets from 1Password"
 
-      - name: Build Docker image
+      - name: Get server IP from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          docker build -t aiskualerts:latest .
-          echo "✅ Docker image built successfully"
+          HETZNER_SERVER_IP=$(op read "op://Dev/HETZNER_SERVER_IP/credential")
+          echo "HETZNER_SERVER_IP=$HETZNER_SERVER_IP" >> $GITHUB_ENV
+          echo "✅ Loaded server IP from 1Password"
 
-      - name: Export Docker image to tar
+      - name: Get SSH key from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          docker save aiskualerts:latest | gzip > aiskualerts.tar.gz
-          ls -lh aiskualerts.tar.gz
-          echo "✅ Docker image exported to tar.gz"
+          mkdir -p ~/.ssh
+          op read "op://Dev/HETZNER_SSH_KEY/private key" > ~/.ssh/deploy_key
+          echo "" >> ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "✅ Loaded SSH key from 1Password"
 
-      - name: Transfer files to server
+      - name: Copy deployment files to server
         run: |
-          # Create deployment directory on server
-          ssh root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts/backups"
+          # Add server to known hosts
+          ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
 
-          # Backup previous tar if it exists (for rollback)
-          ssh root@"$HETZNER_SERVER_IP" "
-            if [ -f /opt/aiskualerts/aiskualerts.tar.gz ]; then
-              mv /opt/aiskualerts/aiskualerts.tar.gz /opt/aiskualerts/backups/aiskualerts-\$(date +%Y%m%d-%H%M%S).tar.gz
-            fi
-          "
+          # Create directory structure
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts/src"
 
-          # Transfer new deployment files
-          scp aiskualerts.tar.gz root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp .env root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp docker-compose.yml root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp nginx.conf root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp -r src/db root@"$HETZNER_SERVER_IP":/opt/aiskualerts/src/
+          # Copy files
+          scp -i ~/.ssh/deploy_key .env root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp -i ~/.ssh/deploy_key docker-compose.yml root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp -i ~/.ssh/deploy_key nginx.conf root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
+          scp -i ~/.ssh/deploy_key -r src/db root@"$HETZNER_SERVER_IP":/opt/aiskualerts/src/
 
           # Set permissions
-          ssh root@"$HETZNER_SERVER_IP" "chmod 600 /opt/aiskualerts/.env"
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "chmod 600 /opt/aiskualerts/.env"
 
-          echo "✅ Files transferred to server"
+          echo "✅ Files copied to server"
 
       - name: Deploy on server
         run: |
-          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" << 'ENDSSH'
             set -euo pipefail
             cd /opt/aiskualerts
 
-            # Load Docker image from tar
-            echo "Loading Docker image..."
-            docker load < aiskualerts.tar.gz
+            # Login to GHCR to pull private image
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Stop existing containers
-            echo "Stopping existing containers..."
-            docker compose down || true
+            # Pull latest image
+            docker compose pull app
+
+            # Stop and remove old containers
+            docker compose down
 
             # Start new containers
-            echo "Starting containers..."
             docker compose up -d
 
             # Clean up old images
@@ -105,11 +117,10 @@ jobs:
 
       - name: Verify deployment
         run: |
-          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" << 'ENDSSH'
             set -euo pipefail
             cd /opt/aiskualerts
 
-            # Wait for application to be healthy
             echo "Waiting for application to be healthy..."
             for i in {1..30}; do
               if curl -f http://localhost:3000/health > /dev/null 2>&1; then
@@ -126,21 +137,11 @@ jobs:
             exit 1
           ENDSSH
 
-      - name: Cleanup old backups
-        if: success()
-        run: |
-          # Keep only last 3 backups
-          ssh root@"$HETZNER_SERVER_IP" << 'ENDSSH'
-            cd /opt/aiskualerts/backups
-            ls -t aiskualerts-*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm
-          ENDSSH
-
       - name: Cleanup sensitive files
         if: always()
         run: |
           rm -f .env
-          rm -f aiskualerts.tar.gz
-          rm -f ~/.ssh/id_ed25519
+          rm -f ~/.ssh/deploy_key
           echo "✅ Cleaned up sensitive files"
 
       - name: Deployment summary
@@ -148,6 +149,6 @@ jobs:
         run: |
           echo "✅ Deployment successful!"
           echo "Server: $HETZNER_SERVER_IP"
+          echo "Image: ghcr.io/${{ github.repository }}:${{ github.sha }}"
           echo "Branch: ${GITHUB_REF_NAME}"
           echo "Commit: ${GITHUB_SHA::8}"
-          echo "Image: aiskualerts:latest"
