@@ -70,14 +70,9 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p ~/.ssh
-          # Extract SSH key using jq to properly handle JSON format
-          op item get "HETZNER_SSH_KEY" --vault="Dev" --format=json | \
-            jq -r '.fields[] | select(.label=="private key") | .value' > ~/.ssh/deploy_key
+          # Extract SSH key in OpenSSH format using ssh-format query parameter
+          op read "op://Dev/HETZNER_SSH_KEY/private key?ssh-format=openssh" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-
-          # Debug: Check key format
-          echo "Key format: $(head -1 ~/.ssh/deploy_key)"
-          echo "Key line count: $(wc -l < ~/.ssh/deploy_key)"
 
           echo "✅ Loaded SSH key from 1Password"
 
