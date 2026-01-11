@@ -70,8 +70,8 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p ~/.ssh
-          # Write key and ensure it ends with exactly one newline
-          op read "op://Dev/HETZNER_SSH_KEY/private key" | sed -e '$a\' > ~/.ssh/deploy_key
+          # Write key exactly as stored in 1Password (already properly formatted)
+          op read "op://Dev/HETZNER_SSH_KEY/private key" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           echo "✅ Loaded SSH key from 1Password"
 
