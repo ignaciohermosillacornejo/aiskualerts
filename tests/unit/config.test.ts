@@ -74,4 +74,38 @@ describe("loadConfig", () => {
     expect(typeof config.port).toBe("number");
     expect(config.port).toBe(3001);
   });
+
+  test("returns default sync config values", () => {
+    const config = loadConfig({});
+
+    expect(config.syncEnabled).toBe(true);
+    expect(config.syncHour).toBe(2);
+    expect(config.syncMinute).toBe(0);
+    expect(config.syncBatchSize).toBe(100);
+    expect(config.syncTenantDelay).toBe(5000);
+  });
+
+  test("parses sync config from environment", () => {
+    const config = loadConfig({
+      SYNC_ENABLED: "false",
+      SYNC_HOUR: "10",
+      SYNC_MINUTE: "30",
+      SYNC_BATCH_SIZE: "50",
+      SYNC_TENANT_DELAY_MS: "3000",
+    });
+
+    expect(config.syncEnabled).toBe(false);
+    expect(config.syncHour).toBe(10);
+    expect(config.syncMinute).toBe(30);
+    expect(config.syncBatchSize).toBe(50);
+    expect(config.syncTenantDelay).toBe(3000);
+  });
+
+  test("throws on invalid sync hour (out of range)", () => {
+    expect(() => loadConfig({ SYNC_HOUR: "25" })).toThrow();
+  });
+
+  test("throws on invalid sync minute (out of range)", () => {
+    expect(() => loadConfig({ SYNC_MINUTE: "60" })).toThrow();
+  });
 });

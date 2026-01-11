@@ -5,6 +5,11 @@ import type { Config } from "@/config";
 const testConfig: Config = {
   port: 0, // Use port 0 to get a random available port
   nodeEnv: "test",
+  syncEnabled: false,
+  syncHour: 2,
+  syncMinute: 0,
+  syncBatchSize: 100,
+  syncTenantDelay: 5000,
 };
 
 let serverInstance: ReturnType<typeof createServer> | null = null;
@@ -94,6 +99,11 @@ describe("createServer", () => {
     const customConfig: Config = {
       port: 0,
       nodeEnv: "test",
+      syncEnabled: false,
+      syncHour: 2,
+      syncMinute: 0,
+      syncBatchSize: 100,
+      syncTenantDelay: 5000,
     };
     serverInstance = createServer(customConfig);
     expect(serverInstance.port).toBeGreaterThan(0);
