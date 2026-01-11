@@ -1,0 +1,91 @@
+export interface Tenant {
+  id: string;
+  bsale_client_code: string;
+  bsale_client_name: string;
+  bsale_access_token: string;
+  sync_status: "pending" | "syncing" | "success" | "failed";
+  last_sync_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface User {
+  id: string;
+  tenant_id: string;
+  email: string;
+  notification_enabled: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface StockSnapshot {
+  id: string;
+  tenant_id: string;
+  bsale_variant_id: number;
+  bsale_office_id: number | null;
+  sku: string | null;
+  barcode: string | null;
+  product_name: string | null;
+  quantity: number;
+  quantity_reserved: number;
+  quantity_available: number;
+  snapshot_date: Date;
+  created_at: Date;
+}
+
+export interface StockSnapshotInput {
+  tenant_id: string;
+  bsale_variant_id: number;
+  bsale_office_id: number | null;
+  sku: string | null;
+  barcode: string | null;
+  product_name: string | null;
+  quantity: number;
+  quantity_reserved: number;
+  quantity_available: number;
+  snapshot_date: Date;
+}
+
+export interface Threshold {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  bsale_variant_id: number | null;
+  bsale_office_id: number | null;
+  min_quantity: number;
+  days_warning: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface Alert {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  bsale_variant_id: number;
+  bsale_office_id: number | null;
+  sku: string | null;
+  product_name: string | null;
+  alert_type: "threshold_breach" | "low_velocity";
+  current_quantity: number;
+  threshold_quantity: number | null;
+  days_to_stockout: number | null;
+  status: "pending" | "sent" | "dismissed";
+  sent_at: Date | null;
+  created_at: Date;
+}
+
+export interface AlertInput {
+  tenant_id: string;
+  user_id: string;
+  bsale_variant_id: number;
+  bsale_office_id: number | null;
+  sku: string | null;
+  product_name: string | null;
+  alert_type: "threshold_breach" | "low_velocity";
+  current_quantity: number;
+  threshold_quantity: number | null;
+  days_to_stockout: number | null;
+}
+
+export type SyncStatus = "pending" | "syncing" | "success" | "failed";
