@@ -108,7 +108,7 @@ describe("createAlertInput", () => {
     expect(result).toBeNull();
   });
 
-  test("creates AlertInput when shouldAlert is true", () => {
+  test("creates AlertInput with low_stock type when stock is low but not zero", () => {
     const lowStockSnapshot: StockSnapshot = {
       ...mockSnapshot,
       quantity_available: 5,
@@ -129,8 +129,35 @@ describe("createAlertInput", () => {
     expect(result?.bsale_office_id).toBe(1);
     expect(result?.sku).toBe("SKU-001");
     expect(result?.product_name).toBe("Test Product");
-    expect(result?.alert_type).toBe("threshold_breach");
+    expect(result?.alert_type).toBe("low_stock");
     expect(result?.current_quantity).toBe(5);
+    expect(result?.threshold_quantity).toBe(10);
+    expect(result?.days_to_stockout).toBeNull();
+  });
+
+  test("creates AlertInput with out_of_stock type when quantity is zero", () => {
+    const outOfStockSnapshot: StockSnapshot = {
+      ...mockSnapshot,
+      quantity_available: 0,
+    };
+    const check = {
+      threshold: mockThreshold,
+      snapshot: outOfStockSnapshot,
+      shouldAlert: true,
+      reason: "Stock 0 is below threshold 10",
+    };
+
+    const result = createAlertInput(check);
+
+    expect(result).not.toBeNull();
+    expect(result?.tenant_id).toBe("tenant-123");
+    expect(result?.user_id).toBe("user-456");
+    expect(result?.bsale_variant_id).toBe(100);
+    expect(result?.bsale_office_id).toBe(1);
+    expect(result?.sku).toBe("SKU-001");
+    expect(result?.product_name).toBe("Test Product");
+    expect(result?.alert_type).toBe("out_of_stock");
+    expect(result?.current_quantity).toBe(0);
     expect(result?.threshold_quantity).toBe(10);
     expect(result?.days_to_stockout).toBeNull();
   });

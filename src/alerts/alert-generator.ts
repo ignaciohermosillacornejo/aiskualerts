@@ -51,6 +51,12 @@ export function createAlertInput(
     return null;
   }
 
+  // Determine alert type based on quantity
+  const alertType =
+    check.snapshot.quantity_available === 0
+      ? "out_of_stock"
+      : "low_stock";
+
   return {
     tenant_id: check.threshold.tenant_id,
     user_id: check.threshold.user_id,
@@ -58,7 +64,7 @@ export function createAlertInput(
     bsale_office_id: check.snapshot.bsale_office_id,
     sku: check.snapshot.sku,
     product_name: check.snapshot.product_name,
-    alert_type: "threshold_breach",
+    alert_type: alertType,
     current_quantity: check.snapshot.quantity_available,
     threshold_quantity: check.threshold.min_quantity,
     days_to_stockout: null,
@@ -110,12 +116,18 @@ export async function generateAlertsForUser(
       const check = checkThresholdBreach(threshold, snapshot);
 
       if (check.shouldAlert && check.snapshot) {
+        // Determine alert type for pending check
+        const alertType =
+          check.snapshot.quantity_available === 0
+            ? "out_of_stock"
+            : "low_stock";
+
         // Check if there's already a pending alert
         const hasPending = await deps.hasPendingAlert(
           userId,
           check.snapshot.bsale_variant_id,
           check.snapshot.bsale_office_id,
-          "threshold_breach"
+          alertType
         );
 
         if (!hasPending) {

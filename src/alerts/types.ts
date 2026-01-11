@@ -11,7 +11,7 @@ export interface AlertGeneratorDependencies {
     userId: string,
     variantId: number,
     officeId: number | null,
-    alertType: "threshold_breach" | "low_velocity"
+    alertType: "low_stock" | "out_of_stock" | "low_velocity"
   ) => Promise<boolean>;
   createAlerts: (alerts: AlertInput[]) => Promise<number>;
 }
