@@ -10,10 +10,10 @@ import type {
 
 describe("Server Routing", () => {
   let server: ReturnType<typeof createServer>;
-  const baseUrl = "http://localhost:3001";
+  let baseUrl: string;
 
   const mockConfig: Config = {
-    port: 3001,
+    port: 0, // Use port 0 to get a random available port
     nodeEnv: "test" as const,
     syncEnabled: false,
     syncHour: 2,
@@ -24,6 +24,7 @@ describe("Server Routing", () => {
 
   beforeAll(async () => {
     server = createServer(mockConfig, {});
+    baseUrl = `http://localhost:${String(server.port)}`;
     // Wait for server to be ready
     await new Promise(resolve => setTimeout(resolve, 100));
   });
