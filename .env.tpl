@@ -39,11 +39,11 @@ BSALE_ACCESS_TOKEN=op://Dev/BSALE_DEMO_ACCESS_TOKEN/credential
 BSALE_API_BASE_URL=https://api.bsale.io
 
 # Bsale OAuth Configuration (for Phase 3 - Tenant Onboarding)
-# Uncomment when Bsale application is approved and tokens are available in 1Password
-# BSALE_APP_ID=op://Dev/BSALE_APP_ID/credential
-# BSALE_INTEGRATOR_TOKEN=op://Dev/BSALE_INTEGRATOR_TOKEN/credential
+# Uncomment and add secrets to 1Password when Bsale application is approved:
+# BSALE_APP_ID=<add to 1Password: Dev/BSALE_APP_ID>
+# BSALE_INTEGRATOR_TOKEN=<add to 1Password: Dev/BSALE_INTEGRATOR_TOKEN>
 # BSALE_REDIRECT_URI=https://aiskualerts.com/api/auth/bsale/callback
-# BSALE_OAUTH_BASE_URL=https://oauth.bsale.io  # Optional, defaults to https://oauth.bsale.io
+# BSALE_OAUTH_BASE_URL=https://oauth.bsale.io
 
 # ===========================================
 # Email Configuration (Resend - for Phase 3)
