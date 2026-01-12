@@ -3,17 +3,16 @@ name: AI Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
-  push:
-    branches: [main]
 
 jobs:
-  # Auto-rebase approved PRs when main is updated and they have merge conflicts
-  auto-rebase-approved-prs:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  review:
+    # Skip draft PRs
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+      issues: write
       id-token: write
 
     steps:
@@ -26,61 +25,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Find and rebase approved PRs with conflicts
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Find all open PRs that are approved and have merge conflicts
-          approved_prs=$(gh pr list --state open --json number,headRefName,mergeable,reviewDecision \
-            --jq '.[] | select(.reviewDecision == "APPROVED" and .mergeable == "CONFLICTING") | "\(.number) \(.headRefName)"')
-
-          if [ -z "$approved_prs" ]; then
-            echo "No approved PRs with merge conflicts found"
-            exit 0
-          fi
-
-          echo "Found approved PRs with conflicts:"
-          echo "$approved_prs"
-
-          echo "$approved_prs" | while read -r pr_number branch; do
-            [ -z "$pr_number" ] && continue
-            echo "Processing PR #$pr_number (branch: $branch)"
-
-            # Fetch and checkout the PR branch
-            git fetch origin "$branch"
-            git checkout "$branch"
-
-            # Attempt to rebase onto main
-            git fetch origin main
-            if git rebase origin/main; then
-              git push --force-with-lease origin "$branch"
-              gh pr comment "$pr_number" --body "🔄 Automatically rebased onto main to resolve merge conflicts."
-              echo "✅ Successfully rebased PR #$pr_number"
-            else
-              git rebase --abort
-              gh pr comment "$pr_number" --body "⚠️ Automatic rebase failed due to conflicts that require manual resolution."
-              echo "❌ Failed to rebase PR #$pr_number - manual intervention required"
-            fi
-
-            # Return to main for next iteration
-            git checkout main
-          done
-
-  review:
-    # Skip draft PRs, only run on pull_request events
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
-      id-token: write
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Load secrets from 1Password
         uses: 1password/load-secrets-action@v2
@@ -128,11 +72,17 @@ jobs:
 
             After completing your review, you MUST submit an official PR review:
 
-            - If NO blocking issues found (or only minor suggestions), run BOTH commands in sequence:
-              1. First approve: gh pr review ${{ github.event.pull_request.number }} --approve -b "✅ LGTM - No blocking issues found"
-              2. Then enable auto-merge: gh pr merge ${{ github.event.pull_request.number }} --auto --squash --delete-branch
+            - If NO blocking issues found (or only minor suggestions):
+              1. First, check if the PR has merge conflicts by running: gh pr view ${{ github.event.pull_request.number }} --json mergeable --jq '.mergeable'
+              2. If mergeable is "CONFLICTING", rebase the branch onto main before approving:
+                 - Run: git fetch origin main
+                 - Run: git rebase origin/main
+                 - If rebase succeeds, run: git push --force-with-lease origin HEAD
+                 - If rebase fails due to conflicts, abort with: git rebase --abort (and note in your review that manual rebase is needed)
+              3. Approve: gh pr review ${{ github.event.pull_request.number }} --approve -b "✅ LGTM - No blocking issues found"
+              4. Enable auto-merge: gh pr merge ${{ github.event.pull_request.number }} --auto --squash --delete-branch
 
             - If blocking issues found (security, bugs, or major quality issues):
               gh pr review ${{ github.event.pull_request.number }} --request-changes -b "⚠️ Please address the review comments before merging"
 
-          claude_args: '--model claude-sonnet-4-20250514 --allowed-tools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr merge:*),Read,Grep,Glob"'
+          claude_args: '--model claude-sonnet-4-20250514 --allowed-tools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr merge:*),Bash(git fetch:*),Bash(git rebase:*),Bash(git push:*),Read,Grep,Glob"'
