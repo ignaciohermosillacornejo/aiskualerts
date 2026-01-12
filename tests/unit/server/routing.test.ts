@@ -207,16 +207,16 @@ describe("Server Routing", () => {
       expect(setCookie).toContain("Max-Age=0");
     });
 
-    test("login without credentials returns 401", async () => {
+    test("login without credentials returns 400 validation error", async () => {
       const response = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(400);
       const data = await response.json() as ErrorResponse;
-      expect(data.error).toBeDefined();
+      expect(data.error).toBe("Validation failed");
     });
   });
 
