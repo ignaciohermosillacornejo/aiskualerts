@@ -24,13 +24,18 @@ const fallbackHTML = `<!DOCTYPE html>
 // Import HTML or use fallback - use dynamic import to handle test environment
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let indexRoute: any;
+
+console.log("[server.ts] NODE_ENV:", process.env.NODE_ENV);
+
 if (process.env.NODE_ENV === "test") {
   // In test environment, use simple Response
+  console.log("[server.ts] Using fallback HTML for test environment");
   indexRoute = { GET: (): Response => new Response(fallbackHTML, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   }) };
 } else {
   // In development/production, use bundled HTML for HMR support
+  console.log("[server.ts] Using bundled HTML import");
   indexRoute = (await import("./frontend/index.html")).default;
 }
 
