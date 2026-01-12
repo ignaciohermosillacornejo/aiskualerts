@@ -11,12 +11,12 @@ import type {
 // Helper to wait for server to be ready
 async function waitForServer(url: string, maxAttempts = 50): Promise<void> {
   // eslint-disable-next-line no-console
-  console.log(`[waitForServer] Waiting for ${url}, fetch type:`, typeof fetch);
+  console.log(`[waitForServer] Waiting for ${url}, fetch type:`, typeof fetch, "Response type:", typeof Response);
   for (let i = 0; i < maxAttempts; i++) {
     try {
       const response = await fetch(`${url}/health`);
       // eslint-disable-next-line no-console
-      console.log(`[waitForServer] Attempt ${String(i + 1)}: status=${String(response.status)}, ok=${String(response.ok)}`);
+      console.log(`[waitForServer] Attempt ${String(i + 1)}: status=${String(response.status)}, ok=${String(response.ok)}, constructor=${response.constructor.name}, keys=${Object.keys(response).join(",")}`);
       if (response.ok) {
         return;
       }
