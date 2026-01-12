@@ -127,6 +127,26 @@ bun run check
 
 See [docs/TESTING.md](docs/TESTING.md) for testing guide.
 
+### Git Hooks
+
+Pre-commit hooks automatically run lint and unit tests before each commit:
+
+```bash
+# Install hooks (one-time setup)
+./scripts/install-hooks.sh
+
+# Hooks will now run automatically on commit
+git commit -m "your changes"
+
+# Skip hooks if needed (not recommended)
+git commit --no-verify
+```
+
+Hooks ensure:
+- ✅ No linting errors
+- ✅ All unit tests pass
+- ✅ Code quality maintained
+
 ### Secret Management
 
 **Local Development:**
