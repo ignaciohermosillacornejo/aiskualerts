@@ -25,17 +25,17 @@ const fallbackHTML = `<!DOCTYPE html>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let indexRoute: any;
 
-console.log("[server.ts] NODE_ENV:", process.env.NODE_ENV);
+console.info("[server.ts] NODE_ENV:", process.env.NODE_ENV);
 
 if (process.env.NODE_ENV === "test") {
   // In test environment, use simple Response handler
-  console.log("[server.ts] Using fallback HTML for test environment");
+  console.info("[server.ts] Using fallback HTML for test environment");
   indexRoute = (): Response => new Response(fallbackHTML, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 } else {
   // In development/production, use bundled HTML for HMR support
-  console.log("[server.ts] Using bundled HTML import");
+  console.info("[server.ts] Using bundled HTML import");
   indexRoute = (await import("./frontend/index.html")).default;
 }
 
