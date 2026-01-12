@@ -68,7 +68,7 @@ jobs:
 
             - If NO blocking issues found (or only minor suggestions), run BOTH commands in sequence:
               1. First approve: gh pr review ${{ github.event.pull_request.number }} --approve -b "✅ LGTM - No blocking issues found"
-              2. Then enable auto-merge: gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+              2. Then enable auto-merge: gh pr merge ${{ github.event.pull_request.number }} --auto --squash --delete-branch
 
             - If blocking issues found (security, bugs, or major quality issues):
               gh pr review ${{ github.event.pull_request.number }} --request-changes -b "⚠️ Please address the review comments before merging"
