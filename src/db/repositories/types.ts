@@ -13,9 +13,10 @@ export interface User {
   id: string;
   tenant_id: string;
   email: string;
+  name: string | null;
   notification_enabled: boolean;
+  notification_email: string | null;
   created_at: Date;
-  updated_at: Date;
 }
 
 export interface StockSnapshot {
@@ -89,3 +90,11 @@ export interface AlertInput {
 }
 
 export type SyncStatus = "pending" | "syncing" | "success" | "failed";
+
+export interface Session {
+  id: string;
+  userId: string;
+  token: string;
+  expiresAt: Date;
+  createdAt: Date;
+}

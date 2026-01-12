@@ -38,10 +38,11 @@ PORT=3000
 BSALE_ACCESS_TOKEN=op://Dev/BSALE_DEMO_ACCESS_TOKEN/credential
 BSALE_API_BASE_URL=https://api.bsale.io
 
-# Bsale OAuth Configuration (for Phase 2)
-# BSALE_APP_ID=<will be added in Phase 2>
-# BSALE_INTEGRATOR_TOKEN=<will be added in Phase 2>
-# BSALE_REDIRECT_URI=https://aiskualerts.com/api/auth/bsale/callback
+# Bsale OAuth Configuration (for Phase 3 - Tenant Onboarding)
+BSALE_APP_ID=op://Dev/BSALE_APP_ID/credential
+BSALE_INTEGRATOR_TOKEN=op://Dev/BSALE_INTEGRATOR_TOKEN/credential
+BSALE_REDIRECT_URI=https://aiskualerts.com/api/auth/bsale/callback
+# BSALE_OAUTH_BASE_URL=https://oauth.bsale.io  # Optional, defaults to https://oauth.bsale.io
 
 # ===========================================
 # Email Configuration (Resend - for Phase 3)
@@ -49,9 +50,13 @@ BSALE_API_BASE_URL=https://api.bsale.io
 # RESEND_API_KEY=<will be added in Phase 3>
 
 # ===========================================
-# Session Secret (for Phase 2)
+# Sync Configuration
 # ===========================================
-# SESSION_SECRET=<will be added in Phase 2>
+SYNC_ENABLED=true
+SYNC_HOUR=2
+SYNC_MINUTE=0
+SYNC_BATCH_SIZE=100
+SYNC_TENANT_DELAY_MS=5000
 
 # ===========================================
 # Test Database (Local Development Only)
