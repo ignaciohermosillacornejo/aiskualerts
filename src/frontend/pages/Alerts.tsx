@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../api/client";
+import { sanitizeText } from "../utils/sanitize";
 import type { Alert } from "../types";
 
 export function Alerts() {
@@ -108,8 +109,8 @@ export function Alerts() {
                         {alert.type === "threshold_breach" ? "Umbral" : "Velocidad"}
                       </span>
                     </td>
-                    <td>{alert.productName}</td>
-                    <td>{alert.message}</td>
+                    <td>{sanitizeText(alert.productName)}</td>
+                    <td>{sanitizeText(alert.message)}</td>
                     <td>{new Date(alert.createdAt).toLocaleDateString("es-CL")}</td>
                     <td>
                       <button

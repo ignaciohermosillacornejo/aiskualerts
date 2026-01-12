@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../api/client";
+import { sanitizeText } from "../utils/sanitize";
 import type { DashboardStats, Alert } from "../types";
 
 export function Dashboard() {
@@ -119,8 +120,8 @@ function AlertItem({ alert }: { alert: Alert }) {
         </svg>
       </div>
       <div className="alert-content">
-        <div className="alert-title">{alert.productName}</div>
-        <div className="alert-description">{alert.message}</div>
+        <div className="alert-title">{sanitizeText(alert.productName)}</div>
+        <div className="alert-description">{sanitizeText(alert.message)}</div>
       </div>
       <div className="alert-time">{formatRelativeTime(alert.createdAt)}</div>
     </div>

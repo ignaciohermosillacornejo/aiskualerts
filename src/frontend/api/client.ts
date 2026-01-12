@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type {
   Alert,
   Product,
@@ -8,6 +9,23 @@ import type {
 } from "../types";
 
 const API_BASE = "/api";
+
+// Zod schemas for input validation
+const ThresholdInputSchema = z.object({
+  productId: z.string().min(1, "Product ID is required").max(100),
+  minQuantity: z.number().int().min(0, "Quantity must be non-negative").max(1000000),
+});
+
+const LoginCredentialsSchema = z.object({
+  email: z.string().email("Invalid email format").max(255),
+  password: z.string().min(1, "Password is required").max(255),
+});
+
+const SettingsUpdateSchema = z.object({
+  emailNotifications: z.boolean().optional(),
+  notificationEmail: z.string().email().max(255).optional(),
+  syncFrequency: z.enum(["hourly", "daily", "weekly"]).optional(),
+}).partial();
 
 class ApiError extends Error {
   constructor(
@@ -118,9 +136,11 @@ async function getThresholds(): Promise<GetThresholdsResponse> {
 }
 
 async function createThreshold(data: ThresholdInput): Promise<Threshold> {
+  // Validate input before sending to server
+  const validated = ThresholdInputSchema.parse(data);
   return request<Threshold>("/thresholds", {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify(validated),
   });
 }
 
@@ -128,9 +148,14 @@ async function updateThreshold(
   thresholdId: string,
   data: ThresholdInput
 ): Promise<Threshold> {
+  // Validate input before sending to server
+  const validated = ThresholdInputSchema.parse(data);
+  if (!thresholdId || thresholdId.length > 100) {
+    throw new Error("Invalid threshold ID");
+  }
   return request<Threshold>(`/thresholds/${thresholdId}`, {
     method: "PUT",
-    body: JSON.stringify(data),
+    body: JSON.stringify(validated),
   });
 }
 
@@ -144,9 +169,11 @@ async function getSettings(): Promise<TenantSettings> {
 }
 
 async function updateSettings(settings: Partial<TenantSettings>): Promise<TenantSettings> {
+  // Validate input before sending to server
+  const validated = SettingsUpdateSchema.parse(settings);
   return request<TenantSettings>("/settings", {
     method: "PUT",
-    body: JSON.stringify(settings),
+    body: JSON.stringify(validated),
   });
 }
 
@@ -160,9 +187,11 @@ interface LoginResponse {
 }
 
 async function login(credentials: LoginCredentials): Promise<LoginResponse> {
+  // Validate input before sending to server
+  const validated = LoginCredentialsSchema.parse(credentials);
   return request<LoginResponse>("/auth/login", {
     method: "POST",
-    body: JSON.stringify(credentials),
+    body: JSON.stringify(validated),
   });
 }
 

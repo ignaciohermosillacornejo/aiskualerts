@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../api/client";
+import { ConfirmModal } from "../components/ConfirmModal";
+import { sanitizeText } from "../utils/sanitize";
 import type { Threshold, Product } from "../types";
 
 export function Thresholds() {
@@ -9,6 +11,10 @@ export function Thresholds() {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingThreshold, setEditingThreshold] = useState<Threshold | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; thresholdId: string | null }>({
+    isOpen: false,
+    thresholdId: null,
+  });
 
   useEffect(() => {
     async function loadData() {
@@ -39,14 +45,26 @@ export function Thresholds() {
     setShowModal(true);
   }
 
-  async function handleDelete(thresholdId: string) {
-    if (!confirm("Esta seguro de eliminar este umbral?")) return;
+  function handleDeleteClick(thresholdId: string) {
+    setDeleteConfirm({ isOpen: true, thresholdId });
+  }
+
+  async function handleDeleteConfirm() {
+    const thresholdId = deleteConfirm.thresholdId;
+    if (!thresholdId) return;
+
     try {
       await api.deleteThreshold(thresholdId);
       setThresholds((prev) => prev.filter((t) => t.id !== thresholdId));
     } catch (err) {
       console.error("Error deleting threshold:", err);
+    } finally {
+      setDeleteConfirm({ isOpen: false, thresholdId: null });
     }
+  }
+
+  function handleDeleteCancel() {
+    setDeleteConfirm({ isOpen: false, thresholdId: null });
   }
 
   async function handleSave(data: ThresholdFormData) {
@@ -115,7 +133,7 @@ export function Thresholds() {
                   const isBelowThreshold = product && product.currentStock <= threshold.minQuantity;
                   return (
                     <tr key={threshold.id}>
-                      <td>{threshold.productName}</td>
+                      <td>{sanitizeText(threshold.productName)}</td>
                       <td>
                         <strong>{threshold.minQuantity.toLocaleString()}</strong>
                       </td>
@@ -136,7 +154,7 @@ export function Thresholds() {
                           </button>
                           <button
                             className="btn btn-danger"
-                            onClick={() => handleDelete(threshold.id)}
+                            onClick={() => handleDeleteClick(threshold.id)}
                             type="button"
                           >
                             Eliminar
@@ -160,6 +178,17 @@ export function Thresholds() {
           onClose={() => setShowModal(false)}
         />
       )}
+
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        title="Eliminar Umbral"
+        message="Esta seguro de eliminar este umbral? Esta accion no se puede deshacer."
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </div>
   );
 }
