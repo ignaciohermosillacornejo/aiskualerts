@@ -234,14 +234,14 @@ export function createServer(
           // Mock login - always succeeds for demo
           if (body.email && body.password) {
             const isProduction = process.env.NODE_ENV === "production";
-            const maxAge = String(30 * 24 * 60 * 60); // 30 days
-            const sessionToken = `mock_${Date.now()}_${Math.random().toString(36)}`;
+            const maxAge = 30 * 24 * 60 * 60; // 30 days
+            const sessionToken = `mock_${String(Date.now())}_${Math.random().toString(36)}`;
 
             const cookieParts = [
               `session_token=${sessionToken}`,
               "HttpOnly",
               "Path=/",
-              `Max-Age=${maxAge}`,
+              `Max-Age=${String(maxAge)}`,
             ];
 
             if (isProduction) {

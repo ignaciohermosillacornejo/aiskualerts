@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach, mock } from "bun:test";
+import { test, expect, describe, beforeEach } from "bun:test";
 
 describe("Auth Components Logic", () => {
   describe("AuthContext Module", () => {
@@ -99,13 +99,13 @@ describe("Auth Flow State Logic", () => {
     const isLoggedIn = false;
     const attemptedPath = "/app/alerts";
 
-    if (!isLoggedIn) {
-      sessionStorage.setItem("redirect_after_login", attemptedPath);
-      redirect("/login");
-    }
+    // Redirect unauthenticated user
+    sessionStorage.setItem("redirect_after_login", attemptedPath);
+    redirect("/login");
 
     expect(redirects).toContain("/login");
     expect(sessionStorage.getItem("redirect_after_login")).toBe("/app/alerts");
+    expect(isLoggedIn).toBe(false);
   });
 
   test("post-login redirect logic", () => {
@@ -118,13 +118,13 @@ describe("Auth Flow State Logic", () => {
     // Login succeeds
     const user = { id: "1", email: "test@test.com", name: "Test", role: "admin" as const };
 
-    if (user) {
-      const storedPath = sessionStorage.getItem("redirect_after_login");
-      const targetPath = storedPath ?? "/app";
-      sessionStorage.removeItem("redirect_after_login");
-      redirect(targetPath);
-    }
+    // User exists, redirect to stored path
+    const storedPath = sessionStorage.getItem("redirect_after_login");
+    const targetPath = storedPath ?? "/app";
+    sessionStorage.removeItem("redirect_after_login");
+    redirect(targetPath);
 
+    expect(user).toBeDefined();
     expect(redirects).toContain("/app/settings");
     expect(sessionStorage.getItem("redirect_after_login")).toBe(null);
   });
@@ -139,12 +139,12 @@ describe("Auth Flow State Logic", () => {
     // Login succeeds
     const user = { id: "1", email: "test@test.com", name: "Test", role: "admin" as const };
 
-    if (user) {
-      const storedPath = sessionStorage.getItem("redirect_after_login");
-      const targetPath = storedPath ?? "/app";
-      redirect(targetPath);
-    }
+    // User exists, use default path
+    const storedPath = sessionStorage.getItem("redirect_after_login");
+    const targetPath = storedPath ?? "/app";
+    redirect(targetPath);
 
+    expect(user).toBeDefined();
     expect(redirects).toContain("/app");
   });
 });
@@ -152,7 +152,8 @@ describe("Auth Flow State Logic", () => {
 describe("Cookie Parsing Logic", () => {
   test("extracts session token from cookie header", () => {
     const cookieHeader = "session_token=abc123; Path=/; HttpOnly";
-    const match = cookieHeader.match(/session_token=([^;]+)/);
+    const regex = /session_token=([^;]+)/;
+    const match = regex.exec(cookieHeader);
     const token = match?.[1];
 
     expect(token).toBe("abc123");
@@ -160,7 +161,8 @@ describe("Cookie Parsing Logic", () => {
 
   test("handles multiple cookies", () => {
     const cookieHeader = "other_cookie=value1; session_token=xyz789; another=value2";
-    const match = cookieHeader.match(/session_token=([^;]+)/);
+    const regex = /session_token=([^;]+)/;
+    const match = regex.exec(cookieHeader);
     const token = match?.[1];
 
     expect(token).toBe("xyz789");
@@ -168,7 +170,8 @@ describe("Cookie Parsing Logic", () => {
 
   test("returns undefined for missing session token", () => {
     const cookieHeader = "other_cookie=value1; another=value2";
-    const match = cookieHeader.match(/session_token=([^;]+)/);
+    const regex = /session_token=([^;]+)/;
+    const match = regex.exec(cookieHeader);
     const token = match?.[1];
 
     expect(token).toBeUndefined();
@@ -180,7 +183,7 @@ describe("Form Validation Logic", () => {
     const email = "";
     const password = "password123";
 
-    const isValid = Boolean(email && password);
+    const isValid = email.length > 0 && password.length > 0;
     expect(isValid).toBe(false);
   });
 
@@ -188,7 +191,7 @@ describe("Form Validation Logic", () => {
     const email = "test@test.com";
     const password = "";
 
-    const isValid = Boolean(email && password);
+    const isValid = email.length > 0 && password.length > 0;
     expect(isValid).toBe(false);
   });
 
@@ -196,7 +199,7 @@ describe("Form Validation Logic", () => {
     const email = "test@test.com";
     const password = "password123";
 
-    const isValid = Boolean(email && password);
+    const isValid = email.length > 0 && password.length > 0;
     expect(isValid).toBe(true);
   });
 });

@@ -5,18 +5,18 @@ import { GlobalWindow } from "happy-dom";
 beforeAll(() => {
   const window = new GlobalWindow({ url: "http://localhost" });
 
-  // @ts-ignore
+  // @ts-expect-error - Adding DOM globals for testing
   global.window = window;
-  // @ts-ignore
+  // @ts-expect-error - Adding DOM globals for testing
   global.document = window.document;
-  // @ts-ignore
+  // @ts-expect-error - Adding DOM globals for testing
   global.navigator = window.navigator;
-  // @ts-ignore
+  // @ts-expect-error - Adding DOM globals for testing
   global.sessionStorage = window.sessionStorage;
-  // @ts-ignore
+  // @ts-expect-error - Adding DOM globals for testing
   global.localStorage = window.localStorage;
-  // @ts-ignore
+  // @ts-expect-error - Adding DOM globals for testing
   global.HTMLElement = window.HTMLElement;
-  // @ts-ignore
+  // @ts-expect-error - Adding DOM globals for testing
   global.customElements = window.customElements;
 });

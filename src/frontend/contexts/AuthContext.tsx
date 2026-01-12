@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, loading: true, error: null }));
       const user = await api.getCurrentUser();
       setState({ user, loading: false, error: null });
-    } catch (error) {
+    } catch {
       setState({ user: null, loading: false, error: null });
     }
   }

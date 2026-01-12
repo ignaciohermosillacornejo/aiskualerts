@@ -67,7 +67,7 @@ export function Login() {
             />
           </div>
 
-          {(error || authError) && (
+          {(error ?? authError) && (
             <div style={{
               backgroundColor: "#fee2e2",
               color: "#991b1b",
@@ -76,7 +76,7 @@ export function Login() {
               marginBottom: "1rem",
               fontSize: "0.875rem",
             }}>
-              {error || authError}
+              {error ?? authError}
             </div>
           )}
 

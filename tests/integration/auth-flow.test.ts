@@ -1,3 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
+/* eslint-disable @typescript-eslint/require-await */
 import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { createServer } from "../../src/server";
 import type { Config } from "../../src/config";
@@ -12,12 +17,14 @@ describe("Authentication Flow Integration", () => {
     nodeEnv: "test" as const,
   };
 
-  beforeAll(() => {
+  beforeAll(async () => {
     server = createServer(mockConfig, {});
+    // Wait for server to be ready
+    await new Promise(resolve => setTimeout(resolve, 100));
   });
 
   afterAll(() => {
-    server.stop();
+    void server.stop();
   });
 
   describe("Complete Login Flow", () => {
@@ -41,7 +48,7 @@ describe("Authentication Flow Integration", () => {
       const setCookie = loginResponse.headers.get("set-cookie");
       expect(setCookie).toBeTruthy();
 
-      const sessionToken = setCookie!.match(/session_token=([^;]+)/)?.[1];
+      const sessionToken = (/session_token=([^;]+)/.exec((setCookie!)))?.[1];
       expect(sessionToken).toBeTruthy();
 
       // Step 2: Verify session with /api/auth/me
@@ -79,7 +86,7 @@ describe("Authentication Flow Integration", () => {
       });
 
       const setCookie = loginResponse.headers.get("set-cookie");
-      const sessionToken = setCookie!.match(/session_token=([^;]+)/)?.[1];
+      const sessionToken = (/session_token=([^;]+)/.exec((setCookie!)))?.[1];
 
       // Step 2: Verify session works
       const meResponse1 = await fetch(`${baseUrl}/api/auth/me`, {
@@ -176,7 +183,7 @@ describe("Authentication Flow Integration", () => {
 
       const setCookie = response.headers.get("set-cookie");
       expect(setCookie).toContain("Max-Age=");
-      const maxAge = setCookie!.match(/Max-Age=(\d+)/)?.[1];
+      const maxAge = (/Max-Age=(\d+)/.exec((setCookie!)))?.[1];
       expect(parseInt(maxAge!)).toBe(30 * 24 * 60 * 60); // 30 days
     });
 
@@ -222,7 +229,7 @@ describe("Authentication Flow Integration", () => {
       });
 
       const setCookie = loginResponse.headers.get("set-cookie");
-      const sessionToken = setCookie!.match(/session_token=([^;]+)/)?.[1];
+      const sessionToken = (/session_token=([^;]+)/.exec((setCookie!)))?.[1];
 
       // Make multiple requests with same cookie
       for (let i = 0; i < 5; i++) {

@@ -1,6 +1,14 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { createServer } from "../../../src/server";
 import type { Config } from "../../../src/config";
+import type {
+  LoginResponse,
+  MeResponse,
+  ErrorResponse,
+  HealthResponse,
+} from "../../test-types";
 
 describe("Server Routing", () => {
   let server: ReturnType<typeof createServer>;
@@ -12,12 +20,14 @@ describe("Server Routing", () => {
     nodeEnv: "test" as const,
   };
 
-  beforeAll(() => {
+  beforeAll(async () => {
     server = createServer(mockConfig, {});
+    // Wait for server to be ready
+    await new Promise(resolve => setTimeout(resolve, 100));
   });
 
   afterAll(() => {
-    server.stop();
+    void server.stop();
   });
 
   describe("Protected Routes (SPA)", () => {
@@ -99,7 +109,7 @@ describe("Server Routing", () => {
     test("/api/health returns 200", async () => {
       const response = await fetch(`${baseUrl}/api/health`);
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as HealthResponse;
       expect(data.status).toBe("ok");
     });
 
@@ -110,7 +120,7 @@ describe("Server Routing", () => {
         body: JSON.stringify({ email: "test@test.com", password: "password" }),
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as LoginResponse;
       expect(data.user).toBeDefined();
       expect(data.user.email).toBe("test@test.com");
     });
@@ -127,7 +137,7 @@ describe("Server Routing", () => {
         },
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as MeResponse;
       expect(data.user).toBeDefined();
       expect(data.user.email).toBe("demo@empresa.cl");
     });
@@ -135,7 +145,7 @@ describe("Server Routing", () => {
     test("/api/unknown returns 404", async () => {
       const response = await fetch(`${baseUrl}/api/unknown`);
       expect(response.status).toBe(404);
-      const data = await response.json();
+      const data = await response.json() as ErrorResponse;
       expect(data.error).toBe("Not Found");
     });
   });
@@ -175,7 +185,7 @@ describe("Server Routing", () => {
       });
 
       expect(response.status).toBe(401);
-      const data = await response.json();
+      const data = await response.json() as ErrorResponse;
       expect(data.error).toBeDefined();
     });
   });
@@ -184,7 +194,7 @@ describe("Server Routing", () => {
     test("/health returns health status", async () => {
       const response = await fetch(`${baseUrl}/health`);
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as HealthResponse;
       expect(data.status).toBe("ok");
       expect(data.timestamp).toBeDefined();
     });
