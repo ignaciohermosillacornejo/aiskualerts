@@ -35,7 +35,7 @@
     "test:integration:db": "bun test tests/integration/db/*.test.ts",
     "test:e2e": "op run --env-file=.env.tpl -- bun test tests/integration/**/*.test.ts",
     "test:all": "bun test",
-    "test:coverage": "NODE_ENV=test bun test tests/unit/**/*.test.ts --coverage --preload ./tests/setup.ts",
+    "test:coverage": "NODE_ENV=test bun test tests/unit/bsale tests/unit/alerts tests/unit/utils tests/unit/config.test.ts tests/unit/server.test.ts tests/unit/frontend tests/unit/scheduler tests/unit/sync tests/unit/api --coverage --preload ./tests/setup.ts && NODE_ENV=test bun test tests/unit/server/routing.test.ts --coverage",
     "verify:frontend": "bun scripts/verify-frontend.ts",
     "db:start": "docker compose -f docker-compose.test.yml up -d",
     "db:stop": "docker compose -f docker-compose.test.yml down",
