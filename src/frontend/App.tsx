@@ -1,5 +1,6 @@
 import { Router, Route, Switch } from "wouter";
 import { AuthProvider } from "./contexts/AuthContext";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Layout } from "./components/Layout";
 import { Landing } from "./pages/Landing";
@@ -13,49 +14,51 @@ import { NotFound } from "./pages/NotFound";
 
 export function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Switch>
-          <Route path="/" component={Landing} />
-          <Route path="/login" component={Login} />
-          <Route path="/app">
-            <ProtectedRoute>
-              <Layout>
-                <Dashboard />
-              </Layout>
-            </ProtectedRoute>
-          </Route>
-          <Route path="/app/alerts">
-            <ProtectedRoute>
-              <Layout>
-                <Alerts />
-              </Layout>
-            </ProtectedRoute>
-          </Route>
-          <Route path="/app/products">
-            <ProtectedRoute>
-              <Layout>
-                <Products />
-              </Layout>
-            </ProtectedRoute>
-          </Route>
-          <Route path="/app/thresholds">
-            <ProtectedRoute>
-              <Layout>
-                <Thresholds />
-              </Layout>
-            </ProtectedRoute>
-          </Route>
-          <Route path="/app/settings">
-            <ProtectedRoute>
-              <Layout>
-                <Settings />
-              </Layout>
-            </ProtectedRoute>
-          </Route>
-          <Route component={NotFound} />
-        </Switch>
-      </Router>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <Router>
+          <Switch>
+            <Route path="/" component={Landing} />
+            <Route path="/login" component={Login} />
+            <Route path="/app">
+              <ProtectedRoute>
+                <Layout>
+                  <Dashboard />
+                </Layout>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/app/alerts">
+              <ProtectedRoute>
+                <Layout>
+                  <Alerts />
+                </Layout>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/app/products">
+              <ProtectedRoute>
+                <Layout>
+                  <Products />
+                </Layout>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/app/thresholds">
+              <ProtectedRoute>
+                <Layout>
+                  <Thresholds />
+                </Layout>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/app/settings">
+              <ProtectedRoute>
+                <Layout>
+                  <Settings />
+                </Layout>
+              </ProtectedRoute>
+            </Route>
+            <Route component={NotFound} />
+          </Switch>
+        </Router>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
