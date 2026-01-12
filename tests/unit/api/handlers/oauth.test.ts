@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unused-vars, @typescript-eslint/no-floating-promises, @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-empty-function, @typescript-eslint/prefer-nullish-coalescing, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/require-await, @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression */
 import { test, expect, describe, beforeEach, mock } from "bun:test";
 import {
   handleOAuthStart,
@@ -279,14 +279,14 @@ describe("OAuth Handlers", () => {
       expect(sessionData.token.length).toBe(64); // 32 bytes hex
       expect(sessionData.expiresAt).toBeInstanceOf(Date);
 
-      // Check expiry is approximately 30 days from now
-      const now = new Date();
-      const thirtyDaysFromNow = new Date(now);
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-      const expiryDiff = Math.abs(
-        sessionData.expiresAt.getTime() - thirtyDaysFromNow.getTime()
+      // Check expiry is approximately 30 days from now (use range to avoid race condition)
+      const expectedExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      expect(sessionData.expiresAt.getTime()).toBeGreaterThanOrEqual(
+        expectedExpiry.getTime() - 5000
       );
-      expect(expiryDiff).toBeLessThan(1000); // Within 1 second
+      expect(sessionData.expiresAt.getTime()).toBeLessThanOrEqual(
+        expectedExpiry.getTime() + 5000
+      );
     });
   });
 
