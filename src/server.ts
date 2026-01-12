@@ -1,4 +1,5 @@
 import type { Server } from "bun";
+import { z, ZodError } from "zod";
 import { loadConfig, type Config } from "@/config";
 import type { OAuthHandlerDeps } from "@/api/handlers/oauth";
 import { createOAuthRoutes } from "@/api/routes/oauth";
@@ -6,6 +7,45 @@ import {
   createBillingRoutes,
   type BillingHandlerDeps,
 } from "@/api/handlers/billing";
+
+// Zod schemas for API request validation
+export const CreateThresholdSchema = z.object({
+  productId: z.string().min(1, "productId is required"),
+  minQuantity: z.number().int().nonnegative("minQuantity must be a non-negative integer"),
+});
+
+export const UpdateThresholdSchema = z.object({
+  minQuantity: z.number().int().nonnegative("minQuantity must be a non-negative integer"),
+});
+
+export const UpdateSettingsSchema = z.object({
+  companyName: z.string().optional(),
+  email: z.string().email("Invalid email format").optional(),
+  bsaleConnected: z.boolean().optional(),
+  lastSyncAt: z.string().optional(),
+  emailNotifications: z.boolean().optional(),
+  notificationEmail: z.string().email("Invalid notification email format").optional(),
+  syncFrequency: z.enum(["hourly", "daily", "weekly"]).optional(),
+});
+
+export const LoginSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(1, "Password is required"),
+});
+
+// Helper function to create validation error response
+function createValidationErrorResponse(error: ZodError): Response {
+  return Response.json(
+    {
+      error: "Validation failed",
+      details: error.errors.map((e) => ({
+        path: e.path.join("."),
+        message: e.message,
+      })),
+    },
+    { status: 400 }
+  );
+}
 // Fallback HTML for when bundled import fails (e.g., in CI tests)
 const fallbackHTML = `<!DOCTYPE html>
 <html lang="es">
@@ -207,7 +247,11 @@ export function createServer(
             total: mockThresholds.length,
           }),
         POST: async (req) => {
-          const body = await req.json() as { productId: string; minQuantity: number };
+          const parseResult = CreateThresholdSchema.safeParse(await req.json());
+          if (!parseResult.success) {
+            return createValidationErrorResponse(parseResult.error);
+          }
+          const body = parseResult.data;
           const newThreshold = {
             id: `t${String(Date.now())}`,
             productId: body.productId,
@@ -224,7 +268,11 @@ export function createServer(
       "/api/thresholds/:id": {
         PUT: async (req) => {
           const id = req.params.id;
-          const body = await req.json() as { minQuantity: number };
+          const parseResult = UpdateThresholdSchema.safeParse(await req.json());
+          if (!parseResult.success) {
+            return createValidationErrorResponse(parseResult.error);
+          }
+          const body = parseResult.data;
           const idx = mockThresholds.findIndex((t) => t.id === id);
           if (idx === -1) {
             return Response.json({ error: "Threshold not found" }, { status: 404 });
@@ -256,7 +304,11 @@ export function createServer(
       "/api/settings": {
         GET: () => Response.json(mockSettings),
         PUT: async (req) => {
-          const body = await req.json() as Partial<typeof mockSettings>;
+          const parseResult = UpdateSettingsSchema.safeParse(await req.json());
+          if (!parseResult.success) {
+            return createValidationErrorResponse(parseResult.error);
+          }
+          const body = parseResult.data;
           Object.assign(mockSettings, body);
           return Response.json(mockSettings);
         },
@@ -264,41 +316,42 @@ export function createServer(
 
       "/api/auth/login": {
         POST: async (req) => {
-          const body = await req.json() as { email?: string; password?: string };
-          // Mock login - always succeeds for demo
-          if (body.email && body.password) {
-            const isProduction = process.env.NODE_ENV === "production";
-            const maxAge = 30 * 24 * 60 * 60; // 30 days
-            const sessionToken = `mock_${String(Date.now())}_${Math.random().toString(36)}`;
-
-            const cookieParts = [
-              `session_token=${sessionToken}`,
-              "HttpOnly",
-              "Path=/",
-              `Max-Age=${String(maxAge)}`,
-            ];
-
-            if (isProduction) {
-              cookieParts.push("Secure", "SameSite=Strict");
-            }
-
-            return Response.json(
-              {
-                user: {
-                  id: "u1",
-                  email: body.email,
-                  name: "Usuario Demo",
-                  role: "admin" as const,
-                },
-              },
-              {
-                headers: {
-                  "Set-Cookie": cookieParts.join("; "),
-                },
-              }
-            );
+          const parseResult = LoginSchema.safeParse(await req.json());
+          if (!parseResult.success) {
+            return createValidationErrorResponse(parseResult.error);
           }
-          return Response.json({ error: "Invalid credentials" }, { status: 401 });
+          const body = parseResult.data;
+          // Mock login - always succeeds for demo
+          const isProduction = process.env.NODE_ENV === "production";
+          const maxAge = 30 * 24 * 60 * 60; // 30 days
+          const sessionToken = `mock_${String(Date.now())}_${Math.random().toString(36)}`;
+
+          const cookieParts = [
+            `session_token=${sessionToken}`,
+            "HttpOnly",
+            "Path=/",
+            `Max-Age=${String(maxAge)}`,
+          ];
+
+          if (isProduction) {
+            cookieParts.push("Secure", "SameSite=Strict");
+          }
+
+          return Response.json(
+            {
+              user: {
+                id: "u1",
+                email: body.email,
+                name: "Usuario Demo",
+                role: "admin" as const,
+              },
+            },
+            {
+              headers: {
+                "Set-Cookie": cookieParts.join("; "),
+              },
+            }
+          );
         },
       },
 

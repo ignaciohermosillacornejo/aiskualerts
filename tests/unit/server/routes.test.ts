@@ -190,6 +190,52 @@ describe("Server Routes - Extended Coverage", () => {
       expect(body.productId).toBe("p1");
       expect(body.minQuantity).toBe(15);
     });
+
+    test("returns 400 for missing productId", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minQuantity: 15 }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; details: { path: string }[] };
+      expect(body.error).toBe("Validation failed");
+      expect(body.details.some((d) => d.path === "productId")).toBe(true);
+    });
+
+    test("returns 400 for missing minQuantity", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: "p1" }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; details: { path: string }[] };
+      expect(body.error).toBe("Validation failed");
+      expect(body.details.some((d) => d.path === "minQuantity")).toBe(true);
+    });
+
+    test("returns 400 for invalid minQuantity type", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: "p1", minQuantity: "not-a-number" }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    test("returns 400 for negative minQuantity", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: "p1", minQuantity: -5 }),
+      });
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe("PUT /api/thresholds/:id", () => {
@@ -213,6 +259,38 @@ describe("Server Routes - Extended Coverage", () => {
       });
 
       expect(response.status).toBe(404);
+    });
+
+    test("returns 400 for missing minQuantity", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds/t2`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; details: { path: string }[] };
+      expect(body.error).toBe("Validation failed");
+    });
+
+    test("returns 400 for invalid minQuantity type", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds/t2`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minQuantity: "invalid" }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    test("returns 400 for negative minQuantity", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds/t2`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minQuantity: -10 }),
+      });
+
+      expect(response.status).toBe(400);
     });
   });
 
@@ -263,6 +341,51 @@ describe("Server Routes - Extended Coverage", () => {
       const body = (await response.json()) as { emailNotifications: boolean };
       expect(body.emailNotifications).toBe(false);
     });
+
+    test("returns 400 for invalid email format", async () => {
+      const response = await fetch(`${baseUrl}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "not-an-email" }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; details: { path: string }[] };
+      expect(body.error).toBe("Validation failed");
+      expect(body.details.some((d) => d.path === "email")).toBe(true);
+    });
+
+    test("returns 400 for invalid notificationEmail format", async () => {
+      const response = await fetch(`${baseUrl}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationEmail: "invalid-email" }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    test("returns 400 for invalid syncFrequency", async () => {
+      const response = await fetch(`${baseUrl}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ syncFrequency: "monthly" }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    test("accepts valid syncFrequency values", async () => {
+      for (const freq of ["hourly", "daily", "weekly"]) {
+        const response = await fetch(`${baseUrl}/api/settings`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ syncFrequency: freq }),
+        });
+
+        expect(response.status).toBe(200);
+      }
+    });
   });
 
   describe("POST /api/auth/login", () => {
@@ -279,24 +402,40 @@ describe("Server Routes - Extended Coverage", () => {
       expect(response.headers.get("Set-Cookie")).toContain("session_token=");
     });
 
-    test("returns 401 for missing credentials", async () => {
+    test("returns 400 for missing credentials", async () => {
       const response = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; details: unknown[] };
+      expect(body.error).toBe("Validation failed");
+      expect(body.details).toBeDefined();
     });
 
-    test("returns 401 for missing password", async () => {
+    test("returns 400 for missing password", async () => {
       const response = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: "test@test.com" }),
       });
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(400);
+    });
+
+    test("returns 400 for invalid email format", async () => {
+      const response = await fetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "not-an-email", password: "password" }),
+      });
+
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; details: { path: string; message: string }[] };
+      expect(body.error).toBe("Validation failed");
+      expect(body.details.some((d) => d.path === "email")).toBe(true);
     });
   });
 

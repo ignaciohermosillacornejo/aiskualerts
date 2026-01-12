@@ -136,22 +136,26 @@ describe("Authentication Flow Integration", () => {
       expect(response.status).toBe(200);
     });
 
-    test("login with missing email returns 401", async () => {
+    test("login with missing email returns 400 validation error", async () => {
       const response = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: "password" }),
       });
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(400);
+      const data = await response.json() as { error: string };
+      expect(data.error).toBe("Validation failed");
     });
 
-    test("login with missing password returns 401", async () => {
+    test("login with missing password returns 400 validation error", async () => {
       const response = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: "test@test.com" }),
       });
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(400);
+      const data = await response.json() as { error: string };
+      expect(data.error).toBe("Validation failed");
     });
   });
 
