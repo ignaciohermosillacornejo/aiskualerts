@@ -1,0 +1,545 @@
+/* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression */
+import { test, expect, describe, beforeEach, afterEach, mock } from "bun:test";
+import { api, ApiError } from "../../../src/frontend/api/client";
+
+// Store original fetch
+const originalFetch = globalThis.fetch;
+
+describe("API Client", () => {
+  let mockFetch: ReturnType<typeof mock>;
+
+  beforeEach(() => {
+    mockFetch = mock(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ data: "test" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    );
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  describe("ApiError", () => {
+    test("creates error with message and status", () => {
+      const error = new ApiError("Not found", 404);
+      expect(error.message).toBe("Not found");
+      expect(error.status).toBe(404);
+      expect(error.name).toBe("ApiError");
+    });
+
+    test("is instance of Error", () => {
+      const error = new ApiError("Test", 500);
+      expect(error).toBeInstanceOf(Error);
+    });
+  });
+
+  describe("getDashboardStats", () => {
+    test("fetches dashboard stats", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              totalProducts: 100,
+              activeAlerts: 5,
+              lowStockProducts: 10,
+              configuredThresholds: 25,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      );
+
+      const stats = await api.getDashboardStats();
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/dashboard/stats", expect.any(Object));
+      expect(stats.totalProducts).toBe(100);
+      expect(stats.activeAlerts).toBe(5);
+    });
+  });
+
+  describe("getAlerts", () => {
+    test("fetches alerts without options", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ alerts: [], total: 0 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.getAlerts();
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/alerts", expect.any(Object));
+    });
+
+    test("fetches alerts with type filter", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ alerts: [], total: 0 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.getAlerts({ type: "threshold_breach" });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/alerts?type=threshold_breach",
+        expect.any(Object)
+      );
+    });
+
+    test("fetches alerts with limit and offset", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ alerts: [], total: 0 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.getAlerts({ limit: 10, offset: 20 });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/alerts?limit=10&offset=20",
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe("dismissAlert", () => {
+    test("sends POST request to dismiss alert", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.dismissAlert("alert-123");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/alerts/alert-123/dismiss",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+  });
+
+  describe("getProducts", () => {
+    test("fetches products list", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ products: [], total: 0 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.getProducts();
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/products", expect.any(Object));
+    });
+  });
+
+  describe("getProduct", () => {
+    test("fetches single product by ID", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ id: "p1", name: "Product" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      const product = await api.getProduct("p1");
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/products/p1", expect.any(Object));
+      expect(product.id).toBe("p1");
+    });
+  });
+
+  describe("getThresholds", () => {
+    test("fetches thresholds list", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ thresholds: [], total: 0 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.getThresholds();
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/thresholds", expect.any(Object));
+    });
+  });
+
+  describe("createThreshold", () => {
+    test("sends POST request with validated data", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ id: "t1", productId: "p1", minQuantity: 10 }), {
+            status: 201,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      const result = await api.createThreshold({ productId: "p1", minQuantity: 10 });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/thresholds",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ productId: "p1", minQuantity: 10 }),
+        })
+      );
+      expect(result.productId).toBe("p1");
+    });
+
+    test("validates input before sending", async () => {
+      await expect(
+        api.createThreshold({ productId: "", minQuantity: 10 })
+      ).rejects.toThrow();
+    });
+
+    test("rejects negative quantity", async () => {
+      await expect(
+        api.createThreshold({ productId: "p1", minQuantity: -5 })
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("updateThreshold", () => {
+    test("sends PUT request with validated data", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ id: "t1", productId: "p1", minQuantity: 20 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.updateThreshold("t1", { productId: "p1", minQuantity: 20 });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/thresholds/t1",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ productId: "p1", minQuantity: 20 }),
+        })
+      );
+    });
+
+    test("rejects invalid threshold ID", async () => {
+      const longId = "a".repeat(101);
+      await expect(
+        api.updateThreshold(longId, { productId: "p1", minQuantity: 10 })
+      ).rejects.toThrow("Invalid threshold ID");
+    });
+
+    test("rejects empty threshold ID", async () => {
+      await expect(
+        api.updateThreshold("", { productId: "p1", minQuantity: 10 })
+      ).rejects.toThrow("Invalid threshold ID");
+    });
+  });
+
+  describe("deleteThreshold", () => {
+    test("sends DELETE request", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.deleteThreshold("t1");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/thresholds/t1",
+        expect.objectContaining({ method: "DELETE" })
+      );
+    });
+  });
+
+  describe("getSettings", () => {
+    test("fetches settings", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ emailNotifications: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.getSettings();
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/settings", expect.any(Object));
+    });
+  });
+
+  describe("updateSettings", () => {
+    test("sends PUT request with validated settings", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ emailNotifications: false }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.updateSettings({ emailNotifications: false });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/settings",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ emailNotifications: false }),
+        })
+      );
+    });
+
+    test("validates sync frequency", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ syncFrequency: "daily" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.updateSettings({ syncFrequency: "daily" });
+
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+
+  describe("login", () => {
+    test("sends POST request with credentials", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              user: { id: "u1", email: "test@test.com", name: "Test", role: "admin" },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      );
+
+      const result = await api.login({ email: "test@test.com", password: "password123" });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ email: "test@test.com", password: "password123" }),
+        })
+      );
+      expect(result.user.email).toBe("test@test.com");
+    });
+
+    test("validates email format", async () => {
+      await expect(
+        api.login({ email: "invalid-email", password: "password123" })
+      ).rejects.toThrow();
+    });
+
+    test("validates password presence", async () => {
+      await expect(
+        api.login({ email: "test@test.com", password: "" })
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("logout", () => {
+    test("sends POST request to logout", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.logout();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/auth/logout",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+  });
+
+  describe("getCurrentUser", () => {
+    test("returns user when authenticated", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              user: { id: "u1", email: "test@test.com", name: "Test", role: "admin" },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      );
+
+      const user = await api.getCurrentUser();
+
+      expect(user).not.toBeNull();
+      expect(user?.email).toBe("test@test.com");
+    });
+
+    test("returns null when not authenticated", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "Not authenticated" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      const user = await api.getCurrentUser();
+
+      expect(user).toBeNull();
+    });
+
+    test("returns null on network error", async () => {
+      mockFetch.mockImplementation(() => Promise.reject(new Error("Network error")));
+
+      const user = await api.getCurrentUser();
+
+      expect(user).toBeNull();
+    });
+  });
+
+  describe("error handling", () => {
+    test("throws ApiError on non-ok response", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "Not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await expect(api.getProducts()).rejects.toThrow(ApiError);
+    });
+
+    test("includes error message from response", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "Custom error message" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      try {
+        await api.getProducts();
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).message).toBe("Custom error message");
+        expect((error as ApiError).status).toBe(400);
+      }
+    });
+
+    test("uses fallback message when no error in response", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response("{}", {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      try {
+        await api.getProducts();
+        expect(true).toBe(false);
+      } catch (error) {
+        expect((error as ApiError).message).toBe("HTTP error 500");
+      }
+    });
+
+    test("handles non-JSON error response", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response("Internal Server Error", {
+            status: 500,
+            headers: { "Content-Type": "text/plain" },
+          })
+        )
+      );
+
+      try {
+        await api.getProducts();
+        expect(true).toBe(false);
+      } catch (error) {
+        expect((error as ApiError).message).toBe("HTTP error 500");
+      }
+    });
+  });
+
+  describe("request configuration", () => {
+    test("includes credentials in requests", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ products: [], total: 0 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.getProducts();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ credentials: "include" })
+      );
+    });
+
+    test("sets Content-Type header", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ products: [], total: 0 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.getProducts();
+
+      const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
+      const headers = callArgs[1].headers as Headers;
+      expect(headers.get("Content-Type")).toBe("application/json");
+    });
+  });
+});

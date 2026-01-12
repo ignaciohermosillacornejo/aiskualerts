@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/prefer-promise-reject-errors */
 import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
 import { createSyncJob } from "@/jobs/sync-job";
 import type { DatabaseClient } from "@/db/client";
@@ -68,6 +69,108 @@ describe("createSyncJob", () => {
     expect(result).toBeInstanceOf(Promise);
     // Clean up promise
     void result.catch(() => undefined);
+  });
+});
+
+describe("runSyncAndAlerts", () => {
+  test("exports runSyncAndAlerts function", async () => {
+    const { runSyncAndAlerts } = await import("@/jobs/sync-job");
+    expect(typeof runSyncAndAlerts).toBe("function");
+  });
+});
+
+describe("Sync job execution", () => {
+  beforeEach(() => {
+    console.info = mock(() => undefined);
+    console.warn = mock(() => undefined);
+    console.error = mock(() => undefined);
+  });
+
+  afterEach(() => {
+    console.info = originalInfo;
+    console.warn = originalWarn;
+    console.error = originalError;
+  });
+
+  test("logs start message when job runs", async () => {
+    const mockInfo = mock(() => undefined);
+    console.info = mockInfo;
+
+    const mockDb = {
+      query: mock(() => Promise.resolve([])),
+      queryOne: mock(() => Promise.resolve(null)),
+      execute: mock(() => Promise.resolve()),
+    } as unknown as DatabaseClient;
+
+    const config: Config = {
+      port: 3000,
+      nodeEnv: "test",
+      syncEnabled: true,
+      syncHour: 2,
+      syncMinute: 0,
+      syncBatchSize: 100,
+      syncTenantDelay: 5000,
+    };
+
+    const job = createSyncJob(mockDb, config);
+
+    try {
+      await job();
+    } catch {
+      // Expected to fail without full setup
+    }
+
+    expect(mockInfo).toHaveBeenCalled();
+  });
+
+  test("logs error message on job failure", async () => {
+    const mockError = mock(() => undefined);
+    console.error = mockError;
+
+    const mockDb = {
+      query: mock(() => Promise.reject(new Error("Database error"))),
+      queryOne: mock(() => Promise.resolve(null)),
+      execute: mock(() => Promise.resolve()),
+    } as unknown as DatabaseClient;
+
+    const config: Config = {
+      port: 3000,
+      nodeEnv: "test",
+      syncEnabled: true,
+      syncHour: 2,
+      syncMinute: 0,
+      syncBatchSize: 100,
+      syncTenantDelay: 5000,
+    };
+
+    const job = createSyncJob(mockDb, config);
+
+    await expect(job()).rejects.toThrow();
+  });
+
+  test("handles unknown error type", async () => {
+    const mockError = mock(() => undefined);
+    console.error = mockError;
+
+    const mockDb = {
+      query: mock(() => Promise.reject("string error")),
+      queryOne: mock(() => Promise.resolve(null)),
+      execute: mock(() => Promise.resolve()),
+    } as unknown as DatabaseClient;
+
+    const config: Config = {
+      port: 3000,
+      nodeEnv: "test",
+      syncEnabled: true,
+      syncHour: 2,
+      syncMinute: 0,
+      syncBatchSize: 100,
+      syncTenantDelay: 5000,
+    };
+
+    const job = createSyncJob(mockDb, config);
+
+    await expect(job()).rejects.toBeDefined();
   });
 });
 

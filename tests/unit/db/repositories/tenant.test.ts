@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression */
 import { test, expect, describe, mock, type Mock } from "bun:test";
 import { TenantRepository } from "@/db/repositories/tenant";
 import type { DatabaseClient } from "@/db/client";
@@ -35,6 +36,164 @@ function createMockDb(): { db: DatabaseClient; mocks: MockDb } {
 }
 
 describe("TenantRepository", () => {
+  describe("create", () => {
+    test("creates tenant and returns it", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockTenant]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.create({
+        bsale_client_code: "12345678-9",
+        bsale_client_name: "Test Company",
+        bsale_access_token: "test-token",
+      });
+
+      expect(result).toEqual(mockTenant);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("throws error when creation fails", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new TenantRepository(db);
+
+      await expect(
+        repo.create({
+          bsale_client_code: "12345678-9",
+          bsale_client_name: "Test Company",
+          bsale_access_token: "test-token",
+        })
+      ).rejects.toThrow("Failed to create tenant");
+    });
+  });
+
+  describe("getAll", () => {
+    test("returns all tenants", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockTenant, { ...mockTenant, id: "second-id" }]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.getAll();
+
+      expect(result.length).toBe(2);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("returns empty array when no tenants", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.getAll();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("findByClientCode", () => {
+    test("returns tenant when found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(mockTenant);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.findByClientCode("12345678-9");
+
+      expect(result).toEqual(mockTenant);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+
+    test("returns null when not found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.findByClientCode("nonexistent");
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("update", () => {
+    test("updates tenant with all fields", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedTenant = {
+        ...mockTenant,
+        bsale_client_name: "Updated Company",
+        bsale_access_token: "new-token",
+      };
+      mocks.query.mockResolvedValue([updatedTenant]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.update(mockTenant.id, {
+        bsale_client_name: "Updated Company",
+        bsale_access_token: "new-token",
+      });
+
+      expect(result.bsale_client_name).toBe("Updated Company");
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("updates tenant with only client_name", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedTenant = { ...mockTenant, bsale_client_name: "New Name" };
+      mocks.query.mockResolvedValue([updatedTenant]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.update(mockTenant.id, {
+        bsale_client_name: "New Name",
+      });
+
+      expect(result.bsale_client_name).toBe("New Name");
+    });
+
+    test("updates tenant with only access_token", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedTenant = { ...mockTenant, bsale_access_token: "new-token" };
+      mocks.query.mockResolvedValue([updatedTenant]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.update(mockTenant.id, {
+        bsale_access_token: "new-token",
+      });
+
+      expect(result.bsale_access_token).toBe("new-token");
+    });
+
+    test("returns existing tenant when no updates provided", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(mockTenant);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.update(mockTenant.id, {});
+
+      expect(result).toEqual(mockTenant);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+
+    test("throws error when no updates and tenant not found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new TenantRepository(db);
+
+      await expect(repo.update("nonexistent", {})).rejects.toThrow(
+        "Tenant nonexistent not found"
+      );
+    });
+
+    test("throws error when update returns no rows", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new TenantRepository(db);
+
+      await expect(
+        repo.update("nonexistent", { bsale_client_name: "New Name" })
+      ).rejects.toThrow("Tenant nonexistent not found");
+    });
+  });
+
   describe("getActiveTenants", () => {
     test("returns list of tenants not currently syncing", async () => {
       const { db, mocks } = createMockDb();

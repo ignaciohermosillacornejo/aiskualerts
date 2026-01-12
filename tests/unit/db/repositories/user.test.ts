@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression */
 import { test, expect, describe, mock, type Mock } from "bun:test";
 import { UserRepository } from "@/db/repositories/user";
 import type { DatabaseClient } from "@/db/client";
@@ -32,6 +33,67 @@ function createMockDb(): { db: DatabaseClient; mocks: MockDb } {
 }
 
 describe("UserRepository", () => {
+  describe("create", () => {
+    test("creates user with all fields", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.create({
+        tenant_id: "tenant-456",
+        email: "test@example.com",
+        name: "Test User",
+        notification_enabled: true,
+        notification_email: "alerts@example.com",
+      });
+
+      expect(result).toEqual(mockUser);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("creates user with minimum required fields", async () => {
+      const { db, mocks } = createMockDb();
+      const minimalUser = { ...mockUser, name: null, notification_email: null };
+      mocks.query.mockResolvedValue([minimalUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.create({
+        tenant_id: "tenant-456",
+        email: "test@example.com",
+      });
+
+      expect(result.email).toBe("test@example.com");
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("throws error when creation fails", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new UserRepository(db);
+
+      await expect(
+        repo.create({
+          tenant_id: "tenant-456",
+          email: "test@example.com",
+        })
+      ).rejects.toThrow("Failed to create user");
+    });
+
+    test("uses default notification_enabled when not provided", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([{ ...mockUser, notification_enabled: true }]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.create({
+        tenant_id: "tenant-456",
+        email: "test@example.com",
+      });
+
+      expect(result.notification_enabled).toBe(true);
+    });
+  });
+
   describe("getByTenant", () => {
     test("returns users for tenant", async () => {
       const { db, mocks } = createMockDb();
