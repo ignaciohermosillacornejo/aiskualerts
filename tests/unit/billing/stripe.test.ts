@@ -159,19 +159,27 @@ test("createCheckoutSession throws if Stripe returns no URL", async () => {
 
 test("createCheckoutSession throws on invalid email", async () => {
   const client = new StripeClient(validConfig);
-  await expect(
-    client.createCheckoutSession(
+  let error: Error | null = null;
+  try {
+    await client.createCheckoutSession(
       "550e8400-e29b-41d4-a716-446655440000",
       "not-an-email"
-    )
-  ).rejects.toThrow();
+    );
+  } catch (e) {
+    error = e as Error;
+  }
+  expect(error).not.toBeNull();
 });
 
 test("createCheckoutSession throws on invalid tenantId", async () => {
   const client = new StripeClient(validConfig);
-  await expect(
-    client.createCheckoutSession("not-a-uuid", "test@example.com")
-  ).rejects.toThrow();
+  let error: Error | null = null;
+  try {
+    await client.createCheckoutSession("not-a-uuid", "test@example.com");
+  } catch (e) {
+    error = e as Error;
+  }
+  expect(error).not.toBeNull();
 });
 
 test("createPortalSession returns portal URL", async () => {
@@ -185,15 +193,18 @@ test("createPortalSession returns portal URL", async () => {
   expect(lastPortalParams?.return_url).toBe("https://example.com/settings");
 });
 
-let portalUrlToReturn: string | null = "https://billing.stripe.com/portal123";
-
 test("createPortalSession throws if Stripe returns no URL", async () => {
-  mockPortalCreate.mockResolvedValueOnce({ url: null });
+  mockPortalCreate.mockResolvedValueOnce({ url: null as unknown as string });
 
   const client = new StripeClient(validConfig);
-  await expect(client.createPortalSession("cus_123")).rejects.toThrow(
-    "Stripe did not return a portal URL"
-  );
+  let error: Error | null = null;
+  try {
+    await client.createPortalSession("cus_123");
+  } catch (e) {
+    error = e as Error;
+  }
+  expect(error).not.toBeNull();
+  expect(error?.message).toBe("Stripe did not return a portal URL");
 });
 
 test("parseWebhookEvent throws if webhook secret not configured", () => {

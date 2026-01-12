@@ -15,6 +15,8 @@ const configSchema = z.object({
   bsaleIntegratorToken: z.string().optional(),
   bsaleRedirectUri: z.string().optional(),
   bsaleOAuthBaseUrl: z.string().optional(),
+  resendApiKey: z.string().optional(),
+  notificationFromEmail: z.string().email().optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -32,5 +34,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     bsaleIntegratorToken: env["BSALE_INTEGRATOR_TOKEN"],
     bsaleRedirectUri: env["BSALE_REDIRECT_URI"],
     bsaleOAuthBaseUrl: env["BSALE_OAUTH_BASE_URL"],
+    resendApiKey: env["RESEND_API_KEY"],
+    notificationFromEmail: env["NOTIFICATION_FROM_EMAIL"],
   });
 }

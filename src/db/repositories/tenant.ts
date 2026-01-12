@@ -31,6 +31,10 @@ export class TenantRepository {
     return tenant;
   }
 
+  async getAll(): Promise<Tenant[]> {
+    return this.db.query<Tenant>(`SELECT * FROM tenants`);
+  }
+
   async getActiveTenants(): Promise<Tenant[]> {
     return this.db.query<Tenant>(
       `SELECT * FROM tenants
