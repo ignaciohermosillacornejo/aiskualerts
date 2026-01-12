@@ -21,16 +21,17 @@ const fallbackHTML = `<!DOCTYPE html>
   </body>
 </html>`;
 
-// Import HTML file - if this fails, routes will use fallback
+// Import HTML or use fallback - use dynamic import to handle test environment
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let index: any;
-try {
-  index = (await import("./frontend/index.html")).default;
-} catch (error) {
-  console.warn("Failed to import index.html, using fallback:", error);
-  index = new Response(fallbackHTML, {
-    headers: { "Content-Type": "text/html" },
-  });
+let indexRoute: any;
+if (process.env.NODE_ENV === "test") {
+  // In test environment, use simple Response
+  indexRoute = { GET: (): Response => new Response(fallbackHTML, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  }) };
+} else {
+  // In development/production, use bundled HTML for HMR support
+  indexRoute = (await import("./frontend/index.html")).default;
 }
 
 export interface HealthResponse {
@@ -126,13 +127,13 @@ export function createServer(
     routes: {
       // Serve frontend (SPA)
       /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-      "/": index,
-      "/login": index,
-      "/app": index,
-      "/app/alerts": index,
-      "/app/products": index,
-      "/app/thresholds": index,
-      "/app/settings": index,
+      "/": indexRoute,
+      "/login": indexRoute,
+      "/app": indexRoute,
+      "/app/alerts": indexRoute,
+      "/app/products": indexRoute,
+      "/app/thresholds": indexRoute,
+      "/app/settings": indexRoute,
       /* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
       // Health check
