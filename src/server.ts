@@ -231,14 +231,17 @@ export function createServer(
           if (idx === -1) {
             return Response.json({ error: "Threshold not found" }, { status: 404 });
           }
+          // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
           const existing = mockThresholds[idx];
           if (existing) {
+            // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
             mockThresholds[idx] = {
               ...existing,
               minQuantity: body.minQuantity,
               updatedAt: new Date().toISOString(),
             };
           }
+          // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
           return Response.json(mockThresholds[idx]);
         },
         DELETE: (req) => {

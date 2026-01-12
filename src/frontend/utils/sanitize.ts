@@ -24,6 +24,7 @@ const HTML_ENTITIES: Record<string, string> = {
  * Use this for any text that comes from external sources (APIs, user input)
  */
 export function escapeHtml(text: string): string {
+  // eslint-disable-next-line security/detect-object-injection -- char is from regex match on specific characters, guaranteed to be in HTML_ENTITIES
   return text.replace(/[&<>"'`=/]/g, (char) => HTML_ENTITIES[char] ?? char);
 }
 
@@ -75,6 +76,8 @@ export function isCleanText(text: string): boolean {
 export function sanitizeObject<T extends Record<string, unknown>>(obj: T): T {
   const result: Record<string, unknown> = {};
 
+  // All result[key] assignments below are safe - key is from Object.entries, iterating own enumerable properties only
+  /* eslint-disable security/detect-object-injection */
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === "string") {
       result[key] = sanitizeText(value);
@@ -94,6 +97,7 @@ export function sanitizeObject<T extends Record<string, unknown>>(obj: T): T {
       result[key] = value;
     }
   }
+  /* eslint-enable security/detect-object-injection */
 
   return result as T;
 }

@@ -43,6 +43,7 @@ function NavIcon({ icon }: { icon: string }) {
       </svg>
     ),
   };
+  // eslint-disable-next-line security/detect-object-injection -- icon comes from hardcoded navItems array, not user input
   return <>{icons[icon] ?? null}</>;
 }
 
