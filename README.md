@@ -132,14 +132,8 @@ See [docs/TESTING.md](docs/TESTING.md) for testing guide.
 Pre-commit hooks automatically run lint and unit tests before each commit:
 
 ```bash
-# Install hooks (one-time setup)
-./scripts/install-hooks.sh
-
-# Hooks will now run automatically on commit
-git commit -m "your changes"
-
-# Skip hooks if needed (not recommended)
-git commit --no-verify
+# Configure git to use project hooks (one-time setup)
+git config core.hooksPath .githooks
 ```
 
 Hooks ensure:
