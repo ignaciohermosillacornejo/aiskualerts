@@ -54,7 +54,7 @@ bun run check
 - OAuth endpoints (/api/auth/bsale/start, /callback, /logout)
 - Authentication middleware for protected routes
 - Automatic tenant/user creation on OAuth
-- 137+ unit tests passing
+- 528+ unit tests passing
 - Zero secrets on disk (1Password integration)
 
 ### 📋 Future Phases
@@ -342,14 +342,14 @@ Private project.
 
 ## Contact
 
-For Bsale app approval or questions, contact: [your-contact]
+For Bsale app approval or questions, contact: [@ignaciohermosillacornejo](https://github.com/ignaciohermosillacornejo)
 
 ---
 
 **Current Phase:** 3 (Complete) ✅
 **Next Phase:** 4 (Notifications & Email Digests) 🚀
-**Test Coverage:** 100% ✅
+**Test Coverage:** 87% overall, 100% backend business logic ✅
 **Secrets on Disk:** Zero ✅
-**Unit Tests:** 137+ passing ✅
-**Production Status:** ✅ Live at http://46.62.158.249
+**Unit Tests:** 528+ passing ✅
+**Production Status:** ✅ Live at https://aiskualerts.com/
 **Latest Deployment:** 2026-01-11 (Phase 3 OAuth ready for deployment)
