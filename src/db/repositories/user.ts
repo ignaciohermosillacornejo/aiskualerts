@@ -1,8 +1,38 @@
 import type { DatabaseClient } from "@/db/client";
 import type { User } from "./types";
 
+export interface CreateUserInput {
+  tenant_id: string;
+  email: string;
+  name?: string;
+  notification_enabled?: boolean;
+  notification_email?: string;
+}
+
 export class UserRepository {
   constructor(private db: DatabaseClient) {}
+
+  async create(input: CreateUserInput): Promise<User> {
+    const users = await this.db.query<User>(
+      `INSERT INTO users (tenant_id, email, name, notification_enabled, notification_email)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
+        input.tenant_id,
+        input.email,
+        input.name ?? null,
+        input.notification_enabled ?? true,
+        input.notification_email ?? null,
+      ]
+    );
+
+    const user = users[0];
+    if (!user) {
+      throw new Error("Failed to create user");
+    }
+
+    return user;
+  }
 
   async getByTenant(tenantId: string): Promise<User[]> {
     return this.db.query<User>(

@@ -1,8 +1,13 @@
 import { loadConfig } from "@/config";
-import { createServer } from "@/server";
+import { createServer, type ServerDependencies } from "@/server";
 import { Scheduler } from "@/scheduler";
 import { getDb } from "@/db/client";
 import { createSyncJob } from "@/jobs/sync-job";
+import { BsaleOAuthClient } from "@/bsale/oauth-client";
+import { TenantRepository } from "@/db/repositories/tenant";
+import { UserRepository } from "@/db/repositories/user";
+import { SessionRepository } from "@/db/repositories/session";
+import { OAuthStateStore } from "@/utils/oauth-state-store";
 
 function main(): void {
   const config = loadConfig();
@@ -22,8 +27,41 @@ function main(): void {
     minute: config.syncMinute,
   });
 
+  // Initialize OAuth dependencies (if configured)
+  const serverDeps: ServerDependencies = {};
+  if (
+    config.bsaleAppId &&
+    config.bsaleIntegratorToken &&
+    config.bsaleRedirectUri
+  ) {
+    const oauthConfig = {
+      appId: config.bsaleAppId,
+      integratorToken: config.bsaleIntegratorToken,
+      redirectUri: config.bsaleRedirectUri,
+      ...(config.bsaleOAuthBaseUrl && { oauthBaseUrl: config.bsaleOAuthBaseUrl }),
+    };
+    const oauthClient = new BsaleOAuthClient(oauthConfig);
+
+    const tenantRepo = new TenantRepository(db);
+    const userRepo = new UserRepository(db);
+    const sessionRepo = new SessionRepository(db);
+    const stateStore = new OAuthStateStore(10); // 10 minute TTL
+
+    serverDeps.oauthDeps = {
+      oauthClient,
+      tenantRepo,
+      userRepo,
+      sessionRepo,
+      stateStore,
+    };
+
+    console.info("OAuth endpoints enabled");
+  } else {
+    console.info("OAuth endpoints disabled (missing configuration)");
+  }
+
   // Start the HTTP server
-  const server = createServer(config);
+  const server = createServer(config, serverDeps);
   console.info(`HTTP server listening on port ${String(server.port)}`);
 
   // Start the scheduler

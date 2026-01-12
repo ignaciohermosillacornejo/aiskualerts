@@ -48,8 +48,16 @@ bun run check
 - Full integration in main entry point
 - 120+ unit tests with comprehensive coverage
 
+### ✅ Phase 3: OAuth & Tenant Onboarding (Complete)
+- Bsale OAuth client with authorization flow
+- Session management with HTTP-only secure cookies
+- OAuth endpoints (/api/auth/bsale/start, /callback, /logout)
+- Authentication middleware for protected routes
+- Automatic tenant/user creation on OAuth
+- 137+ unit tests passing
+- Zero secrets on disk (1Password integration)
+
 ### 📋 Future Phases
-- Phase 3: OAuth & Tenant Onboarding
 - Phase 4: Notifications & Email Digests
 - Phase 5: Web App & Dashboard
 - Phase 6: Production Deployment
@@ -324,10 +332,10 @@ For Bsale app approval or questions, contact: [your-contact]
 
 ---
 
-**Current Phase:** 2 (Complete) ✅
-**Next Phase:** 3 (OAuth & Tenant Onboarding) 🚀
+**Current Phase:** 3 (Complete) ✅
+**Next Phase:** 4 (Notifications & Email Digests) 🚀
 **Test Coverage:** 100% ✅
 **Secrets on Disk:** Zero ✅
-**Unit Tests:** 120+ passing ✅
+**Unit Tests:** 137+ passing ✅
 **Production Status:** ✅ Live at http://46.62.158.249
-**Latest Deployment:** 2026-01-11 (Phase 2 complete)
+**Latest Deployment:** 2026-01-11 (Phase 3 OAuth ready for deployment)

@@ -7,9 +7,10 @@ const mockUser: User = {
   id: "user-123",
   tenant_id: "tenant-456",
   email: "test@example.com",
+  name: "Test User",
   notification_enabled: true,
+  notification_email: null,
   created_at: new Date("2024-01-01"),
-  updated_at: new Date("2024-01-01"),
 };
 
 interface MockDb {
