@@ -29,9 +29,10 @@ WORKDIR /app
 COPY --from=builder /app/src/frontend/styles/output.css /app/src/frontend/styles/output.css
 COPY --from=builder /app/node_modules /app/node_modules
 
-# Copy source code
+# Copy source code and config files
 COPY src ./src
 COPY package.json ./
+COPY bunfig.toml ./
 
 # The bun user already exists in oven/bun:1-alpine base image
 # Set ownership to bun user
