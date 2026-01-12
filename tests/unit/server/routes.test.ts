@@ -1,8 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-floating-promises, @typescript-eslint/restrict-template-expressions */
 import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { createServer, createHealthResponse, type HealthResponse } from "../../../src/server";
 import { loadConfig } from "../../../src/config";
 import type { Server } from "bun";
+import type { OAuthHandlerDeps } from "../../../src/api/handlers/oauth";
+import type { BillingHandlerDeps } from "../../../src/api/handlers/billing";
 
 describe("Server Routes - Extended Coverage", () => {
   let server: Server<unknown>;
@@ -12,7 +13,7 @@ describe("Server Routes - Extended Coverage", () => {
     const config = loadConfig();
     config.port = 0; // Random available port
     server = createServer(config);
-    baseUrl = `http://localhost:${server.port}`;
+    baseUrl = `http://localhost:${String(server.port)}`;
 
     // Wait for server to be ready
     for (let i = 0; i < 10; i++) {
@@ -25,8 +26,8 @@ describe("Server Routes - Extended Coverage", () => {
     }
   });
 
-  afterAll(() => {
-    server.stop();
+  afterAll(async () => {
+    await server.stop();
   });
 
   describe("createHealthResponse", () => {
@@ -60,7 +61,7 @@ describe("Server Routes - Extended Coverage", () => {
 
     test("returns health response body", async () => {
       const response = await fetch(`${baseUrl}/health`);
-      const body = await response.json() as HealthResponse;
+      const body = (await response.json()) as HealthResponse;
       expect(body.status).toBe("ok");
       expect(body.timestamp).toBeDefined();
     });
@@ -76,7 +77,7 @@ describe("Server Routes - Extended Coverage", () => {
   describe("GET /api/dashboard/stats", () => {
     test("returns dashboard statistics", async () => {
       const response = await fetch(`${baseUrl}/api/dashboard/stats`);
-      const body = await response.json() as {
+      const body = (await response.json()) as {
         totalProducts: number;
         activeAlerts: number;
         lowStockProducts: number;
@@ -94,7 +95,7 @@ describe("Server Routes - Extended Coverage", () => {
   describe("GET /api/alerts", () => {
     test("returns alerts array", async () => {
       const response = await fetch(`${baseUrl}/api/alerts`);
-      const body = await response.json() as { alerts: unknown[]; total: number };
+      const body = (await response.json()) as { alerts: unknown[]; total: number };
 
       expect(response.status).toBe(200);
       expect(Array.isArray(body.alerts)).toBe(true);
@@ -103,7 +104,7 @@ describe("Server Routes - Extended Coverage", () => {
 
     test("filters by type", async () => {
       const response = await fetch(`${baseUrl}/api/alerts?type=threshold_breach`);
-      const body = await response.json() as { alerts: { type: string }[] };
+      const body = (await response.json()) as { alerts: { type: string }[] };
 
       expect(response.status).toBe(200);
       body.alerts.forEach((alert) => {
@@ -113,7 +114,7 @@ describe("Server Routes - Extended Coverage", () => {
 
     test("respects limit parameter", async () => {
       const response = await fetch(`${baseUrl}/api/alerts?limit=1`);
-      const body = await response.json() as { alerts: unknown[] };
+      const body = (await response.json()) as { alerts: unknown[] };
 
       expect(response.status).toBe(200);
       expect(body.alerts.length).toBeLessThanOrEqual(1);
@@ -127,7 +128,7 @@ describe("Server Routes - Extended Coverage", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = await response.json() as { success: boolean };
+      const body = (await response.json()) as { success: boolean };
       expect(body.success).toBe(true);
     });
 
@@ -143,7 +144,7 @@ describe("Server Routes - Extended Coverage", () => {
   describe("GET /api/products", () => {
     test("returns products array", async () => {
       const response = await fetch(`${baseUrl}/api/products`);
-      const body = await response.json() as { products: unknown[]; total: number };
+      const body = (await response.json()) as { products: unknown[]; total: number };
 
       expect(response.status).toBe(200);
       expect(Array.isArray(body.products)).toBe(true);
@@ -154,7 +155,7 @@ describe("Server Routes - Extended Coverage", () => {
   describe("GET /api/products/:id", () => {
     test("returns product for valid ID", async () => {
       const response = await fetch(`${baseUrl}/api/products/p1`);
-      const body = await response.json() as { id: string };
+      const body = (await response.json()) as { id: string };
 
       expect(response.status).toBe(200);
       expect(body.id).toBe("p1");
@@ -169,7 +170,7 @@ describe("Server Routes - Extended Coverage", () => {
   describe("GET /api/thresholds", () => {
     test("returns thresholds array", async () => {
       const response = await fetch(`${baseUrl}/api/thresholds`);
-      const body = await response.json() as { thresholds: unknown[]; total: number };
+      const body = (await response.json()) as { thresholds: unknown[]; total: number };
 
       expect(response.status).toBe(200);
       expect(Array.isArray(body.thresholds)).toBe(true);
@@ -185,7 +186,7 @@ describe("Server Routes - Extended Coverage", () => {
       });
 
       expect(response.status).toBe(201);
-      const body = await response.json() as { productId: string; minQuantity: number };
+      const body = (await response.json()) as { productId: string; minQuantity: number };
       expect(body.productId).toBe("p1");
       expect(body.minQuantity).toBe(15);
     });
@@ -200,7 +201,7 @@ describe("Server Routes - Extended Coverage", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = await response.json() as { minQuantity: number };
+      const body = (await response.json()) as { minQuantity: number };
       expect(body.minQuantity).toBe(25);
     });
 
@@ -243,7 +244,7 @@ describe("Server Routes - Extended Coverage", () => {
   describe("GET /api/settings", () => {
     test("returns settings object", async () => {
       const response = await fetch(`${baseUrl}/api/settings`);
-      const body = await response.json() as { companyName: string };
+      const body = (await response.json()) as { companyName: string };
 
       expect(response.status).toBe(200);
       expect(body.companyName).toBeDefined();
@@ -259,7 +260,7 @@ describe("Server Routes - Extended Coverage", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = await response.json() as { emailNotifications: boolean };
+      const body = (await response.json()) as { emailNotifications: boolean };
       expect(body.emailNotifications).toBe(false);
     });
   });
@@ -273,7 +274,7 @@ describe("Server Routes - Extended Coverage", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = await response.json() as { user: { email: string } };
+      const body = (await response.json()) as { user: { email: string } };
       expect(body.user.email).toBe("test@test.com");
       expect(response.headers.get("Set-Cookie")).toContain("session_token=");
     });
@@ -319,7 +320,7 @@ describe("Server Routes - Extended Coverage", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = await response.json() as { user: { id: string } };
+      const body = (await response.json()) as { user: { id: string } };
       expect(body.user.id).toBeDefined();
     });
 
@@ -383,36 +384,38 @@ describe("Server Routes - Extended Coverage", () => {
 });
 
 describe("Server with OAuth routes", () => {
-  test("createServer accepts OAuth dependencies", () => {
+  test("createServer accepts OAuth dependencies", async () => {
     const config = loadConfig();
     config.port = 0;
 
-    const mockOAuthDeps = {
-      oauthClient: {} as any,
-      tenantRepo: {} as any,
-      userRepo: {} as any,
-      sessionRepo: {} as any,
-      stateStore: {} as any,
+    // Create minimal mock that satisfies the type using indexed access types
+    const mockOAuthDeps: OAuthHandlerDeps = {
+      oauthClient: {} as unknown as OAuthHandlerDeps["oauthClient"],
+      tenantRepo: {} as unknown as OAuthHandlerDeps["tenantRepo"],
+      userRepo: {} as unknown as OAuthHandlerDeps["userRepo"],
+      sessionRepo: {} as unknown as OAuthHandlerDeps["sessionRepo"],
+      stateStore: {} as unknown as OAuthHandlerDeps["stateStore"],
     };
 
     const server = createServer(config, { oauthDeps: mockOAuthDeps });
     expect(server).toBeDefined();
-    server.stop();
+    await server.stop();
   });
 
-  test("createServer accepts billing dependencies", () => {
+  test("createServer accepts billing dependencies", async () => {
     const config = loadConfig();
     config.port = 0;
 
-    const mockBillingDeps = {
-      stripeClient: {} as any,
-      tenantRepo: {} as any,
-      userRepo: {} as any,
-      authMiddleware: {} as any,
+    // Create minimal mock that satisfies the type using indexed access types
+    const mockBillingDeps: BillingHandlerDeps = {
+      stripeClient: {} as unknown as BillingHandlerDeps["stripeClient"],
+      tenantRepo: {} as unknown as BillingHandlerDeps["tenantRepo"],
+      userRepo: {} as unknown as BillingHandlerDeps["userRepo"],
+      authMiddleware: {} as unknown as BillingHandlerDeps["authMiddleware"],
     };
 
     const server = createServer(config, { billingDeps: mockBillingDeps });
     expect(server).toBeDefined();
-    server.stop();
+    await server.stop();
   });
 });

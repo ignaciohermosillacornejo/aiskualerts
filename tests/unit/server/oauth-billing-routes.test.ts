@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-function, @typescript-eslint/restrict-template-expressions */
 import { test, expect, describe, beforeAll, afterAll, mock } from "bun:test";
 import { createServer } from "../../../src/server";
 import { loadConfig } from "../../../src/config";
@@ -6,11 +5,10 @@ import type { Server } from "bun";
 import type { OAuthHandlerDeps } from "../../../src/api/handlers/oauth";
 import type { BillingHandlerDeps } from "../../../src/api/handlers/billing";
 
-describe("Server OAuth Routes", () => {
-  let server: Server<unknown>;
-  let baseUrl: string;
-
-  const mockOAuthDeps: OAuthHandlerDeps = {
+// Create properly typed mock factories using indexed access types
+// This pattern casts partial mocks to the expected interface type
+function createMockOAuthDeps(): OAuthHandlerDeps {
+  return {
     oauthClient: {
       getAuthorizationUrl: mock(() => "https://bsale.com/oauth?client_id=test"),
       exchangeCodeForToken: mock(() =>
@@ -22,7 +20,7 @@ describe("Server OAuth Routes", () => {
           },
         })
       ),
-    } as any,
+    } as unknown as OAuthHandlerDeps["oauthClient"],
     tenantRepo: {
       findByClientCode: mock(() => Promise.resolve(null)),
       create: mock(() =>
@@ -32,7 +30,7 @@ describe("Server OAuth Routes", () => {
         })
       ),
       update: mock(() => Promise.resolve({})),
-    } as any,
+    } as unknown as OAuthHandlerDeps["tenantRepo"],
     userRepo: {
       getByEmail: mock(() => Promise.resolve(null)),
       create: mock(() =>
@@ -41,25 +39,92 @@ describe("Server OAuth Routes", () => {
           email: "admin@client-123",
         })
       ),
-    } as any,
+    } as unknown as OAuthHandlerDeps["userRepo"],
     sessionRepo: {
       create: mock(() => Promise.resolve({ id: "session-123" })),
       deleteByToken: mock(() => Promise.resolve()),
-    } as any,
+    } as unknown as OAuthHandlerDeps["sessionRepo"],
     stateStore: {
-      set: mock(() => {}),
+      set: mock(() => undefined),
       consume: mock(() => ({
         codeVerifier: "verifier-123",
         clientCode: "client-123",
       })),
-    } as any,
+    } as unknown as OAuthHandlerDeps["stateStore"],
   };
+}
+
+function createMockBillingDeps(): BillingHandlerDeps {
+  return {
+    stripeClient: {
+      createCheckoutSession: mock(() =>
+        Promise.resolve("https://checkout.stripe.com/session-123")
+      ),
+      createPortalSession: mock(() =>
+        Promise.resolve("https://billing.stripe.com/portal-123")
+      ),
+      parseWebhookEvent: mock(() => ({
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            customer: "cus_123",
+            metadata: { tenantId: "tenant-123" },
+          },
+        },
+      })),
+      processWebhookEvent: mock(() => ({
+        type: "checkout_completed",
+        tenantId: "tenant-123",
+        customerId: "cus_123",
+      })),
+    } as unknown as BillingHandlerDeps["stripeClient"],
+    tenantRepo: {
+      getById: mock(() =>
+        Promise.resolve({
+          id: "tenant-123",
+          stripe_customer_id: "cus_123",
+          is_paid: false,
+        })
+      ),
+      updateStripeCustomer: mock(() => Promise.resolve()),
+      findByStripeCustomerId: mock(() =>
+        Promise.resolve({
+          id: "tenant-123",
+          stripe_customer_id: "cus_123",
+        })
+      ),
+      updatePaidStatus: mock(() => Promise.resolve()),
+    } as unknown as BillingHandlerDeps["tenantRepo"],
+    userRepo: {
+      getById: mock(() =>
+        Promise.resolve({
+          id: "user-123",
+          email: "test@test.com",
+          tenant_id: "tenant-123",
+        })
+      ),
+    } as unknown as BillingHandlerDeps["userRepo"],
+    authMiddleware: {
+      authenticate: mock(() =>
+        Promise.resolve({
+          userId: "user-123",
+          tenantId: "tenant-123",
+        })
+      ),
+    } as unknown as BillingHandlerDeps["authMiddleware"],
+  };
+}
+
+describe("Server OAuth Routes", () => {
+  let server: Server<unknown>;
+  let baseUrl: string;
+  const mockOAuthDeps = createMockOAuthDeps();
 
   beforeAll(async () => {
     const config = loadConfig();
     config.port = 0;
     server = createServer(config, { oauthDeps: mockOAuthDeps });
-    baseUrl = `http://localhost:${server.port}`;
+    baseUrl = `http://localhost:${String(server.port)}`;
 
     // Wait for server
     for (let i = 0; i < 10; i++) {
@@ -122,71 +187,13 @@ describe("Server OAuth Routes", () => {
 describe("Server Billing Routes", () => {
   let server: Server<unknown>;
   let baseUrl: string;
-
-  const mockBillingDeps: BillingHandlerDeps = {
-    stripeClient: {
-      createCheckoutSession: mock(() =>
-        Promise.resolve("https://checkout.stripe.com/session-123")
-      ),
-      createPortalSession: mock(() =>
-        Promise.resolve("https://billing.stripe.com/portal-123")
-      ),
-      parseWebhookEvent: mock(() => ({
-        type: "checkout.session.completed",
-        data: {
-          object: {
-            customer: "cus_123",
-            metadata: { tenantId: "tenant-123" },
-          },
-        },
-      })),
-      processWebhookEvent: mock(() => ({
-        type: "checkout_completed",
-        tenantId: "tenant-123",
-        customerId: "cus_123",
-      })),
-    } as any,
-    tenantRepo: {
-      getById: mock(() =>
-        Promise.resolve({
-          id: "tenant-123",
-          stripe_customer_id: "cus_123",
-          is_paid: false, // Not paid yet for checkout
-        })
-      ),
-      updateStripeCustomer: mock(() => Promise.resolve()),
-      findByStripeCustomerId: mock(() =>
-        Promise.resolve({
-          id: "tenant-123",
-          stripe_customer_id: "cus_123",
-        })
-      ),
-      updatePaidStatus: mock(() => Promise.resolve()),
-    } as any,
-    userRepo: {
-      getById: mock(() =>
-        Promise.resolve({
-          id: "user-123",
-          email: "test@test.com",
-          tenant_id: "tenant-123",
-        })
-      ),
-    } as any,
-    authMiddleware: {
-      authenticate: mock(() =>
-        Promise.resolve({
-          userId: "user-123",
-          tenantId: "tenant-123",
-        })
-      ),
-    } as any,
-  };
+  const mockBillingDeps = createMockBillingDeps();
 
   beforeAll(async () => {
     const config = loadConfig();
     config.port = 0;
     server = createServer(config, { billingDeps: mockBillingDeps });
-    baseUrl = `http://localhost:${server.port}`;
+    baseUrl = `http://localhost:${String(server.port)}`;
 
     for (let i = 0; i < 10; i++) {
       try {
@@ -213,7 +220,7 @@ describe("Server Billing Routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = await response.json() as { url: string };
+      const body = (await response.json()) as { url: string };
       expect(body.url).toContain("stripe.com");
     });
   });
@@ -229,7 +236,7 @@ describe("Server Billing Routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = await response.json() as { url: string };
+      const body = (await response.json()) as { url: string };
       expect(body.url).toContain("stripe.com");
     });
   });
@@ -249,7 +256,7 @@ describe("Server Billing Routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = await response.json() as { received: boolean };
+      const body = (await response.json()) as { received: boolean };
       expect(body.received).toBe(true);
     });
   });
