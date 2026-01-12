@@ -1,11 +1,11 @@
 import { useLocation } from "wouter";
 
 const pageTitles: Record<string, string> = {
-  "/": "Dashboard",
-  "/alerts": "Alertas",
-  "/products": "Productos",
-  "/thresholds": "Umbrales",
-  "/settings": "Configuracion",
+  "/app": "Dashboard",
+  "/app/alerts": "Alertas",
+  "/app/products": "Productos",
+  "/app/thresholds": "Umbrales",
+  "/app/settings": "Configuracion",
 };
 
 export function Header() {

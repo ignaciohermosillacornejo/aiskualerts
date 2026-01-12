@@ -7,11 +7,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: "/", label: "Dashboard", icon: "chart-bar" },
-  { path: "/alerts", label: "Alertas", icon: "bell" },
-  { path: "/products", label: "Productos", icon: "cube" },
-  { path: "/thresholds", label: "Umbrales", icon: "adjustments" },
-  { path: "/settings", label: "Configuracion", icon: "cog" },
+  { path: "/app", label: "Dashboard", icon: "chart-bar" },
+  { path: "/app/alerts", label: "Alertas", icon: "bell" },
+  { path: "/app/products", label: "Productos", icon: "cube" },
+  { path: "/app/thresholds", label: "Umbrales", icon: "adjustments" },
+  { path: "/app/settings", label: "Configuracion", icon: "cog" },
 ];
 
 function NavIcon({ icon }: { icon: string }) {

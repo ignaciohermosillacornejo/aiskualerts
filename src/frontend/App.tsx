@@ -1,5 +1,6 @@
 import { Router, Route, Switch } from "wouter";
 import { Layout } from "./components/Layout";
+import { Landing } from "./pages/Landing";
 import { Dashboard } from "./pages/Dashboard";
 import { Alerts } from "./pages/Alerts";
 import { Products } from "./pages/Products";
@@ -12,28 +13,29 @@ export function App() {
   return (
     <Router>
       <Switch>
+        <Route path="/" component={Landing} />
         <Route path="/login" component={Login} />
-        <Route path="/">
+        <Route path="/app">
           <Layout>
             <Dashboard />
           </Layout>
         </Route>
-        <Route path="/alerts">
+        <Route path="/app/alerts">
           <Layout>
             <Alerts />
           </Layout>
         </Route>
-        <Route path="/products">
+        <Route path="/app/products">
           <Layout>
             <Products />
           </Layout>
         </Route>
-        <Route path="/thresholds">
+        <Route path="/app/thresholds">
           <Layout>
             <Thresholds />
           </Layout>
         </Route>
-        <Route path="/settings">
+        <Route path="/app/settings">
           <Layout>
             <Settings />
           </Layout>
