@@ -28,11 +28,11 @@ let indexRoute: any;
 console.log("[server.ts] NODE_ENV:", process.env.NODE_ENV);
 
 if (process.env.NODE_ENV === "test") {
-  // In test environment, use simple Response
+  // In test environment, use simple Response handler
   console.log("[server.ts] Using fallback HTML for test environment");
-  indexRoute = { GET: (): Response => new Response(fallbackHTML, {
+  indexRoute = (): Response => new Response(fallbackHTML, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
-  }) };
+  });
 } else {
   // In development/production, use bundled HTML for HMR support
   console.log("[server.ts] Using bundled HTML import");
