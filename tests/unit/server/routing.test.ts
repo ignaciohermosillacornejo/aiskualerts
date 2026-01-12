@@ -10,14 +10,19 @@ import type {
 
 // Helper to wait for server to be ready
 async function waitForServer(url: string, maxAttempts = 50): Promise<void> {
+  // eslint-disable-next-line no-console
+  console.log(`[waitForServer] Waiting for ${url}, fetch type:`, typeof fetch);
   for (let i = 0; i < maxAttempts; i++) {
     try {
       const response = await fetch(`${url}/health`);
+      // eslint-disable-next-line no-console
+      console.log(`[waitForServer] Attempt ${String(i + 1)}: status=${String(response.status)}, ok=${String(response.ok)}`);
       if (response.ok) {
         return;
       }
-    } catch {
-      // Server not ready yet
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.log(`[waitForServer] Attempt ${String(i + 1)}: error=`, err instanceof Error ? err.message : err);
     }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
@@ -40,9 +45,15 @@ describe("Server Routing", () => {
 
   beforeAll(async () => {
     server = createServer(mockConfig, {});
+    // eslint-disable-next-line no-console
+    console.log("[routing.test.ts] Server created, port:", server.port);
     baseUrl = `http://localhost:${String(server.port)}`;
+    // eslint-disable-next-line no-console
+    console.log("[routing.test.ts] baseUrl:", baseUrl);
     // Wait for server to be ready by polling health endpoint
     await waitForServer(baseUrl);
+    // eslint-disable-next-line no-console
+    console.log("[routing.test.ts] Server is ready");
   });
 
   afterAll(() => {
