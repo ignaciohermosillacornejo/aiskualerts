@@ -7,6 +7,7 @@ import { BsaleOAuthClient } from "@/bsale/oauth-client";
 import { TenantRepository } from "@/db/repositories/tenant";
 import { UserRepository } from "@/db/repositories/user";
 import { SessionRepository } from "@/db/repositories/session";
+import { OAuthStateStore } from "@/utils/oauth-state-store";
 
 function main(): void {
   const config = loadConfig();
@@ -44,12 +45,14 @@ function main(): void {
     const tenantRepo = new TenantRepository(db);
     const userRepo = new UserRepository(db);
     const sessionRepo = new SessionRepository(db);
+    const stateStore = new OAuthStateStore(10); // 10 minute TTL
 
     serverDeps.oauthDeps = {
       oauthClient,
       tenantRepo,
       userRepo,
       sessionRepo,
+      stateStore,
     };
 
     console.info("OAuth endpoints enabled");

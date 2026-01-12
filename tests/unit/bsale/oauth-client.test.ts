@@ -15,12 +15,19 @@ describe("BsaleOAuthClient", () => {
   });
 
   describe("getAuthorizationUrl", () => {
-    test("returns correct authorization URL with default base URL", () => {
-      const url = client.getAuthorizationUrl("12345678-9");
+    const testState = "test-state-abc123";
+    const testCodeChallenge = "test-code-challenge-xyz789";
 
-      expect(url).toBe(
-        "https://oauth.bsale.io/login?app_id=test-app-id&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&client_code=12345678-9"
-      );
+    test("returns correct authorization URL with PKCE and state", () => {
+      const url = client.getAuthorizationUrl("12345678-9", testState, testCodeChallenge);
+
+      expect(url).toContain("https://oauth.bsale.io/login?");
+      expect(url).toContain("app_id=test-app-id");
+      expect(url).toContain("redirect_uri=https%3A%2F%2Fexample.com%2Fcallback");
+      expect(url).toContain("client_code=12345678-9");
+      expect(url).toContain("state=test-state-abc123");
+      expect(url).toContain("code_challenge=test-code-challenge-xyz789");
+      expect(url).toContain("code_challenge_method=S256");
     });
 
     test("returns correct authorization URL with custom base URL", () => {
@@ -29,31 +36,34 @@ describe("BsaleOAuthClient", () => {
         oauthBaseUrl: "https://custom.bsale.com",
       });
 
-      const url = customClient.getAuthorizationUrl("12345678-9");
+      const url = customClient.getAuthorizationUrl("12345678-9", testState, testCodeChallenge);
 
-      expect(url).toBe(
-        "https://custom.bsale.com/login?app_id=test-app-id&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&client_code=12345678-9"
-      );
+      expect(url).toContain("https://custom.bsale.com/login?");
+      expect(url).toContain("app_id=test-app-id");
+      expect(url).toContain("state=test-state-abc123");
+      expect(url).toContain("code_challenge=test-code-challenge-xyz789");
     });
 
     test("correctly encodes redirect URI with special characters", () => {
       const specialClient = new BsaleOAuthClient({
         ...mockConfig,
-        redirectUri: "https://example.com/callback?state=test&foo=bar",
+        redirectUri: "https://example.com/callback?foo=bar",
       });
 
-      const url = specialClient.getAuthorizationUrl("12345678-9");
+      const url = specialClient.getAuthorizationUrl("12345678-9", testState, testCodeChallenge);
 
-      expect(url).toContain("redirect_uri=https%3A%2F%2Fexample.com%2Fcallback%3Fstate%3Dtest%26foo%3Dbar");
+      expect(url).toContain("redirect_uri=https%3A%2F%2Fexample.com%2Fcallback%3Ffoo%3Dbar");
     });
   });
 
   describe("exchangeCodeForToken", () => {
+    const testCodeVerifier = "test-code-verifier-xyz789";
+
     beforeEach(() => {
       globalThis.fetch = mock(() => Promise.resolve({} as Response)) as unknown as typeof fetch;
     });
 
-    test("exchanges code for token successfully", async () => {
+    test("exchanges code for token with PKCE verifier", async () => {
       const mockResponse = {
         ok: true,
         json: async () => ({
@@ -68,7 +78,7 @@ describe("BsaleOAuthClient", () => {
 
       globalThis.fetch = mock(() => Promise.resolve(mockResponse as Response)) as unknown as typeof fetch;
 
-      const result = await client.exchangeCodeForToken("auth-code-123");
+      const result = await client.exchangeCodeForToken("auth-code-123", testCodeVerifier);
 
       expect(result.code).toBe(200);
       expect(result.data.accessToken).toBe("test-access-token");
@@ -86,6 +96,7 @@ describe("BsaleOAuthClient", () => {
             code: "auth-code-123",
             usrToken: "test-integrator-token",
             appId: "test-app-id",
+            code_verifier: testCodeVerifier,
           }),
         }
       );
@@ -99,10 +110,10 @@ describe("BsaleOAuthClient", () => {
         } as Response)
       ) as unknown as typeof fetch;
 
-      await expect(client.exchangeCodeForToken("bad-code")).rejects.toThrow(
+      await expect(client.exchangeCodeForToken("bad-code", testCodeVerifier)).rejects.toThrow(
         BsaleOAuthError
       );
-      await expect(client.exchangeCodeForToken("bad-code")).rejects.toThrow(
+      await expect(client.exchangeCodeForToken("bad-code", testCodeVerifier)).rejects.toThrow(
         "OAuth token exchange failed: HTTP 400"
       );
     });
@@ -118,10 +129,10 @@ describe("BsaleOAuthClient", () => {
 
       globalThis.fetch = mock(() => Promise.resolve(mockResponse as Response)) as unknown as typeof fetch;
 
-      await expect(client.exchangeCodeForToken("bad-code")).rejects.toThrow(
+      await expect(client.exchangeCodeForToken("bad-code", testCodeVerifier)).rejects.toThrow(
         BsaleOAuthError
       );
-      await expect(client.exchangeCodeForToken("bad-code")).rejects.toThrow(
+      await expect(client.exchangeCodeForToken("bad-code", testCodeVerifier)).rejects.toThrow(
         "OAuth token exchange failed: 401"
       );
     });
@@ -136,7 +147,7 @@ describe("BsaleOAuthClient", () => {
 
       globalThis.fetch = mock(() => Promise.resolve(mockResponse as Response)) as unknown as typeof fetch;
 
-      await expect(client.exchangeCodeForToken("bad-code")).rejects.toThrow();
+      await expect(client.exchangeCodeForToken("bad-code", testCodeVerifier)).rejects.toThrow();
     });
 
     test("uses custom OAuth base URL", async () => {
@@ -159,7 +170,7 @@ describe("BsaleOAuthClient", () => {
 
       globalThis.fetch = mock(() => Promise.resolve(mockResponse as Response)) as unknown as typeof fetch;
 
-      await customClient.exchangeCodeForToken("code");
+      await customClient.exchangeCodeForToken("code", testCodeVerifier);
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
         "https://custom.bsale.com/gateway/oauth_response.json",

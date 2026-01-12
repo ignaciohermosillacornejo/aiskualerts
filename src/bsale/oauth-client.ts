@@ -29,12 +29,20 @@ export class BsaleOAuthClient {
 
   /**
    * Generate the OAuth authorization URL to redirect users to Bsale login
+   * Includes PKCE code_challenge and CSRF state parameter for security
    */
-  getAuthorizationUrl(clientCode: string): string {
+  getAuthorizationUrl(
+    clientCode: string,
+    state: string,
+    codeChallenge: string
+  ): string {
     const params = new URLSearchParams({
       app_id: this.config.appId,
       redirect_uri: this.config.redirectUri,
       client_code: clientCode,
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
     });
 
     return `${this.oauthBaseUrl}/login?${params.toString()}`;
@@ -42,19 +50,27 @@ export class BsaleOAuthClient {
 
   /**
    * Exchange authorization code for access token
+   * Includes PKCE code_verifier for security
    */
-  async exchangeCodeForToken(code: string): Promise<TokenResponse> {
-    const response = await fetch(`${this.oauthBaseUrl}/gateway/oauth_response.json`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        code,
-        usrToken: this.config.integratorToken,
-        appId: this.config.appId,
-      }),
-    });
+  async exchangeCodeForToken(
+    code: string,
+    codeVerifier: string
+  ): Promise<TokenResponse> {
+    const response = await fetch(
+      `${this.oauthBaseUrl}/gateway/oauth_response.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code,
+          usrToken: this.config.integratorToken,
+          appId: this.config.appId,
+          code_verifier: codeVerifier,
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new BsaleOAuthError(`OAuth token exchange failed: HTTP ${String(response.status)}`);

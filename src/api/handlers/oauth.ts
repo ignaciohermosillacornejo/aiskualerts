@@ -2,21 +2,30 @@ import type { BsaleOAuthClient } from "../../bsale/oauth-client";
 import type { TenantRepository } from "../../db/repositories/tenant";
 import type { UserRepository } from "../../db/repositories/user";
 import type { SessionRepository } from "../../db/repositories/session";
+import type { OAuthStateStore } from "../../utils/oauth-state-store";
 import { randomBytes } from "node:crypto";
+import { generatePKCE, generateState } from "../../utils/pkce";
 
 export interface OAuthHandlerDeps {
   oauthClient: BsaleOAuthClient;
   tenantRepo: TenantRepository;
   userRepo: UserRepository;
   sessionRepo: SessionRepository;
+  stateStore: OAuthStateStore;
 }
 
 export interface OAuthStartRequest {
   clientCode: string;
 }
 
+export interface OAuthStartResult {
+  authorizationUrl: string;
+  state: string;
+}
+
 export interface OAuthCallbackRequest {
   code: string;
+  state: string;
 }
 
 export interface SessionData {
@@ -27,35 +36,63 @@ export interface SessionData {
 
 /**
  * Handle OAuth start: redirect user to Bsale authorization page
+ * Generates PKCE challenge and CSRF state for security
  */
 export function handleOAuthStart(
   request: OAuthStartRequest,
   deps: OAuthHandlerDeps
-): string {
+): OAuthStartResult {
   const { clientCode } = request;
 
   if (!clientCode || clientCode.trim().length === 0) {
     throw new OAuthError("client_code is required");
   }
 
-  return deps.oauthClient.getAuthorizationUrl(clientCode);
+  // Generate PKCE challenge and CSRF state
+  const { codeVerifier, codeChallenge } = generatePKCE();
+  const state = generateState();
+
+  // Store state and code_verifier for validation in callback
+  deps.stateStore.set(state, { codeVerifier, clientCode });
+
+  const authorizationUrl = deps.oauthClient.getAuthorizationUrl(
+    clientCode,
+    state,
+    codeChallenge
+  );
+
+  return { authorizationUrl, state };
 }
 
 /**
  * Handle OAuth callback: exchange code for token, create/update tenant, create session
+ * Validates CSRF state and uses PKCE code_verifier for security
  */
 export async function handleOAuthCallback(
   request: OAuthCallbackRequest,
   deps: OAuthHandlerDeps
 ): Promise<SessionData> {
-  const { code } = request;
+  const { code, state } = request;
 
   if (!code || code.trim().length === 0) {
     throw new OAuthError("authorization code is required");
   }
 
-  // Exchange code for access token
-  const tokenResponse = await deps.oauthClient.exchangeCodeForToken(code);
+  if (!state || state.trim().length === 0) {
+    throw new OAuthError("state parameter is required");
+  }
+
+  // Validate and consume state (one-time use)
+  const stateData = deps.stateStore.consume(state);
+  if (!stateData) {
+    throw new OAuthError("invalid or expired state parameter");
+  }
+
+  // Exchange code for access token with PKCE code_verifier
+  const tokenResponse = await deps.oauthClient.exchangeCodeForToken(
+    code,
+    stateData.codeVerifier
+  );
 
   // Check if tenant already exists
   let tenant = await deps.tenantRepo.findByClientCode(

@@ -1,4 +1,9 @@
-import { handleOAuthStart, handleOAuthCallback, type OAuthHandlerDeps } from "../handlers/oauth";
+import {
+  handleOAuthStart,
+  handleOAuthCallback,
+  type OAuthHandlerDeps,
+} from "../handlers/oauth";
+import { extractSessionToken } from "../../utils/cookies";
 
 export function createOAuthRoutes(deps: OAuthHandlerDeps) {
   return {
@@ -13,16 +18,18 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps) {
 
         if (!clientCode) {
           return new Response(
-            JSON.stringify({ error: "client_code query parameter is required" }),
+            JSON.stringify({
+              error: "client_code query parameter is required",
+            }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
 
-        const authUrl = handleOAuthStart({ clientCode }, deps);
+        const { authorizationUrl } = handleOAuthStart({ clientCode }, deps);
 
         return new Response(null, {
           status: 302,
-          headers: { Location: authUrl },
+          headers: { Location: authorizationUrl },
         });
       } catch (error) {
         console.error("OAuth start error:", error);
@@ -34,13 +41,14 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps) {
     },
 
     /**
-     * GET /api/auth/bsale/callback?code=xxx
-     * Handles OAuth callback, creates tenant/user, and sets session cookie
+     * GET /api/auth/bsale/callback?code=xxx&state=xxx
+     * Handles OAuth callback, validates state, creates tenant/user, and sets session cookie
      */
     async callback(request: Request): Promise<Response> {
       try {
         const url = new URL(request.url);
         const code = url.searchParams.get("code");
+        const state = url.searchParams.get("state");
 
         if (!code) {
           return new Response(
@@ -49,18 +57,34 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps) {
           );
         }
 
-        const sessionData = await handleOAuthCallback({ code }, deps);
+        if (!state) {
+          return new Response(
+            JSON.stringify({ error: "state parameter is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
 
-        // Set session cookie (HTTP-only, Secure in production)
+        const sessionData = await handleOAuthCallback({ code, state }, deps);
+
+        // Set session cookie (HTTP-only, Secure in production, SameSite=Strict for CSRF protection)
         const isProduction = process.env.NODE_ENV === "production";
         const maxAge = String(30 * 24 * 60 * 60);
-        const cookieValue = `session_token=${sessionData.sessionToken}; HttpOnly; Path=/; Max-Age=${maxAge}${isProduction ? "; Secure; SameSite=Lax" : ""}`;
+        const cookieParts = [
+          `session_token=${sessionData.sessionToken}`,
+          "HttpOnly",
+          "Path=/",
+          `Max-Age=${maxAge}`,
+        ];
+
+        if (isProduction) {
+          cookieParts.push("Secure", "SameSite=Strict");
+        }
 
         return new Response(null, {
           status: 302,
           headers: {
             Location: "/app",
-            "Set-Cookie": cookieValue,
+            "Set-Cookie": cookieParts.join("; "),
           },
         });
       } catch (error) {
@@ -102,17 +126,4 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps) {
       }
     },
   };
-}
-
-function extractSessionToken(cookieHeader: string): string | null {
-  const cookies = cookieHeader.split(";").map((c) => c.trim());
-
-  for (const cookie of cookies) {
-    const [name, value] = cookie.split("=");
-    if (name === "session_token") {
-      return value ?? null;
-    }
-  }
-
-  return null;
 }

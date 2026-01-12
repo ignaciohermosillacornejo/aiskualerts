@@ -1,5 +1,6 @@
 import type { SessionRepository } from "../../db/repositories/session";
 import type { UserRepository } from "../../db/repositories/user";
+import { extractSessionToken } from "../../utils/cookies";
 
 export interface AuthContext {
   userId: string;
@@ -45,22 +46,6 @@ export function createAuthMiddleware(
       };
     },
   };
-}
-
-/**
- * Extract session token from cookie header
- */
-function extractSessionToken(cookieHeader: string): string | null {
-  const cookies = cookieHeader.split(";").map((c) => c.trim());
-
-  for (const cookie of cookies) {
-    const [name, value] = cookie.split("=");
-    if (name === "session_token") {
-      return value ?? null;
-    }
-  }
-
-  return null;
 }
 
 export class AuthenticationError extends Error {
