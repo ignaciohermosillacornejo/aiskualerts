@@ -8,6 +8,45 @@ import {
   type BillingHandlerDeps,
 } from "@/api/handlers/billing";
 
+// CORS configuration
+export function getCorsHeaders(): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": process.env["ALLOWED_ORIGIN"] ?? "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
+
+// Helper to create JSON response with CORS headers
+export function jsonWithCors(data: unknown, init?: ResponseInit): Response {
+  const corsHeaders = getCorsHeaders();
+  const headers = new Headers(init?.headers);
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    headers.set(key, value);
+  }
+  headers.set("Content-Type", "application/json");
+  return new Response(JSON.stringify(data), { ...init, headers });
+}
+
+// Helper to create Response with CORS headers
+export function responseWithCors(body: BodyInit | null, init?: ResponseInit): Response {
+  const corsHeaders = getCorsHeaders();
+  const headers = new Headers(init?.headers);
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    headers.set(key, value);
+  }
+  return new Response(body, { ...init, headers });
+}
+
+// Preflight response for OPTIONS requests
+export function preflightResponse(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: getCorsHeaders(),
+  });
+}
+
 // Zod schemas for API request validation
 export const CreateThresholdSchema = z.object({
   productId: z.string().min(1, "productId is required"),
@@ -33,9 +72,9 @@ export const LoginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-// Helper function to create validation error response
+// Helper function to create validation error response with CORS
 function createValidationErrorResponse(error: ZodError): Response {
-  return Response.json(
+  return jsonWithCors(
     {
       error: "Validation failed",
       details: error.errors.map((e) => ({
@@ -181,16 +220,16 @@ export function createServer(
 
       // Health check
       "/health": {
-        GET: () => Response.json(createHealthResponse()),
+        GET: () => jsonWithCors(createHealthResponse()),
       },
 
       // API Routes
       "/api/health": {
-        GET: () => Response.json(createHealthResponse()),
+        GET: () => jsonWithCors(createHealthResponse()),
       },
 
       "/api/dashboard/stats": {
-        GET: () => Response.json(mockDashboardStats),
+        GET: () => jsonWithCors(mockDashboardStats),
       },
 
       "/api/alerts": {
@@ -204,7 +243,7 @@ export function createServer(
             filtered = filtered.filter((a) => a.type === type);
           }
 
-          return Response.json({
+          return jsonWithCors({
             alerts: filtered.slice(0, limit),
             total: filtered.length,
           });
@@ -216,15 +255,15 @@ export function createServer(
           const id = req.params.id;
           const alert = mockAlerts.find((a) => a.id === id);
           if (!alert) {
-            return Response.json({ error: "Alert not found" }, { status: 404 });
+            return jsonWithCors({ error: "Alert not found" }, { status: 404 });
           }
-          return Response.json({ success: true });
+          return jsonWithCors({ success: true });
         },
       },
 
       "/api/products": {
         GET: () =>
-          Response.json({
+          jsonWithCors({
             products: mockProducts,
             total: mockProducts.length,
           }),
@@ -234,15 +273,15 @@ export function createServer(
         GET: (req) => {
           const product = mockProducts.find((p) => p.id === req.params.id);
           if (!product) {
-            return Response.json({ error: "Product not found" }, { status: 404 });
+            return jsonWithCors({ error: "Product not found" }, { status: 404 });
           }
-          return Response.json(product);
+          return jsonWithCors(product);
         },
       },
 
       "/api/thresholds": {
         GET: () =>
-          Response.json({
+          jsonWithCors({
             thresholds: mockThresholds,
             total: mockThresholds.length,
           }),
@@ -261,7 +300,7 @@ export function createServer(
             updatedAt: new Date().toISOString(),
           };
           mockThresholds.push(newThreshold);
-          return Response.json(newThreshold, { status: 201 });
+          return jsonWithCors(newThreshold, { status: 201 });
         },
       },
 
@@ -275,7 +314,7 @@ export function createServer(
           const body = parseResult.data;
           const idx = mockThresholds.findIndex((t) => t.id === id);
           if (idx === -1) {
-            return Response.json({ error: "Threshold not found" }, { status: 404 });
+            return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
           }
           // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
           const existing = mockThresholds[idx];
@@ -288,21 +327,21 @@ export function createServer(
             };
           }
           // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
-          return Response.json(mockThresholds[idx]);
+          return jsonWithCors(mockThresholds[idx]);
         },
         DELETE: (req) => {
           const id = req.params.id;
           const idx = mockThresholds.findIndex((t) => t.id === id);
           if (idx === -1) {
-            return Response.json({ error: "Threshold not found" }, { status: 404 });
+            return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
           }
           mockThresholds.splice(idx, 1);
-          return new Response(null, { status: 204 });
+          return responseWithCors(null, { status: 204 });
         },
       },
 
       "/api/settings": {
-        GET: () => Response.json(mockSettings),
+        GET: () => jsonWithCors(mockSettings),
         PUT: async (req) => {
           const parseResult = UpdateSettingsSchema.safeParse(await req.json());
           if (!parseResult.success) {
@@ -310,7 +349,7 @@ export function createServer(
           }
           const body = parseResult.data;
           Object.assign(mockSettings, body);
-          return Response.json(mockSettings);
+          return jsonWithCors(mockSettings);
         },
       },
 
@@ -322,7 +361,7 @@ export function createServer(
           }
           const body = parseResult.data;
           // Mock login - always succeeds for demo
-          const isProduction = process.env.NODE_ENV === "production";
+          const isProduction = process.env["NODE_ENV"] === "production";
           const maxAge = 30 * 24 * 60 * 60; // 30 days
           const sessionToken = `mock_${String(Date.now())}_${Math.random().toString(36)}`;
 
@@ -337,7 +376,7 @@ export function createServer(
             cookieParts.push("Secure", "SameSite=Strict");
           }
 
-          return Response.json(
+          return jsonWithCors(
             {
               user: {
                 id: "u1",
@@ -357,21 +396,23 @@ export function createServer(
 
       "/api/auth/logout": {
         POST: () =>
-          new Response(JSON.stringify({ success: true }), {
-            headers: {
-              "Content-Type": "application/json",
-              "Set-Cookie": "session_token=; HttpOnly; Path=/; Max-Age=0",
-            },
-          }),
+          jsonWithCors(
+            { success: true },
+            {
+              headers: {
+                "Set-Cookie": "session_token=; HttpOnly; Path=/; Max-Age=0",
+              },
+            }
+          ),
       },
 
       "/api/auth/me": {
         GET: (req) => {
           const cookie = req.headers.get("Cookie") ?? "";
           if (!cookie.includes("session_token=")) {
-            return Response.json({ user: null }, { status: 401 });
+            return jsonWithCors({ user: null }, { status: 401 });
           }
-          return Response.json({
+          return jsonWithCors({
             user: {
               id: "u1",
               email: "demo@empresa.cl",
@@ -386,6 +427,11 @@ export function createServer(
     // Fallback handler for OAuth routes, billing routes, and SPA routing
     async fetch(request: Request): Promise<Response> {
       const url = new URL(request.url);
+
+      // Handle OPTIONS preflight requests for CORS
+      if (request.method === "OPTIONS") {
+        return preflightResponse();
+      }
 
       // OAuth routes (if configured)
       if (oauthRoutes) {
@@ -419,7 +465,7 @@ export function createServer(
 
       // API routes that don't match should return 404
       if (url.pathname.startsWith("/api/")) {
-        return Response.json({ error: "Not Found" }, { status: 404 });
+        return jsonWithCors({ error: "Not Found" }, { status: 404 });
       }
 
       // All other routes not defined in the routes object should return 404

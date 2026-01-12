@@ -33,6 +33,13 @@ NODE_ENV=production
 PORT=3000
 
 # ===========================================
+# CORS Configuration
+# ===========================================
+# Allowed origin for CORS requests (defaults to "*" if not set)
+# For production, set to your frontend domain (e.g., https://aiskualerts.com)
+ALLOWED_ORIGIN=https://aiskualerts.com
+
+# ===========================================
 # Bsale API Configuration
 # ===========================================
 BSALE_ACCESS_TOKEN=op://Dev/BSALE_DEMO_ACCESS_TOKEN/credential
