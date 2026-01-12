@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { createServer } from "../../../src/server";
 import type { Config } from "../../../src/config";

@@ -6,7 +6,32 @@ import {
   createBillingRoutes,
   type BillingHandlerDeps,
 } from "@/api/handlers/billing";
-import index from "./frontend/index.html";
+// Fallback HTML for when bundled import fails (e.g., in CI tests)
+const fallbackHTML = `<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AISku Alerts - Bsale Inventory Management</title>
+    <link rel="stylesheet" href="/frontend/styles/output.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/frontend/main.tsx"></script>
+  </body>
+</html>`;
+
+// Import HTML file - if this fails, routes will use fallback
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let index: any;
+try {
+  index = (await import("./frontend/index.html")).default;
+} catch (error) {
+  console.warn("Failed to import index.html, using fallback:", error);
+  index = new Response(fallbackHTML, {
+    headers: { "Content-Type": "text/html" },
+  });
+}
 
 export interface HealthResponse {
   status: "ok";
@@ -100,6 +125,7 @@ export function createServer(
     port: config.port,
     routes: {
       // Serve frontend (SPA)
+      /* eslint-disable @typescript-eslint/no-unsafe-assignment */
       "/": index,
       "/login": index,
       "/app": index,
@@ -107,6 +133,7 @@ export function createServer(
       "/app/products": index,
       "/app/thresholds": index,
       "/app/settings": index,
+      /* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
       // Health check
       "/health": {
