@@ -1,6 +1,9 @@
 import { beforeAll } from "bun:test";
 import { GlobalWindow } from "happy-dom";
 
+// Set NODE_ENV to test for the test environment
+process.env.NODE_ENV = "test";
+
 // Set up a DOM environment for React testing using HappyDOM
 beforeAll(() => {
   const window = new GlobalWindow({ url: "http://localhost" });
