@@ -8,6 +8,22 @@ import type {
   HealthResponse,
 } from "../../test-types";
 
+// Helper to wait for server to be ready
+async function waitForServer(url: string, maxAttempts = 50): Promise<void> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const response = await fetch(`${url}/health`);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // Server not ready yet
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error(`Server at ${url} did not become ready after ${String(maxAttempts)} attempts`);
+}
+
 describe("Server Routing", () => {
   let server: ReturnType<typeof createServer>;
   let baseUrl: string;
@@ -25,8 +41,8 @@ describe("Server Routing", () => {
   beforeAll(async () => {
     server = createServer(mockConfig, {});
     baseUrl = `http://localhost:${String(server.port)}`;
-    // Wait for server to be ready
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait for server to be ready by polling health endpoint
+    await waitForServer(baseUrl);
   });
 
   afterAll(() => {
