@@ -112,4 +112,34 @@ describe("createServer", () => {
     serverInstance = createServer(customConfig);
     expect(serverInstance.port).toBeGreaterThan(0);
   });
+
+  test("development mode is disabled in production", () => {
+    const productionConfig: Config = {
+      port: 0,
+      nodeEnv: "production",
+      syncEnabled: false,
+      syncHour: 2,
+      syncMinute: 0,
+      syncBatchSize: 100,
+      syncTenantDelay: 5000,
+    };
+    serverInstance = createServer(productionConfig);
+    // In production, development must be false to avoid JSX runtime errors
+    // (jsxDEV is only available in development builds)
+    expect(serverInstance.development).toBe(false);
+  });
+
+  test("development mode is enabled in non-production environments", () => {
+    const devConfig: Config = {
+      port: 0,
+      nodeEnv: "development",
+      syncEnabled: false,
+      syncHour: 2,
+      syncMinute: 0,
+      syncBatchSize: 100,
+      syncTenantDelay: 5000,
+    };
+    serverInstance = createServer(devConfig);
+    expect(serverInstance.development).toBe(true);
+  });
 });
