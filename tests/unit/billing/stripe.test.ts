@@ -157,6 +157,23 @@ test("createCheckoutSession throws if Stripe returns no URL", async () => {
   expect(error?.message).toBe("Stripe did not return a checkout URL");
 });
 
+test("createCheckoutSession throws on invalid email", async () => {
+  const client = new StripeClient(validConfig);
+  await expect(
+    client.createCheckoutSession(
+      "550e8400-e29b-41d4-a716-446655440000",
+      "not-an-email"
+    )
+  ).rejects.toThrow();
+});
+
+test("createCheckoutSession throws on invalid tenantId", async () => {
+  const client = new StripeClient(validConfig);
+  await expect(
+    client.createCheckoutSession("not-a-uuid", "test@example.com")
+  ).rejects.toThrow();
+});
+
 test("createPortalSession returns portal URL", async () => {
   const client = new StripeClient(validConfig);
   const url = await client.createPortalSession("cus_123");
@@ -166,6 +183,17 @@ test("createPortalSession returns portal URL", async () => {
   expect(lastPortalParams).not.toBeNull();
   expect(lastPortalParams?.customer).toBe("cus_123");
   expect(lastPortalParams?.return_url).toBe("https://example.com/settings");
+});
+
+let portalUrlToReturn: string | null = "https://billing.stripe.com/portal123";
+
+test("createPortalSession throws if Stripe returns no URL", async () => {
+  mockPortalCreate.mockResolvedValueOnce({ url: null });
+
+  const client = new StripeClient(validConfig);
+  await expect(client.createPortalSession("cus_123")).rejects.toThrow(
+    "Stripe did not return a portal URL"
+  );
 });
 
 test("parseWebhookEvent throws if webhook secret not configured", () => {
@@ -392,4 +420,30 @@ test("resetStripeClient clears singleton", () => {
   delete process.env["STRIPE_SECRET_KEY"];
   delete process.env["STRIPE_PRICE_ID"];
   delete process.env["APP_URL"];
+});
+
+test("getStripeClient throws when STRIPE_SECRET_KEY is missing", () => {
+  resetStripeClient();
+  delete process.env["STRIPE_SECRET_KEY"];
+  process.env["STRIPE_PRICE_ID"] = "price_123";
+
+  expect(() => getStripeClient()).toThrow(
+    "STRIPE_SECRET_KEY environment variable is required"
+  );
+
+  // Cleanup
+  delete process.env["STRIPE_PRICE_ID"];
+});
+
+test("getStripeClient throws when STRIPE_PRICE_ID is missing", () => {
+  resetStripeClient();
+  process.env["STRIPE_SECRET_KEY"] = "sk_test_123";
+  delete process.env["STRIPE_PRICE_ID"];
+
+  expect(() => getStripeClient()).toThrow(
+    "STRIPE_PRICE_ID environment variable is required"
+  );
+
+  // Cleanup
+  delete process.env["STRIPE_SECRET_KEY"];
 });

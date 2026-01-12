@@ -11,6 +11,12 @@ const ConfigSchema = z.object({
 
 export type StripeConfig = z.infer<typeof ConfigSchema>;
 
+// Input validation schemas
+const CheckoutInputSchema = z.object({
+  tenantId: z.string().uuid(),
+  email: z.string().email(),
+});
+
 // Checkout session metadata
 const CheckoutMetadataSchema = z.object({
   tenant_id: z.string().uuid(),
@@ -42,9 +48,12 @@ export class StripeClient {
     tenantId: string,
     email: string
   ): Promise<string> {
+    // Validate inputs before making API calls
+    const validated = CheckoutInputSchema.parse({ tenantId, email });
+
     const session = await this.stripe.checkout.sessions.create({
-      customer_email: email,
-      metadata: { tenant_id: tenantId },
+      customer_email: validated.email,
+      metadata: { tenant_id: validated.tenantId },
       line_items: [{ price: this.priceId, quantity: 1 }],
       mode: "subscription",
       success_url: `${this.appUrl}/billing/success`,
@@ -63,6 +72,10 @@ export class StripeClient {
       customer: customerId,
       return_url: `${this.appUrl}/settings`,
     });
+
+    if (!session.url) {
+      throw new Error("Stripe did not return a portal URL");
+    }
 
     return session.url;
   }
@@ -122,12 +135,24 @@ export class StripeClient {
 let stripeClient: StripeClient | null = null;
 
 export function getStripeClient(): StripeClient {
-  stripeClient ??= new StripeClient({
-    secretKey: process.env["STRIPE_SECRET_KEY"] ?? "",
-    priceId: process.env["STRIPE_PRICE_ID"] ?? "",
-    webhookSecret: process.env["STRIPE_WEBHOOK_SECRET"],
-    appUrl: process.env["APP_URL"] ?? "http://localhost:3000",
-  });
+  if (!stripeClient) {
+    const secretKey = process.env["STRIPE_SECRET_KEY"];
+    const priceId = process.env["STRIPE_PRICE_ID"];
+
+    if (!secretKey) {
+      throw new Error("STRIPE_SECRET_KEY environment variable is required");
+    }
+    if (!priceId) {
+      throw new Error("STRIPE_PRICE_ID environment variable is required");
+    }
+
+    stripeClient = new StripeClient({
+      secretKey,
+      priceId,
+      webhookSecret: process.env["STRIPE_WEBHOOK_SECRET"],
+      appUrl: process.env["APP_URL"] ?? "http://localhost:3000",
+    });
+  }
   return stripeClient;
 }
 

@@ -5,6 +5,8 @@ export interface Tenant {
   bsale_access_token: string;
   sync_status: "pending" | "syncing" | "success" | "failed";
   last_sync_at: Date | null;
+  stripe_customer_id: string | null;
+  is_paid: boolean;
   created_at: Date;
   updated_at: Date;
 }
