@@ -299,10 +299,13 @@ export function createServer(
       return index as unknown as Response;
     },
 
-    development: {
-      hmr: true,
-      console: true,
-    },
+    development:
+      config.nodeEnv !== "production"
+        ? {
+            hmr: true,
+            console: true,
+          }
+        : false,
   });
 }
 
