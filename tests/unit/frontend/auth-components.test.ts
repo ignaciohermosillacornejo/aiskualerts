@@ -1,4 +1,5 @@
 import { test, expect, describe, beforeEach } from "bun:test";
+import "../../setup";
 
 describe("Auth Components Logic", () => {
   describe("AuthContext Module", () => {
