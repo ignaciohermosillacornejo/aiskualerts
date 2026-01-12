@@ -76,11 +76,14 @@ export class BsaleOAuthClient {
       throw new BsaleOAuthError(`OAuth token exchange failed: HTTP ${String(response.status)}`);
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
 
     // Check response code before Zod validation
-    if (typeof data === "object" && data !== null && "code" in data && data.code !== 200) {
-      throw new BsaleOAuthError(`OAuth token exchange failed: ${String(data.code)}`);
+    if (typeof data === "object" && data !== null && "code" in data) {
+      const responseCode = (data as { code: unknown }).code;
+      if (responseCode !== 200) {
+        throw new BsaleOAuthError(`OAuth token exchange failed: ${String(responseCode)}`);
+      }
     }
 
     const validated = TokenResponseSchema.parse(data);
