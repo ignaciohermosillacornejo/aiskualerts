@@ -12,6 +12,7 @@ const pageTitles: Record<string, string> = {
 export function Header() {
   const [location, setLocation] = useLocation();
   const { user, logout } = useAuth();
+  // eslint-disable-next-line security/detect-object-injection -- location is from wouter router, not user input; fallback handles missing keys
   const title = pageTitles[location] ?? "AISku Alerts";
 
   async function handleLogout() {
