@@ -83,7 +83,26 @@ PostgreSQL with raw SQL queries (no ORM):
 - User-defined thresholds
 - Alert history
 
-See [src/db/schema.sql](src/db/schema.sql) for schema.
+#### Migrations
+
+Versioned migrations track schema changes:
+
+```bash
+# Apply pending migrations
+bun run db:migrate
+```
+
+**Migration files:** `src/db/migrations/NNN_description.sql`
+- Files are applied in numeric order (001, 002, etc.)
+- Each migration runs in a transaction
+- Applied migrations tracked in `schema_migrations` table
+
+**Creating new migrations:**
+1. Create `src/db/migrations/NNN_description.sql`
+2. Write idempotent SQL (use `IF NOT EXISTS` where applicable)
+3. Run `bun run db:migrate`
+
+See [src/db/migrations/](src/db/migrations/) for migration files.
 
 ### Bsale Integration
 Auto-paginating API client with:

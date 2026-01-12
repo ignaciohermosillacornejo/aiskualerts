@@ -37,6 +37,7 @@ export async function dropAllTables(db: DatabaseClient): Promise<void> {
   await db.execute("DROP TABLE IF EXISTS stock_snapshots CASCADE");
   await db.execute("DROP TABLE IF EXISTS users CASCADE");
   await db.execute("DROP TABLE IF EXISTS tenants CASCADE");
+  await db.execute("DROP TABLE IF EXISTS schema_migrations CASCADE");
 }
 
 /**
