@@ -1,11 +1,11 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unused-vars, @typescript-eslint/no-floating-promises, @typescript-eslint/restrict-template-expressions */
-import { test, expect, describe, beforeAll, afterAll, mock } from "bun:test";
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-floating-promises, @typescript-eslint/restrict-template-expressions */
+import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { createServer, createHealthResponse, type HealthResponse } from "../../../src/server";
 import { loadConfig } from "../../../src/config";
 import type { Server } from "bun";
 
 describe("Server Routes - Extended Coverage", () => {
-  let server: Server;
+  let server: Server<unknown>;
   let baseUrl: string;
 
   beforeAll(async () => {
@@ -407,7 +407,8 @@ describe("Server with OAuth routes", () => {
     const mockBillingDeps = {
       stripeClient: {} as any,
       tenantRepo: {} as any,
-      authenticate: {} as any,
+      userRepo: {} as any,
+      authMiddleware: {} as any,
     };
 
     const server = createServer(config, { billingDeps: mockBillingDeps });

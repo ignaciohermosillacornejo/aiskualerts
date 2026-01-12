@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unused-vars, @typescript-eslint/no-floating-promises, @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-empty-function, @typescript-eslint/prefer-nullish-coalescing, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/require-await, @typescript-eslint/unbound-method */
-import { test, expect, describe, beforeEach, afterEach, mock } from "bun:test";
+/* eslint-disable @typescript-eslint/prefer-nullish-coalescing, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
+import { test, expect, describe, mock } from "bun:test";
 
 // Test the singleton logic pattern used in db/client.ts
 describe("Database Client Singleton Pattern", () => {
@@ -61,9 +61,9 @@ describe("Database Client Singleton Pattern", () => {
         }
       }
 
-      expect(instance).not.toBe(null);
+      expect(instance).not.toBeNull();
       await closeDb();
-      expect(instance).toBe(null);
+      expect(instance).toBeNull();
     });
 
     test("is safe to call when no instance exists", async () => {
@@ -151,7 +151,7 @@ describe("Database Client Singleton Pattern", () => {
 
   describe("DatabaseClient methods", () => {
     test("query returns array", async () => {
-      const mockQuery = mock(() => Promise.resolve([{ id: 1 }, { id: 2 }]));
+      const mockQuery = mock((_sql: string) => Promise.resolve([{ id: 1 }, { id: 2 }]));
 
       const db = { query: mockQuery };
       const result = await db.query("SELECT * FROM test");
@@ -161,7 +161,7 @@ describe("Database Client Singleton Pattern", () => {
     });
 
     test("queryOne returns first result or null", async () => {
-      const mockQueryOne = mock(() => Promise.resolve({ id: 1 }));
+      const mockQueryOne = mock((_sql: string, _params?: unknown[]) => Promise.resolve({ id: 1 }));
 
       const db = { queryOne: mockQueryOne };
       const result = await db.queryOne("SELECT * FROM test WHERE id = $1", [1]);
@@ -170,16 +170,16 @@ describe("Database Client Singleton Pattern", () => {
     });
 
     test("queryOne returns null for no results", async () => {
-      const mockQueryOne = mock(() => Promise.resolve(null));
+      const mockQueryOne = mock((_sql: string, _params?: unknown[]) => Promise.resolve(null));
 
       const db = { queryOne: mockQueryOne };
       const result = await db.queryOne("SELECT * FROM test WHERE id = $1", [999]);
 
-      expect(result).toBe(null);
+      expect(result).toBeNull();
     });
 
     test("execute runs without returning results", async () => {
-      const mockExecute = mock(() => Promise.resolve());
+      const mockExecute = mock((_sql: string, _params?: unknown[]) => Promise.resolve());
 
       const db = { execute: mockExecute };
       await db.execute("DELETE FROM test WHERE id = $1", [1]);
@@ -215,7 +215,7 @@ describe("Database Client Singleton Pattern", () => {
         );
       `;
 
-      const mockExecute = mock(() => Promise.resolve());
+      const mockExecute = mock((_sql: string) => Promise.resolve());
 
       const initSchema = async () => {
         await mockExecute(schemaSQL);

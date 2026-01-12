@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-empty-function, @typescript-eslint/restrict-template-expressions */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-function, @typescript-eslint/restrict-template-expressions */
 import { test, expect, describe, beforeAll, afterAll, mock } from "bun:test";
 import { createServer } from "../../../src/server";
 import { loadConfig } from "../../../src/config";
@@ -7,7 +7,7 @@ import type { OAuthHandlerDeps } from "../../../src/api/handlers/oauth";
 import type { BillingHandlerDeps } from "../../../src/api/handlers/billing";
 
 describe("Server OAuth Routes", () => {
-  let server: Server;
+  let server: Server<unknown>;
   let baseUrl: string;
 
   const mockOAuthDeps: OAuthHandlerDeps = {
@@ -72,8 +72,8 @@ describe("Server OAuth Routes", () => {
     }
   });
 
-  afterAll(() => {
-    server.stop();
+  afterAll(async () => {
+    await server.stop();
   });
 
   describe("GET /api/auth/bsale/start", () => {
@@ -120,7 +120,7 @@ describe("Server OAuth Routes", () => {
 });
 
 describe("Server Billing Routes", () => {
-  let server: Server;
+  let server: Server<unknown>;
   let baseUrl: string;
 
   const mockBillingDeps: BillingHandlerDeps = {
@@ -198,8 +198,8 @@ describe("Server Billing Routes", () => {
     }
   });
 
-  afterAll(() => {
-    server.stop();
+  afterAll(async () => {
+    await server.stop();
   });
 
   describe("POST /api/billing/checkout", () => {

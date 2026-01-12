@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unused-vars, @typescript-eslint/no-floating-promises, @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-empty-function, @typescript-eslint/prefer-nullish-coalescing, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/require-await, @typescript-eslint/unbound-method */
-import { test, expect, describe, beforeEach, afterEach, mock } from "bun:test";
+/* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-unnecessary-condition */
+import { test, expect, describe, beforeEach, mock } from "bun:test";
 import "../../setup";
 
 // Mock the api module
 const mockApi = {
-  getCurrentUser: mock(() => Promise.resolve(null)),
+  getCurrentUser: mock(() => Promise.resolve(null as { id: string; email: string; name: string; role: "admin" | "viewer" } | null)),
   login: mock(() =>
     Promise.resolve({
       user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
@@ -15,7 +15,6 @@ const mockApi = {
 
 // Mock wouter
 const mockSetLocation = mock(() => {});
-const mockLocation = "/app";
 
 describe("Frontend Components Unit Tests", () => {
   beforeEach(() => {

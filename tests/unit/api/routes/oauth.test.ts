@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unused-vars, @typescript-eslint/no-floating-promises, @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-empty-function, @typescript-eslint/prefer-nullish-coalescing, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/require-await, @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/no-empty-function */
 import { test, expect, describe, beforeEach, mock } from "bun:test";
 import { createOAuthRoutes } from "../../../../src/api/routes/oauth";
 import type { OAuthHandlerDeps } from "../../../../src/api/handlers/oauth";
@@ -245,7 +245,11 @@ describe("OAuth Routes", () => {
         expect(cookie).toContain("Secure");
         expect(cookie).toContain("SameSite=Strict");
       } finally {
-        process.env.NODE_ENV = originalEnv;
+        if (originalEnv !== undefined) {
+          process.env.NODE_ENV = originalEnv;
+        } else {
+          delete process.env.NODE_ENV;
+        }
       }
     });
   });
