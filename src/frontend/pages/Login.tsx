@@ -20,7 +20,7 @@ export function Login() {
       setLoading(true);
       setError(null);
       await api.login({ email, password });
-      setLocation("/");
+      setLocation("/app");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesion");
     } finally {

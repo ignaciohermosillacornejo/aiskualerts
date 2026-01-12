@@ -73,7 +73,7 @@ export function Dashboard() {
       <div className="card">
         <div className="card-header">
           <h2 className="card-title">Alertas Recientes</h2>
-          <a href="/alerts" className="btn btn-secondary">Ver todas</a>
+          <a href="/app/alerts" className="btn btn-secondary">Ver todas</a>
         </div>
         {recentAlerts.length === 0 ? (
           <div className="empty-state">
