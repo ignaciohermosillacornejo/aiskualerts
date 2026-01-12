@@ -31,6 +31,10 @@ export class TenantRepository {
     return tenant;
   }
 
+  async getAll(): Promise<Tenant[]> {
+    return this.db.query<Tenant>(`SELECT * FROM tenants`);
+  }
+
   async getActiveTenants(): Promise<Tenant[]> {
     return this.db.query<Tenant>(
       `SELECT * FROM tenants
@@ -118,6 +122,37 @@ export class TenantRepository {
     return this.db.query<Tenant>(
       `SELECT * FROM tenants WHERE sync_status = $1`,
       [status]
+    );
+  }
+
+  async findByStripeCustomerId(stripeCustomerId: string): Promise<Tenant | null> {
+    return this.db.queryOne<Tenant>(
+      `SELECT * FROM tenants WHERE stripe_customer_id = $1`,
+      [stripeCustomerId]
+    );
+  }
+
+  async updateStripeCustomer(
+    tenantId: string,
+    stripeCustomerId: string
+  ): Promise<void> {
+    await this.db.execute(
+      `UPDATE tenants
+       SET stripe_customer_id = $1, is_paid = TRUE, updated_at = NOW()
+       WHERE id = $2`,
+      [stripeCustomerId, tenantId]
+    );
+  }
+
+  async updatePaidStatus(
+    stripeCustomerId: string,
+    isPaid: boolean
+  ): Promise<void> {
+    await this.db.execute(
+      `UPDATE tenants
+       SET is_paid = $1, updated_at = NOW()
+       WHERE stripe_customer_id = $2`,
+      [isPaid, stripeCustomerId]
     );
   }
 }

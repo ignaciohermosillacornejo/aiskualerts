@@ -2,6 +2,10 @@ import type { Server } from "bun";
 import { loadConfig, type Config } from "@/config";
 import type { OAuthHandlerDeps } from "@/api/handlers/oauth";
 import { createOAuthRoutes } from "@/api/routes/oauth";
+import {
+  createBillingRoutes,
+  type BillingHandlerDeps,
+} from "@/api/handlers/billing";
 import index from "./frontend/index.html";
 
 export interface HealthResponse {
@@ -11,6 +15,7 @@ export interface HealthResponse {
 
 export interface ServerDependencies {
   oauthDeps?: OAuthHandlerDeps;
+  billingDeps?: BillingHandlerDeps;
 }
 
 export function createHealthResponse(): HealthResponse {
@@ -87,6 +92,9 @@ export function createServer(
   deps?: ServerDependencies
 ): Server<undefined> {
   const oauthRoutes = deps?.oauthDeps ? createOAuthRoutes(deps.oauthDeps) : null;
+  const billingRoutes = deps?.billingDeps
+    ? createBillingRoutes(deps.billingDeps)
+    : null;
 
   return Bun.serve({
     port: config.port,
@@ -247,7 +255,7 @@ export function createServer(
       },
     },
 
-    // Fallback handler for OAuth routes and SPA routing
+    // Fallback handler for OAuth routes, billing routes, and SPA routing
     async fetch(request: Request): Promise<Response> {
       const url = new URL(request.url);
 
@@ -263,6 +271,21 @@ export function createServer(
 
         if (url.pathname === "/api/auth/logout" && request.method === "POST") {
           return await oauthRoutes.logout(request);
+        }
+      }
+
+      // Billing routes (if configured)
+      if (billingRoutes) {
+        if (url.pathname === "/api/billing/checkout" && request.method === "POST") {
+          return await billingRoutes.checkout(request);
+        }
+
+        if (url.pathname === "/api/billing/portal" && request.method === "POST") {
+          return await billingRoutes.portal(request);
+        }
+
+        if (url.pathname === "/api/webhooks/stripe" && request.method === "POST") {
+          return await billingRoutes.webhook(request);
         }
       }
 

@@ -106,3 +106,4 @@ CREATE INDEX idx_alerts_user_status ON alerts(user_id, status);
 CREATE INDEX idx_alerts_tenant_date ON alerts(tenant_id, created_at DESC);
 CREATE INDEX idx_sessions_token ON sessions(token);
 CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+CREATE INDEX idx_tenants_stripe_customer ON tenants(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;

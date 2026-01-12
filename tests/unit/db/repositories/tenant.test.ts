@@ -10,6 +10,8 @@ const mockTenant: Tenant = {
   bsale_access_token: "test-token",
   sync_status: "pending",
   last_sync_at: null,
+  stripe_customer_id: null,
+  is_paid: false,
   created_at: new Date(),
   updated_at: new Date(),
 };
@@ -110,6 +112,61 @@ describe("TenantRepository", () => {
 
       expect(result).toEqual([mockTenant]);
       expect(mocks.query).toHaveBeenCalled();
+    });
+  });
+
+  describe("findByStripeCustomerId", () => {
+    test("returns tenant when found", async () => {
+      const { db, mocks } = createMockDb();
+      const paidTenant = { ...mockTenant, stripe_customer_id: "cus_123", is_paid: true };
+      mocks.queryOne.mockResolvedValue(paidTenant);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.findByStripeCustomerId("cus_123");
+
+      expect(result).toEqual(paidTenant);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+
+    test("returns null when tenant not found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.findByStripeCustomerId("cus_nonexistent");
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("updateStripeCustomer", () => {
+    test("updates stripe customer id and sets is_paid to true", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new TenantRepository(db);
+
+      await repo.updateStripeCustomer(mockTenant.id, "cus_123");
+
+      expect(mocks.execute).toHaveBeenCalled();
+    });
+  });
+
+  describe("updatePaidStatus", () => {
+    test("updates is_paid status by stripe customer id", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new TenantRepository(db);
+
+      await repo.updatePaidStatus("cus_123", false);
+
+      expect(mocks.execute).toHaveBeenCalled();
+    });
+
+    test("can set is_paid to true", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new TenantRepository(db);
+
+      await repo.updatePaidStatus("cus_123", true);
+
+      expect(mocks.execute).toHaveBeenCalled();
     });
   });
 });
