@@ -10,7 +10,7 @@ jobs:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       issues: write
       id-token: write
@@ -19,6 +19,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Load secrets from 1Password
         uses: 1password/load-secrets-action@v2
@@ -66,11 +72,17 @@ jobs:
 
             After completing your review, you MUST submit an official PR review:
 
-            - If NO blocking issues found (or only minor suggestions), run BOTH commands in sequence:
-              1. First approve: gh pr review ${{ github.event.pull_request.number }} --approve -b "✅ LGTM - No blocking issues found"
-              2. Then enable auto-merge: gh pr merge ${{ github.event.pull_request.number }} --auto --squash --delete-branch
+            - If NO blocking issues found (or only minor suggestions):
+              1. First, check if the PR has merge conflicts by running: gh pr view ${{ github.event.pull_request.number }} --json mergeable --jq '.mergeable'
+              2. If mergeable is "CONFLICTING", rebase the branch onto main before approving:
+                 - Run: git fetch origin main
+                 - Run: git rebase origin/main
+                 - If rebase succeeds, run: git push --force-with-lease origin HEAD
+                 - If rebase fails due to conflicts, abort with: git rebase --abort (and note in your review that manual rebase is needed)
+              3. Approve: gh pr review ${{ github.event.pull_request.number }} --approve -b "✅ LGTM - No blocking issues found"
+              4. Enable auto-merge: gh pr merge ${{ github.event.pull_request.number }} --auto --squash --delete-branch
 
             - If blocking issues found (security, bugs, or major quality issues):
               gh pr review ${{ github.event.pull_request.number }} --request-changes -b "⚠️ Please address the review comments before merging"
 
-          claude_args: '--model claude-sonnet-4-20250514 --allowed-tools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr merge:*),Read,Grep,Glob"'
+          claude_args: '--model claude-sonnet-4-20250514 --allowed-tools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr merge:*),Bash(git fetch:*),Bash(git rebase:*),Bash(git push:*),Read,Grep,Glob"'
