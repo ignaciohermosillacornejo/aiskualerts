@@ -21,9 +21,9 @@ const fallbackHTML = `<!DOCTYPE html>
   </body>
 </html>`;
 
-// Import HTML or use fallback - use dynamic import to handle test environment
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let indexRoute: any;
+// Route handler type for HTML pages - supports both test fallback and Bun HTML imports
+type IndexRouteType = (() => Response) | import("bun").HTMLBundle;
+let indexRoute: IndexRouteType;
 
 console.info("[server.ts] NODE_ENV:", process.env.NODE_ENV);
 
@@ -131,7 +131,6 @@ export function createServer(
     port: config.port,
     routes: {
       // Serve frontend (SPA)
-      /* eslint-disable @typescript-eslint/no-unsafe-assignment */
       "/": indexRoute,
       "/login": indexRoute,
       "/app": indexRoute,
@@ -139,7 +138,6 @@ export function createServer(
       "/app/products": indexRoute,
       "/app/thresholds": indexRoute,
       "/app/settings": indexRoute,
-      /* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
       // Health check
       "/health": {
