@@ -165,6 +165,12 @@ GitHub Actions workflows run automatically on every push and pull request:
 - ⏰ Runs daily at 2 AM UTC
 - 🔧 Manual trigger available
 
+**AI Code Review** (`.github/workflows/claude-review.yml`):
+- 🤖 Automated PR reviews with Claude Code
+- ✅ Approves PRs with no blocking issues
+- ⚠️ Requests changes for security/bug/quality issues
+- 🚀 Auto-merge enabled on approval
+
 **Secret Management:**
 - Only `OP_SERVICE_ACCOUNT_TOKEN` stored in GitHub
 - All other secrets fetched from 1Password at runtime
