@@ -183,6 +183,7 @@ interface LoginResponse {
     id: string;
     email: string;
     name: string;
+    role: "admin" | "viewer";
   };
 }
 

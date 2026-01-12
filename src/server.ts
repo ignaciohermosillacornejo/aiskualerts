@@ -99,8 +99,14 @@ export function createServer(
   return Bun.serve({
     port: config.port,
     routes: {
-      // Serve frontend
+      // Serve frontend (SPA)
       "/": index,
+      "/login": index,
+      "/app": index,
+      "/app/alerts": index,
+      "/app/products": index,
+      "/app/thresholds": index,
+      "/app/settings": index,
 
       // Health check
       "/health": {
@@ -227,31 +233,66 @@ export function createServer(
           const body = await req.json() as { email?: string; password?: string };
           // Mock login - always succeeds for demo
           if (body.email && body.password) {
-            return Response.json({
-              user: {
-                id: "u1",
-                email: body.email,
-                name: "Usuario Demo",
+            const isProduction = process.env.NODE_ENV === "production";
+            const maxAge = String(30 * 24 * 60 * 60); // 30 days
+            const sessionToken = `mock_${Date.now()}_${Math.random().toString(36)}`;
+
+            const cookieParts = [
+              `session_token=${sessionToken}`,
+              "HttpOnly",
+              "Path=/",
+              `Max-Age=${maxAge}`,
+            ];
+
+            if (isProduction) {
+              cookieParts.push("Secure", "SameSite=Strict");
+            }
+
+            return Response.json(
+              {
+                user: {
+                  id: "u1",
+                  email: body.email,
+                  name: "Usuario Demo",
+                  role: "admin" as const,
+                },
               },
-            });
+              {
+                headers: {
+                  "Set-Cookie": cookieParts.join("; "),
+                },
+              }
+            );
           }
           return Response.json({ error: "Invalid credentials" }, { status: 401 });
         },
       },
 
       "/api/auth/logout": {
-        POST: () => Response.json({ success: true }),
+        POST: () =>
+          new Response(JSON.stringify({ success: true }), {
+            headers: {
+              "Content-Type": "application/json",
+              "Set-Cookie": "session_token=; HttpOnly; Path=/; Max-Age=0",
+            },
+          }),
       },
 
       "/api/auth/me": {
-        GET: () =>
-          Response.json({
+        GET: (req) => {
+          const cookie = req.headers.get("Cookie") ?? "";
+          if (!cookie.includes("session_token=")) {
+            return Response.json({ user: null }, { status: 401 });
+          }
+          return Response.json({
             user: {
               id: "u1",
               email: "demo@empresa.cl",
               name: "Usuario Demo",
+              role: "admin" as const,
             },
-          }),
+          });
+        },
       },
     },
 
@@ -294,9 +335,66 @@ export function createServer(
         return Response.json({ error: "Not Found" }, { status: 404 });
       }
 
-      // For all other routes, serve the frontend (SPA routing)
-      // index is an HTMLBundle, which is a valid Response-like object in Bun
-      return index as unknown as Response;
+      // All other routes not defined in the routes object should return 404
+      return new Response(
+        `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>404 - Page Not Found</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 4rem;
+      margin: 0;
+      color: #0ea5e9;
+    }
+    p {
+      font-size: 1.25rem;
+      margin: 1rem 0;
+      color: #64748b;
+    }
+    a {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: #0ea5e9;
+      color: white;
+      text-decoration: none;
+      border-radius: 0.5rem;
+      transition: background 0.2s;
+    }
+    a:hover {
+      background: #0284c7;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>404</h1>
+    <p>La página que buscas no existe</p>
+    <a href="/">Volver al inicio</a>
+  </div>
+</body>
+</html>`,
+        {
+          status: 404,
+          headers: { "Content-Type": "text/html" },
+        }
+      );
     },
 
     development:

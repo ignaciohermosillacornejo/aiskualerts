@@ -1,0 +1,192 @@
+import { test, expect, describe, beforeAll, afterAll } from "bun:test";
+import { createServer } from "../../../src/server";
+import type { Config } from "../../../src/config";
+
+describe("Server Routing", () => {
+  let server: ReturnType<typeof createServer>;
+  const baseUrl = "http://localhost:3001";
+
+  const mockConfig: Config = {
+    port: 3001,
+    databaseUrl: "mock://database",
+    nodeEnv: "test" as const,
+  };
+
+  beforeAll(() => {
+    server = createServer(mockConfig, {});
+  });
+
+  afterAll(() => {
+    server.stop();
+  });
+
+  describe("Protected Routes (SPA)", () => {
+    test("/ serves the React app", async () => {
+      const response = await fetch(`${baseUrl}/`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+      const text = await response.text();
+      expect(text).toContain("<!DOCTYPE html>");
+    });
+
+    test("/login serves the React app", async () => {
+      const response = await fetch(`${baseUrl}/login`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+    });
+
+    test("/app serves the React app", async () => {
+      const response = await fetch(`${baseUrl}/app`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+    });
+
+    test("/app/alerts serves the React app", async () => {
+      const response = await fetch(`${baseUrl}/app/alerts`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+    });
+
+    test("/app/products serves the React app", async () => {
+      const response = await fetch(`${baseUrl}/app/products`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+    });
+
+    test("/app/thresholds serves the React app", async () => {
+      const response = await fetch(`${baseUrl}/app/thresholds`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+    });
+
+    test("/app/settings serves the React app", async () => {
+      const response = await fetch(`${baseUrl}/app/settings`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+    });
+  });
+
+  describe("Unknown Routes (404)", () => {
+    test("/alerts returns 404", async () => {
+      const response = await fetch(`${baseUrl}/alerts`);
+      expect(response.status).toBe(404);
+      const text = await response.text();
+      expect(text).toContain("404");
+      expect(text).toContain("La página que buscas no existe");
+    });
+
+    test("/random returns 404", async () => {
+      const response = await fetch(`${baseUrl}/random`);
+      expect(response.status).toBe(404);
+      const text = await response.text();
+      expect(text).toContain("404");
+    });
+
+    test("/app/nonexistent returns 404", async () => {
+      const response = await fetch(`${baseUrl}/app/nonexistent`);
+      expect(response.status).toBe(404);
+    });
+
+    test("404 page includes link to home", async () => {
+      const response = await fetch(`${baseUrl}/unknown`);
+      const text = await response.text();
+      expect(text).toContain('href="/"');
+      expect(text).toContain("Volver al inicio");
+    });
+  });
+
+  describe("API Routes", () => {
+    test("/api/health returns 200", async () => {
+      const response = await fetch(`${baseUrl}/api/health`);
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.status).toBe("ok");
+    });
+
+    test("/api/auth/login accepts POST", async () => {
+      const response = await fetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "test@test.com", password: "password" }),
+      });
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.user).toBeDefined();
+      expect(data.user.email).toBe("test@test.com");
+    });
+
+    test("/api/auth/me requires session cookie", async () => {
+      const response = await fetch(`${baseUrl}/api/auth/me`);
+      expect(response.status).toBe(401);
+    });
+
+    test("/api/auth/me returns user with valid cookie", async () => {
+      const response = await fetch(`${baseUrl}/api/auth/me`, {
+        headers: {
+          Cookie: "session_token=mock_token_123",
+        },
+      });
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.user).toBeDefined();
+      expect(data.user.email).toBe("demo@empresa.cl");
+    });
+
+    test("/api/unknown returns 404", async () => {
+      const response = await fetch(`${baseUrl}/api/unknown`);
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toBe("Not Found");
+    });
+  });
+
+  describe("Mock Auth Cookie Handling", () => {
+    test("login sets session_token cookie", async () => {
+      const response = await fetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "test@test.com", password: "pass" }),
+      });
+
+      const setCookie = response.headers.get("set-cookie");
+      expect(setCookie).toBeTruthy();
+      expect(setCookie).toContain("session_token=");
+      expect(setCookie).toContain("HttpOnly");
+      expect(setCookie).toContain("Path=/");
+      expect(setCookie).toContain("Max-Age=");
+    });
+
+    test("logout clears session_token cookie", async () => {
+      const response = await fetch(`${baseUrl}/api/auth/logout`, {
+        method: "POST",
+      });
+
+      const setCookie = response.headers.get("set-cookie");
+      expect(setCookie).toBeTruthy();
+      expect(setCookie).toContain("session_token=;");
+      expect(setCookie).toContain("Max-Age=0");
+    });
+
+    test("login without credentials returns 401", async () => {
+      const response = await fetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(401);
+      const data = await response.json();
+      expect(data.error).toBeDefined();
+    });
+  });
+
+  describe("Health Check", () => {
+    test("/health returns health status", async () => {
+      const response = await fetch(`${baseUrl}/health`);
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.status).toBe("ok");
+      expect(data.timestamp).toBeDefined();
+    });
+  });
+});

@@ -1,13 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { api } from "../api/client";
+import { useAuth } from "../contexts/AuthContext";
 
 export function Login() {
   const [, setLocation] = useLocation();
+  const { login, loading: authLoading, error: authError, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      const redirectPath = sessionStorage.getItem("redirect_after_login") ?? "/app";
+      sessionStorage.removeItem("redirect_after_login");
+      setLocation(redirectPath);
+    }
+  }, [user, setLocation]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -17,14 +26,11 @@ export function Login() {
     }
 
     try {
-      setLoading(true);
       setError(null);
-      await api.login({ email, password });
-      setLocation("/app");
+      await login(email, password);
+      // Redirect happens in useEffect above after user state updates
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesion");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -61,7 +67,7 @@ export function Login() {
             />
           </div>
 
-          {error && (
+          {(error || authError) && (
             <div style={{
               backgroundColor: "#fee2e2",
               color: "#991b1b",
@@ -70,7 +76,7 @@ export function Login() {
               marginBottom: "1rem",
               fontSize: "0.875rem",
             }}>
-              {error}
+              {error || authError}
             </div>
           )}
 
@@ -78,9 +84,9 @@ export function Login() {
             type="submit"
             className="btn btn-primary"
             style={{ width: "100%", padding: "0.75rem" }}
-            disabled={loading}
+            disabled={authLoading}
           >
-            {loading ? "Ingresando..." : "Ingresar"}
+            {authLoading ? "Ingresando..." : "Ingresar"}
           </button>
         </form>
 
@@ -89,7 +95,7 @@ export function Login() {
             Conecte su cuenta Bsale para comenzar
           </p>
           <a
-            href="/api/auth/bsale"
+            href="/api/auth/bsale/start"
             className="btn btn-secondary"
             style={{ marginTop: "0.5rem" }}
           >

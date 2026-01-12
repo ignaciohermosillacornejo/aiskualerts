@@ -1,4 +1,6 @@
 import { Router, Route, Switch } from "wouter";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Layout } from "./components/Layout";
 import { Landing } from "./pages/Landing";
 import { Dashboard } from "./pages/Dashboard";
@@ -11,37 +13,49 @@ import { NotFound } from "./pages/NotFound";
 
 export function App() {
   return (
-    <Router>
-      <Switch>
-        <Route path="/" component={Landing} />
-        <Route path="/login" component={Login} />
-        <Route path="/app">
-          <Layout>
-            <Dashboard />
-          </Layout>
-        </Route>
-        <Route path="/app/alerts">
-          <Layout>
-            <Alerts />
-          </Layout>
-        </Route>
-        <Route path="/app/products">
-          <Layout>
-            <Products />
-          </Layout>
-        </Route>
-        <Route path="/app/thresholds">
-          <Layout>
-            <Thresholds />
-          </Layout>
-        </Route>
-        <Route path="/app/settings">
-          <Layout>
-            <Settings />
-          </Layout>
-        </Route>
-        <Route component={NotFound} />
-      </Switch>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Switch>
+          <Route path="/" component={Landing} />
+          <Route path="/login" component={Login} />
+          <Route path="/app">
+            <ProtectedRoute>
+              <Layout>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
+          </Route>
+          <Route path="/app/alerts">
+            <ProtectedRoute>
+              <Layout>
+                <Alerts />
+              </Layout>
+            </ProtectedRoute>
+          </Route>
+          <Route path="/app/products">
+            <ProtectedRoute>
+              <Layout>
+                <Products />
+              </Layout>
+            </ProtectedRoute>
+          </Route>
+          <Route path="/app/thresholds">
+            <ProtectedRoute>
+              <Layout>
+                <Thresholds />
+              </Layout>
+            </ProtectedRoute>
+          </Route>
+          <Route path="/app/settings">
+            <ProtectedRoute>
+              <Layout>
+                <Settings />
+              </Layout>
+            </ProtectedRoute>
+          </Route>
+          <Route component={NotFound} />
+        </Switch>
+      </Router>
+    </AuthProvider>
   );
 }
