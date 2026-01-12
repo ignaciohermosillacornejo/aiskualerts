@@ -27,7 +27,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "NODE_ENV=test bun test tests/**/*.test.ts --preload ./tests/setup.ts",
-    "test:unit": "NODE_ENV=test bun test tests/unit/**/*.test.ts --preload ./tests/setup.ts",
+    "test:unit": "NODE_ENV=test bun test tests/unit/bsale tests/unit/alerts tests/unit/utils tests/unit/config.test.ts tests/unit/server.test.ts tests/unit/frontend tests/unit/scheduler tests/unit/sync tests/unit/api --preload ./tests/setup.ts && NODE_ENV=test bun test tests/unit/server/routing.test.ts",
     "test:frontend": "NODE_ENV=test bun test tests/unit/frontend/**/*.test.ts --preload ./tests/setup.ts",
     "test:integration": "NODE_ENV=test bun test tests/integration/**/*.test.ts --preload ./tests/setup.ts",
     "test:auth": "NODE_ENV=test bun test tests/unit/server/routing.test.ts tests/integration/auth-flow.test.ts tests/unit/frontend/auth-components.test.ts --preload ./tests/setup.ts",
