@@ -181,7 +181,7 @@ describe("AuthContext useAuth throws outside provider", () => {
     expect(useAuth).toBeFunction();
   });
 
-  test("useAuth throws error message about AuthProvider", async () => {
+  test("useAuth throws error message about AuthProvider", () => {
     // Test that the error message is correct
     const expectedErrorMessage = "useAuth must be used within AuthProvider";
 
@@ -231,10 +231,9 @@ describe("AuthContext API integration", () => {
     expect(capturedLogin).not.toBeNull();
     expect(typeof capturedLogin).toBe("function");
 
-    // Call the captured login function
-    if (capturedLogin) {
-      await capturedLogin("test@test.com", "password123");
-    }
+    // Call the captured login function - capturedLogin is assigned by the render above
+    const loginFn = capturedLogin as (email: string, password: string) => Promise<void>;
+    await loginFn("test@test.com", "password123");
 
     expect(globalThis.fetch).toHaveBeenCalled();
   });
@@ -259,10 +258,9 @@ describe("AuthContext API integration", () => {
     expect(capturedLogout).not.toBeNull();
     expect(typeof capturedLogout).toBe("function");
 
-    // Call the captured logout function
-    if (capturedLogout) {
-      await capturedLogout();
-    }
+    // Call the captured logout function - capturedLogout is assigned by the render above
+    const logoutFn = capturedLogout as () => Promise<void>;
+    await logoutFn();
 
     expect(globalThis.fetch).toHaveBeenCalled();
   });
@@ -287,10 +285,9 @@ describe("AuthContext API integration", () => {
     expect(capturedRefreshUser).not.toBeNull();
     expect(typeof capturedRefreshUser).toBe("function");
 
-    // Call the captured refreshUser function
-    if (capturedRefreshUser) {
-      await capturedRefreshUser();
-    }
+    // Call the captured refreshUser function - capturedRefreshUser is assigned by the render above
+    const refreshFn = capturedRefreshUser as () => Promise<void>;
+    await refreshFn();
 
     expect(globalThis.fetch).toHaveBeenCalled();
   });
@@ -321,16 +318,17 @@ describe("AuthContext API integration", () => {
       </AuthProvider>
     );
 
-    if (capturedLogin) {
-      try {
-        await capturedLogin("test@test.com", "wrongpassword");
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
+    // capturedLogin is assigned by the render above
+    const loginFn = capturedLogin as (email: string, password: string) => Promise<void>;
+    try {
+      await loginFn("test@test.com", "wrongpassword");
+    } catch (error) {
+      expect(error).toBeDefined();
     }
   });
 
   test("logout handles errors gracefully", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
 
     // Mock fetch to return an error
@@ -358,10 +356,9 @@ describe("AuthContext API integration", () => {
       </AuthProvider>
     );
 
-    if (capturedLogout) {
-      // Logout should not throw even on error
-      await capturedLogout();
-    }
+    // Logout should not throw even on error - capturedLogout is assigned by the render above
+    const logoutFn = capturedLogout as () => Promise<void>;
+    await logoutFn();
 
     consoleSpy.mockRestore();
   });

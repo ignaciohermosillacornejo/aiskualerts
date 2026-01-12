@@ -75,11 +75,25 @@ describe("Header", () => {
   });
 
   describe("user display logic", () => {
+    interface User {
+      id: string;
+      email: string;
+      name: string;
+      role: "admin" | "viewer";
+    }
+
+    function getUser(authenticated: boolean): User | null {
+      if (authenticated) {
+        return { id: "1", email: "john@company.com", name: "John Doe", role: "admin" };
+      }
+      return null;
+    }
+
     test("displays user email when authenticated", () => {
-      const user = { id: "1", email: "john@company.com", name: "John Doe", role: "admin" as const };
+      const user = getUser(true);
       const shouldShowUserInfo = user !== null;
       expect(shouldShowUserInfo).toBe(true);
-      expect(user.email).toBe("john@company.com");
+      expect(user?.email).toBe("john@company.com");
     });
 
     test("displays different user email", () => {
@@ -88,19 +102,19 @@ describe("Header", () => {
     });
 
     test("does not display user info when not authenticated", () => {
-      const user = null;
+      const user = getUser(false);
       const shouldShowUserInfo = user !== null;
       expect(shouldShowUserInfo).toBe(false);
     });
 
     test("shows logout button only when authenticated", () => {
-      const user = { id: "1", email: "test@test.com", name: "Test", role: "admin" as const };
+      const user = getUser(true);
       const shouldShowLogoutButton = user !== null;
       expect(shouldShowLogoutButton).toBe(true);
     });
 
     test("hides logout button when not authenticated", () => {
-      const user = null;
+      const user = getUser(false);
       const shouldShowLogoutButton = user !== null;
       expect(shouldShowLogoutButton).toBe(false);
     });
@@ -126,8 +140,9 @@ describe("Header", () => {
 
     test("logout is awaited before redirect", async () => {
       const callOrder: string[] = [];
-      const mockLogout = mock(async () => {
+      const mockLogout = mock(() => {
         callOrder.push("logout");
+        return Promise.resolve();
       });
       const setLocation = (path: string) => {
         callOrder.push(`redirect:${path}`);
@@ -269,6 +284,7 @@ describe("Header", () => {
   describe("component dependencies", () => {
     test("uses useLocation from wouter", () => {
       // The component destructures [location, setLocation] from useLocation
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       const useLocationResult: [string, (path: string) => void] = ["/app", () => {}];
       const [location, setLocation] = useLocationResult;
       expect(typeof location).toBe("string");
@@ -279,7 +295,7 @@ describe("Header", () => {
       // The component destructures user and logout from useAuth
       const useAuthResult = {
         user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
-        logout: async () => {},
+        logout: (): Promise<void> => Promise.resolve(),
       };
       expect(useAuthResult.user).toBeDefined();
       expect(typeof useAuthResult.logout).toBe("function");

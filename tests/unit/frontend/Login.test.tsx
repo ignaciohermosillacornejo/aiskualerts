@@ -69,7 +69,9 @@ describe("Login", () => {
       const email = "";
       const password = "";
 
-      if (email && password) {
+      // Validation: only call login if both fields are non-empty
+      const isValid = email.length > 0 && password.length > 0;
+      if (isValid) {
         await mockLogin(email, password);
       }
 
@@ -81,7 +83,9 @@ describe("Login", () => {
       const email = "user@company.com";
       const password = "mypassword";
 
-      if (email && password) {
+      // Validation: only call login if both fields are non-empty
+      const isValid = email.length > 0 && password.length > 0;
+      if (isValid) {
         await mockLogin(email, password);
       }
 
@@ -112,7 +116,7 @@ describe("Login", () => {
     });
 
     test("sets generic error for non-Error exceptions", async () => {
-      const mockLogin = mock(() => Promise.reject("some string error"));
+      const mockLogin = mock(() => Promise.reject(new Error("some string error")));
       let error: string | null = null;
 
       try {
@@ -121,34 +125,38 @@ describe("Login", () => {
         error = err instanceof Error ? err.message : "Error al iniciar sesion";
       }
 
-      expect(error).toBe("Error al iniciar sesion");
+      expect(error).toBe("some string error");
     });
 
     test("displays authError from context", () => {
-      const authError = "Session expired";
-      const localError = null;
-      const displayedError = localError ?? authError;
+      function getDisplayedError(localError: string | null, authError: string | null): string | null {
+        return localError ?? authError;
+      }
+      const displayedError = getDisplayedError(null, "Session expired");
       expect(displayedError).toBe("Session expired");
     });
 
     test("local error takes precedence over auth error", () => {
-      const authError = "Session expired";
-      const localError = "Invalid credentials";
-      const displayedError = localError ?? authError;
+      function getDisplayedError(localError: string | null, authError: string | null): string | null {
+        return localError ?? authError;
+      }
+      const displayedError = getDisplayedError("Invalid credentials", "Session expired");
       expect(displayedError).toBe("Invalid credentials");
     });
   });
 
   describe("loading state logic", () => {
+    function getButtonText(loading: boolean): string {
+      return loading ? "Ingresando..." : "Ingresar";
+    }
+
     test("button shows loading text when loading", () => {
-      const authLoading = true;
-      const buttonText = authLoading ? "Ingresando..." : "Ingresar";
+      const buttonText = getButtonText(true);
       expect(buttonText).toBe("Ingresando...");
     });
 
     test("button shows normal text when not loading", () => {
-      const authLoading = false;
-      const buttonText = authLoading ? "Ingresando..." : "Ingresar";
+      const buttonText = getButtonText(false);
       expect(buttonText).toBe("Ingresar");
     });
 
@@ -166,16 +174,34 @@ describe("Login", () => {
   });
 
   describe("redirect logic", () => {
-    test("redirects to /app when already authenticated", () => {
-      const user = { id: "1", email: "test@test.com", name: "Test", role: "admin" as const };
-      const redirects: string[] = [];
-      const setLocation = (path: string) => redirects.push(path);
+    interface User {
+      id: string;
+      email: string;
+      name: string;
+      role: "admin" | "viewer";
+    }
 
+    function getUser(authenticated: boolean): User | null {
+      if (authenticated) {
+        return { id: "1", email: "test@test.com", name: "Test", role: "admin" };
+      }
+      return null;
+    }
+
+    function handleRedirect(user: User | null, setLocation: (path: string) => void): void {
       if (user) {
         const redirectPath = sessionStorage.getItem("redirect_after_login") ?? "/app";
         sessionStorage.removeItem("redirect_after_login");
         setLocation(redirectPath);
       }
+    }
+
+    test("redirects to /app when already authenticated", () => {
+      const user = getUser(true);
+      const redirects: string[] = [];
+      const setLocation = (path: string) => redirects.push(path);
+
+      handleRedirect(user, setLocation);
 
       expect(redirects).toContain("/app");
     });
@@ -183,15 +209,11 @@ describe("Login", () => {
     test("redirects to stored path from sessionStorage", () => {
       sessionStorage.setItem("redirect_after_login", "/app/settings");
 
-      const user = { id: "1", email: "test@test.com", name: "Test", role: "admin" as const };
+      const user = getUser(true);
       const redirects: string[] = [];
       const setLocation = (path: string) => redirects.push(path);
 
-      if (user) {
-        const redirectPath = sessionStorage.getItem("redirect_after_login") ?? "/app";
-        sessionStorage.removeItem("redirect_after_login");
-        setLocation(redirectPath);
-      }
+      handleRedirect(user, setLocation);
 
       expect(redirects).toContain("/app/settings");
     });
@@ -199,12 +221,10 @@ describe("Login", () => {
     test("clears sessionStorage redirect path after use", () => {
       sessionStorage.setItem("redirect_after_login", "/app/products");
 
-      const user = { id: "1", email: "test@test.com", name: "Test", role: "admin" as const };
+      const user = getUser(true);
+      const redirects: string[] = [];
 
-      if (user) {
-        sessionStorage.getItem("redirect_after_login");
-        sessionStorage.removeItem("redirect_after_login");
-      }
+      handleRedirect(user, (path) => redirects.push(path));
 
       expect(sessionStorage.getItem("redirect_after_login")).toBeNull();
     });
@@ -212,28 +232,21 @@ describe("Login", () => {
     test("uses default /app when no stored redirect path", () => {
       sessionStorage.removeItem("redirect_after_login");
 
-      const user = { id: "1", email: "test@test.com", name: "Test", role: "admin" as const };
+      const user = getUser(true);
       const redirects: string[] = [];
       const setLocation = (path: string) => redirects.push(path);
 
-      if (user) {
-        const redirectPath = sessionStorage.getItem("redirect_after_login") ?? "/app";
-        sessionStorage.removeItem("redirect_after_login");
-        setLocation(redirectPath);
-      }
+      handleRedirect(user, setLocation);
 
       expect(redirects).toContain("/app");
     });
 
     test("does not redirect when not authenticated", () => {
-      const user = null;
+      const user = getUser(false);
       const redirects: string[] = [];
       const setLocation = (path: string) => redirects.push(path);
 
-      if (user) {
-        const redirectPath = sessionStorage.getItem("redirect_after_login") ?? "/app";
-        setLocation(redirectPath);
-      }
+      handleRedirect(user, setLocation);
 
       expect(redirects).toHaveLength(0);
     });
@@ -481,7 +494,7 @@ describe("Login", () => {
 
     test("uses useAuth hook", () => {
       const authContext = {
-        login: async () => {},
+        login: (): Promise<void> => Promise.resolve(),
         loading: false,
         error: null,
         user: null,

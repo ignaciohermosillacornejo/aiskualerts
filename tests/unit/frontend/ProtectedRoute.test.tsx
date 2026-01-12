@@ -1,8 +1,21 @@
-import { test, expect, describe, beforeEach, mock } from "bun:test";
+import { test, expect, describe, beforeEach } from "bun:test";
 import "../../setup";
 
 // Test ProtectedRoute logic without React Testing Library rendering
 // This tests the business logic and state management
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: "admin" | "viewer";
+}
+
+interface AuthState {
+  user: User | null;
+  loading: boolean;
+  error: string | null;
+}
 
 describe("ProtectedRoute", () => {
   beforeEach(() => {
@@ -18,7 +31,7 @@ describe("ProtectedRoute", () => {
 
   describe("loading state logic", () => {
     test("shows loading state when auth is loading", () => {
-      const authState = { user: null, loading: true, error: null };
+      const authState: AuthState = { user: null, loading: true, error: null };
 
       // When loading, component should show loading message
       const shouldShowLoading = authState.loading;
@@ -26,7 +39,7 @@ describe("ProtectedRoute", () => {
     });
 
     test("does not redirect while loading", () => {
-      const authState = { user: null, loading: true, error: null };
+      const authState: AuthState = { user: null, loading: true, error: null };
       const redirects: string[] = [];
       const setLocation = (path: string) => redirects.push(path);
 
@@ -39,7 +52,7 @@ describe("ProtectedRoute", () => {
     });
 
     test("does not store redirect path while loading", () => {
-      const authState = { user: null, loading: true, error: null };
+      const authState: AuthState = { user: null, loading: true, error: null };
       const location = "/app/settings";
 
       // Should not store redirect while loading
@@ -53,7 +66,7 @@ describe("ProtectedRoute", () => {
 
   describe("unauthenticated state logic", () => {
     test("stores current path in sessionStorage when unauthenticated", () => {
-      const authState = { user: null, loading: false, error: null };
+      const authState: AuthState = { user: null, loading: false, error: null };
       const location = "/app/products";
 
       if (!authState.loading && !authState.user) {
@@ -64,7 +77,7 @@ describe("ProtectedRoute", () => {
     });
 
     test("redirects to /login when unauthenticated", () => {
-      const authState = { user: null, loading: false, error: null };
+      const authState: AuthState = { user: null, loading: false, error: null };
       const redirects: string[] = [];
       const setLocation = (path: string) => redirects.push(path);
 
@@ -76,7 +89,7 @@ describe("ProtectedRoute", () => {
     });
 
     test("returns null when not authenticated (prevents content flash)", () => {
-      const authState = { user: null, loading: false, error: null };
+      const authState: AuthState = { user: null, loading: false, error: null };
 
       // Component should render null when not authenticated
       const shouldRenderChildren = !authState.loading && authState.user;
@@ -86,8 +99,8 @@ describe("ProtectedRoute", () => {
 
   describe("authenticated state logic", () => {
     test("renders children when authenticated", () => {
-      const authState = {
-        user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
+      const authState: AuthState = {
+        user: { id: "1", email: "test@test.com", name: "Test", role: "admin" },
         loading: false,
         error: null,
       };
@@ -97,8 +110,8 @@ describe("ProtectedRoute", () => {
     });
 
     test("does not redirect when authenticated", () => {
-      const authState = {
-        user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
+      const authState: AuthState = {
+        user: { id: "1", email: "test@test.com", name: "Test", role: "admin" },
         loading: false,
         error: null,
       };
@@ -113,8 +126,8 @@ describe("ProtectedRoute", () => {
     });
 
     test("does not store redirect path when authenticated", () => {
-      const authState = {
-        user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
+      const authState: AuthState = {
+        user: { id: "1", email: "test@test.com", name: "Test", role: "admin" },
         loading: false,
         error: null,
       };
@@ -130,7 +143,7 @@ describe("ProtectedRoute", () => {
 
   describe("different routes storage", () => {
     test("stores /app/settings path correctly", () => {
-      const authState = { user: null, loading: false, error: null };
+      const authState: AuthState = { user: null, loading: false, error: null };
       const location = "/app/settings";
 
       if (!authState.loading && !authState.user) {
@@ -141,7 +154,7 @@ describe("ProtectedRoute", () => {
     });
 
     test("stores /app/thresholds path correctly", () => {
-      const authState = { user: null, loading: false, error: null };
+      const authState: AuthState = { user: null, loading: false, error: null };
       const location = "/app/thresholds";
 
       if (!authState.loading && !authState.user) {
@@ -152,7 +165,7 @@ describe("ProtectedRoute", () => {
     });
 
     test("stores /app/alerts path correctly", () => {
-      const authState = { user: null, loading: false, error: null };
+      const authState: AuthState = { user: null, loading: false, error: null };
       const location = "/app/alerts";
 
       if (!authState.loading && !authState.user) {
@@ -163,7 +176,7 @@ describe("ProtectedRoute", () => {
     });
 
     test("stores /app/products path correctly", () => {
-      const authState = { user: null, loading: false, error: null };
+      const authState: AuthState = { user: null, loading: false, error: null };
       const location = "/app/products";
 
       if (!authState.loading && !authState.user) {
@@ -199,8 +212,8 @@ describe("ProtectedRoute", () => {
 
   describe("state transitions", () => {
     test("loading -> authenticated: renders children", () => {
-      const mockUser = { id: "1", email: "test@test.com", name: "Test", role: "admin" as const };
-      let authState = { user: null as typeof mockUser | null, loading: true, error: null };
+      const mockUser: User = { id: "1", email: "test@test.com", name: "Test", role: "admin" };
+      let authState: AuthState = { user: null, loading: true, error: null };
 
       // Initially loading
       expect(authState.loading).toBe(true);
@@ -213,8 +226,7 @@ describe("ProtectedRoute", () => {
     });
 
     test("loading -> unauthenticated: redirects", () => {
-      type User = { id: string; email: string; name: string; role: "admin" | "viewer" };
-      let authState = { user: null as User | null, loading: true, error: null };
+      let authState: AuthState = { user: null, loading: true, error: null };
       const redirects: string[] = [];
       const setLocation = (path: string) => redirects.push(path);
 

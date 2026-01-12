@@ -1,10 +1,14 @@
-import { test, expect, describe, beforeEach, afterEach, mock, spyOn } from "bun:test";
+import { test, expect, describe, beforeEach, afterEach, mock } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import "../../setup";
 
 // Store original fetch and console
 const originalFetch = globalThis.fetch;
+
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+const noop = (): void => {};
+const noopAsync = (): Promise<void> => Promise.resolve();
 
 describe("Header Component SSR", () => {
   beforeEach(() => {
@@ -22,18 +26,18 @@ describe("Header Component SSR", () => {
   });
 
   test("renders header with Dashboard title for /app route", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/app", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/app", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: { id: "1", email: "user@example.com", name: "Test User", role: "admin" as const },
         loading: false,
         error: null,
-        login: async () => {},
-        logout: async () => {},
-        refreshUser: async () => {},
+        login: noopAsync,
+        logout: noopAsync,
+        refreshUser: noopAsync,
       }),
     }));
 
@@ -46,16 +50,16 @@ describe("Header Component SSR", () => {
   });
 
   test("renders header with Alertas title for /app/alerts route", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/app/alerts", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/app/alerts", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
         loading: false,
         error: null,
-        logout: async () => {},
+        logout: noopAsync,
       }),
     }));
 
@@ -66,16 +70,16 @@ describe("Header Component SSR", () => {
   });
 
   test("renders header without user when not authenticated", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/app", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/app", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: null,
         loading: false,
         error: null,
-        logout: async () => {},
+        logout: noopAsync,
       }),
     }));
 
@@ -87,16 +91,16 @@ describe("Header Component SSR", () => {
   });
 
   test("renders header with fallback title for unknown route", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/unknown", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/unknown", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: null,
         loading: false,
         error: null,
-        logout: async () => {},
+        logout: noopAsync,
       }),
     }));
 
@@ -113,11 +117,11 @@ describe("ProtectedRoute Component SSR", () => {
   });
 
   test("renders children when user is authenticated", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/app/settings", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/app/settings", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
         loading: false,
@@ -135,11 +139,11 @@ describe("ProtectedRoute Component SSR", () => {
   });
 
   test("renders loading state when loading", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/app", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/app", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: null,
         loading: true,
@@ -158,11 +162,11 @@ describe("ProtectedRoute Component SSR", () => {
   });
 
   test("renders null when not authenticated and not loading", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/app", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/app", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: null,
         loading: false,
@@ -198,16 +202,16 @@ describe("Login Component SSR", () => {
   });
 
   test("renders login form when not authenticated", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/login", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/login", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: null,
         loading: false,
         error: null,
-        login: async () => {},
+        login: noopAsync,
       }),
     }));
 
@@ -223,16 +227,16 @@ describe("Login Component SSR", () => {
   });
 
   test("renders loading state when logging in", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/login", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/login", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: null,
         loading: true,
         error: null,
-        login: async () => {},
+        login: noopAsync,
       }),
     }));
 
@@ -244,16 +248,16 @@ describe("Login Component SSR", () => {
   });
 
   test("renders error message when auth error exists", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/login", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/login", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: null,
         loading: false,
         error: "Invalid credentials",
-        login: async () => {},
+        login: noopAsync,
       }),
     }));
 
@@ -264,16 +268,16 @@ describe("Login Component SSR", () => {
   });
 
   test("does not render form content when user is authenticated (redirect case)", async () => {
-    mock.module("wouter", () => ({
-      useLocation: () => ["/login", mock(() => {})] as [string, (path: string) => void],
+    void mock.module("wouter", () => ({
+      useLocation: () => ["/login", noop] as [string, (path: string) => void],
     }));
 
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
         user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
         loading: false,
         error: null,
-        login: async () => {},
+        login: noopAsync,
       }),
     }));
 
@@ -298,7 +302,7 @@ describe("AuthContext SSR", () => {
 
   test("useAuth throws when used outside provider", async () => {
     // Mock the module to test the throw behavior
-    mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => {
         throw new Error("useAuth must be used within AuthProvider");
       },

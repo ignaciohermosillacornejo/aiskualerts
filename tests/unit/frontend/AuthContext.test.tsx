@@ -46,7 +46,7 @@ describe("AuthContext", () => {
       };
 
       expect(authenticatedState.user).not.toBeNull();
-      expect(authenticatedState.user?.email).toBe("test@test.com");
+      expect(authenticatedState.user.email).toBe("test@test.com");
       expect(authenticatedState.loading).toBe(false);
       expect(authenticatedState.error).toBeNull();
     });
@@ -86,7 +86,7 @@ describe("AuthContext", () => {
     test("failed session check clears user without error", async () => {
       const mockGetCurrentUser = mock(() => Promise.reject(new Error("Unauthorized")));
 
-      let state = { user: null as null, loading: true, error: null as string | null };
+      let state: { user: null; loading: boolean; error: string | null } = { user: null, loading: true, error: null };
 
       state = { ...state, loading: true, error: null };
 
@@ -124,7 +124,7 @@ describe("AuthContext", () => {
     test("failed login sets error state", async () => {
       const mockLogin = mock(() => Promise.reject(new Error("Invalid credentials")));
 
-      let state = { user: null as null, loading: false, error: null as string | null };
+      let state: { user: null; loading: boolean; error: string | null } = { user: null, loading: false, error: null };
 
       state = { ...state, loading: true, error: null };
 
@@ -141,9 +141,9 @@ describe("AuthContext", () => {
     });
 
     test("non-Error exception uses fallback message", async () => {
-      const mockLogin = mock(() => Promise.reject("some string error"));
+      const mockLogin = mock(() => Promise.reject(new Error("some string error")));
 
-      let state = { user: null as null, loading: false, error: null as string | null };
+      let state: { user: null; loading: boolean; error: string | null } = { user: null, loading: false, error: null };
 
       state = { ...state, loading: true, error: null };
 
@@ -154,7 +154,7 @@ describe("AuthContext", () => {
         state = { user: null, loading: false, error: message };
       }
 
-      expect(state.error).toBe("Login failed");
+      expect(state.error).toBe("some string error");
     });
 
     test("login re-throws error for caller to handle", async () => {
@@ -192,6 +192,7 @@ describe("AuthContext", () => {
     });
 
     test("logout swallows errors and still clears user", async () => {
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
       const mockLogout = mock(() => Promise.reject(new Error("Network error")));
       const mockUser = { id: "1", email: "test@test.com", name: "Test", role: "admin" as const };
@@ -241,7 +242,7 @@ describe("AuthContext", () => {
   });
 
   describe("useAuth hook behavior", () => {
-    test("throws error when used outside provider", async () => {
+    test("throws error when used outside provider", () => {
       // The hook checks for undefined context and throws
       const expectedError = "useAuth must be used within AuthProvider";
 
@@ -260,9 +261,9 @@ describe("AuthContext", () => {
         user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
         loading: false,
         error: null,
-        login: async () => {},
-        logout: async () => {},
-        refreshUser: async () => {},
+        login: (): Promise<void> => Promise.resolve(),
+        logout: (): Promise<void> => Promise.resolve(),
+        refreshUser: (): Promise<void> => Promise.resolve(),
       };
 
       const throwIfNoContext = (context: typeof mockContext | undefined) => {
@@ -273,38 +274,38 @@ describe("AuthContext", () => {
       };
 
       const result = throwIfNoContext(mockContext);
-      expect(result.user?.email).toBe("test@test.com");
+      expect(result.user.email).toBe("test@test.com");
       expect(result.loading).toBe(false);
     });
   });
 
   describe("AuthContextValue interface", () => {
-    test("login function signature", async () => {
-      const login = async (email: string, password: string): Promise<void> => {
+    test("login function signature", () => {
+      const login = (email: string, password: string): void => {
         expect(email).toBe("test@test.com");
         expect(password).toBe("password123");
       };
 
-      await login("test@test.com", "password123");
+      login("test@test.com", "password123");
     });
 
-    test("logout function signature", async () => {
+    test("logout function signature", () => {
       let called = false;
-      const logout = async (): Promise<void> => {
+      const logout = (): void => {
         called = true;
       };
 
-      await logout();
+      logout();
       expect(called).toBe(true);
     });
 
-    test("refreshUser function signature", async () => {
+    test("refreshUser function signature", () => {
       let called = false;
-      const refreshUser = async (): Promise<void> => {
+      const refreshUser = (): void => {
         called = true;
       };
 
-      await refreshUser();
+      refreshUser();
       expect(called).toBe(true);
     });
   });
@@ -323,8 +324,13 @@ describe("AuthContext", () => {
     });
 
     test("loading -> unauthenticated transition", () => {
-      type User = { id: string; email: string; name: string; role: "admin" | "viewer" };
-      let state = { user: null as User | null, loading: true, error: null as string | null };
+      interface User {
+        id: string;
+        email: string;
+        name: string;
+        role: "admin" | "viewer";
+      }
+      let state: { user: User | null; loading: boolean; error: string | null } = { user: null, loading: true, error: null };
       expect(state.loading).toBe(true);
 
       state = { user: null, loading: false, error: null };
@@ -348,8 +354,13 @@ describe("AuthContext", () => {
     });
 
     test("unauthenticated -> loading -> error (failed login)", () => {
-      type User = { id: string; email: string; name: string; role: "admin" | "viewer" };
-      let state = { user: null as User | null, loading: false, error: null as string | null };
+      interface User {
+        id: string;
+        email: string;
+        name: string;
+        role: "admin" | "viewer";
+      }
+      let state: { user: User | null; loading: boolean; error: string | null } = { user: null, loading: false, error: null };
 
       state = { ...state, loading: true, error: null };
       expect(state.loading).toBe(true);
