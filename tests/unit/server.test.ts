@@ -66,21 +66,25 @@ describe("createServer", () => {
   test("health endpoint only accepts GET requests", async () => {
     serverInstance = createServer(testConfig);
 
+    // POST to /health falls through to SPA fallback (returns 200 for client-side routing)
     const postResponse = await fetch(`http://localhost:${String(serverInstance.port)}/health`, {
       method: "POST",
     });
-    expect(postResponse.status).toBe(404);
-
-    const putResponse = await fetch(`http://localhost:${String(serverInstance.port)}/health`, {
-      method: "PUT",
-    });
-    expect(putResponse.status).toBe(404);
+    expect(postResponse.status).toBe(200);
   });
 
-  test("unknown routes return 404 with JSON error", async () => {
+  test("unknown routes return SPA for client-side routing", async () => {
     serverInstance = createServer(testConfig);
 
+    // Unknown routes return 200 (SPA handles routing client-side)
     const response = await fetch(`http://localhost:${String(serverInstance.port)}/unknown`);
+    expect(response.status).toBe(200);
+  });
+
+  test("unknown API routes return 404 JSON", async () => {
+    serverInstance = createServer(testConfig);
+
+    const response = await fetch(`http://localhost:${String(serverInstance.port)}/api/unknown`);
     expect(response.status).toBe(404);
     expect(response.headers.get("content-type")).toContain("application/json");
 
@@ -88,11 +92,11 @@ describe("createServer", () => {
     expect(body.error).toBe("Not Found");
   });
 
-  test("root path returns 404", async () => {
+  test("root path returns React frontend", async () => {
     serverInstance = createServer(testConfig);
 
     const response = await fetch(`http://localhost:${String(serverInstance.port)}/`);
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(200);
   });
 
   test("server respects configured port", () => {
