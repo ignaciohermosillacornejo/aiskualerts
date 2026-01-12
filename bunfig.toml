@@ -1,0 +1,5 @@
+# Bun runtime configuration
+# Path alias configuration for module resolution
+# Matches tsconfig.json paths
+[resolve]
+"@" = "./src"
