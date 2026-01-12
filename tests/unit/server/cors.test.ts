@@ -28,17 +28,17 @@ afterEach(async () => {
 });
 
 describe("getCorsHeaders", () => {
-  const originalEnv = process.env.ALLOWED_ORIGIN;
+  const originalEnv = process.env["ALLOWED_ORIGIN"];
 
   beforeEach(() => {
-    delete process.env.ALLOWED_ORIGIN;
+    delete process.env["ALLOWED_ORIGIN"];
   });
 
   afterEach(() => {
     if (originalEnv !== undefined) {
-      process.env.ALLOWED_ORIGIN = originalEnv;
+      process.env["ALLOWED_ORIGIN"] = originalEnv;
     } else {
-      delete process.env.ALLOWED_ORIGIN;
+      delete process.env["ALLOWED_ORIGIN"];
     }
   });
 
@@ -48,7 +48,7 @@ describe("getCorsHeaders", () => {
   });
 
   test("returns configured origin from ALLOWED_ORIGIN env var", () => {
-    process.env.ALLOWED_ORIGIN = "https://example.com";
+    process.env["ALLOWED_ORIGIN"] = "https://example.com";
     const headers = getCorsHeaders();
     expect(headers["Access-Control-Allow-Origin"]).toBe("https://example.com");
   });
