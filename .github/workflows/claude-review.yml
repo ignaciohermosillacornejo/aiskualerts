@@ -64,4 +64,13 @@ jobs:
             Use `gh pr diff` to see changes, then use `gh pr comment` for feedback.
             Be constructive. Praise good patterns too.
 
-          claude_args: '--model claude-sonnet-4-20250514 --allowed-tools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Read,Grep,Glob"'
+            After completing your review, you MUST submit an official PR review:
+
+            - If NO blocking issues found (or only minor suggestions):
+              gh pr review ${{ github.event.pull_request.number }} --approve -b "✅ LGTM - No blocking issues found"
+              gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+
+            - If blocking issues found (security, bugs, or major quality issues):
+              gh pr review ${{ github.event.pull_request.number }} --request-changes -b "⚠️ Please address the review comments before merging"
+
+          claude_args: '--model claude-sonnet-4-20250514 --allowed-tools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr merge:*),Read,Grep,Glob"'
