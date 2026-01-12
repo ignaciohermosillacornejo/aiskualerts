@@ -21,7 +21,10 @@ export type CheckoutMetadata = z.infer<typeof CheckoutMetadataSchema>;
 // Webhook event result
 export type WebhookResult =
   | { type: "checkout_completed"; tenantId: string; customerId: string }
+  | { type: "subscription_created"; customerId: string; subscriptionId: string }
   | { type: "subscription_deleted"; customerId: string }
+  | { type: "subscription_paused"; customerId: string }
+  | { type: "subscription_resumed"; customerId: string }
   | { type: "ignored"; eventType: string };
 
 export class StripeClient {
@@ -99,6 +102,22 @@ export class StripeClient {
         };
       }
 
+      case "customer.subscription.created": {
+        // TODO: Handle new subscription created
+        // Use case: Could trigger welcome email, initial sync, or logging
+        const subscription = event.data.object;
+
+        if (typeof subscription.customer !== "string") {
+          throw new Error("Expected customer to be a string ID");
+        }
+
+        return {
+          type: "subscription_created",
+          customerId: subscription.customer,
+          subscriptionId: subscription.id,
+        };
+      }
+
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
 
@@ -108,6 +127,36 @@ export class StripeClient {
 
         return {
           type: "subscription_deleted",
+          customerId: subscription.customer,
+        };
+      }
+
+      case "customer.subscription.paused": {
+        // TODO: Handle subscription paused
+        // Use case: Disable alerts/sync while paused, notify user
+        const subscription = event.data.object;
+
+        if (typeof subscription.customer !== "string") {
+          throw new Error("Expected customer to be a string ID");
+        }
+
+        return {
+          type: "subscription_paused",
+          customerId: subscription.customer,
+        };
+      }
+
+      case "customer.subscription.resumed": {
+        // TODO: Handle subscription resumed
+        // Use case: Re-enable alerts/sync, trigger catch-up sync
+        const subscription = event.data.object;
+
+        if (typeof subscription.customer !== "string") {
+          throw new Error("Expected customer to be a string ID");
+        }
+
+        return {
+          type: "subscription_resumed",
           customerId: subscription.customer,
         };
       }

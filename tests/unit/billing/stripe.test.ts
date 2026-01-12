@@ -281,6 +281,35 @@ test("processWebhookEvent throws if customer is not a string", () => {
   );
 });
 
+test("processWebhookEvent handles customer.subscription.created", () => {
+  const client = new StripeClient(validConfig);
+  const event: Stripe.Event = {
+    id: "evt_123",
+    type: "customer.subscription.created",
+    object: "event",
+    api_version: "2025-12-17.acacia",
+    created: Date.now(),
+    livemode: false,
+    pending_webhooks: 0,
+    request: null,
+    data: {
+      object: {
+        id: "sub_123",
+        object: "subscription",
+        customer: "cus_456",
+      } as unknown as Stripe.Subscription,
+    },
+  };
+
+  const result = client.processWebhookEvent(event);
+
+  expect(result).toEqual({
+    type: "subscription_created",
+    customerId: "cus_456",
+    subscriptionId: "sub_123",
+  });
+});
+
 test("processWebhookEvent handles customer.subscription.deleted", () => {
   const client = new StripeClient(validConfig);
   const event: Stripe.Event = {
@@ -305,6 +334,62 @@ test("processWebhookEvent handles customer.subscription.deleted", () => {
 
   expect(result).toEqual({
     type: "subscription_deleted",
+    customerId: "cus_456",
+  });
+});
+
+test("processWebhookEvent handles customer.subscription.paused", () => {
+  const client = new StripeClient(validConfig);
+  const event: Stripe.Event = {
+    id: "evt_123",
+    type: "customer.subscription.paused",
+    object: "event",
+    api_version: "2025-12-17.acacia",
+    created: Date.now(),
+    livemode: false,
+    pending_webhooks: 0,
+    request: null,
+    data: {
+      object: {
+        id: "sub_123",
+        object: "subscription",
+        customer: "cus_456",
+      } as unknown as Stripe.Subscription,
+    },
+  };
+
+  const result = client.processWebhookEvent(event);
+
+  expect(result).toEqual({
+    type: "subscription_paused",
+    customerId: "cus_456",
+  });
+});
+
+test("processWebhookEvent handles customer.subscription.resumed", () => {
+  const client = new StripeClient(validConfig);
+  const event: Stripe.Event = {
+    id: "evt_123",
+    type: "customer.subscription.resumed",
+    object: "event",
+    api_version: "2025-12-17.acacia",
+    created: Date.now(),
+    livemode: false,
+    pending_webhooks: 0,
+    request: null,
+    data: {
+      object: {
+        id: "sub_123",
+        object: "subscription",
+        customer: "cus_456",
+      } as unknown as Stripe.Subscription,
+    },
+  };
+
+  const result = client.processWebhookEvent(event);
+
+  expect(result).toEqual({
+    type: "subscription_resumed",
     customerId: "cus_456",
   });
 });
