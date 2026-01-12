@@ -11,9 +11,8 @@ beforeAll(() => {
   global.document = window.document;
   // @ts-expect-error - Adding DOM globals for testing
   global.navigator = window.navigator;
-  // @ts-expect-error - Adding DOM globals for testing
+  // Adding DOM globals for testing (sessionStorage and localStorage)
   global.sessionStorage = window.sessionStorage;
-  // @ts-expect-error - Adding DOM globals for testing
   global.localStorage = window.localStorage;
   // @ts-expect-error - Adding DOM globals for testing
   global.HTMLElement = window.HTMLElement;

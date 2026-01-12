@@ -13,8 +13,12 @@ describe("Authentication Flow Integration", () => {
 
   const mockConfig: Config = {
     port: 3002,
-    databaseUrl: "mock://database",
     nodeEnv: "test" as const,
+    syncEnabled: false,
+    syncHour: 2,
+    syncMinute: 0,
+    syncBatchSize: 100,
+    syncTenantDelay: 5000,
   };
 
   beforeAll(async () => {
