@@ -8,6 +8,9 @@ CREATE TABLE tenants (
     bsale_access_token TEXT NOT NULL,        -- Encrypted at rest
     sync_status TEXT DEFAULT 'pending',       -- pending | syncing | success | failed
     last_sync_at TIMESTAMPTZ,
+    -- Billing
+    stripe_customer_id TEXT UNIQUE,
+    is_paid BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
