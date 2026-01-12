@@ -66,19 +66,19 @@ describe("createServer", () => {
   test("health endpoint only accepts GET requests", async () => {
     serverInstance = createServer(testConfig);
 
-    // POST to /health falls through to SPA fallback (returns 200 for client-side routing)
+    // POST to /health falls through to 404 (only GET is defined for /health)
     const postResponse = await fetch(`http://localhost:${String(serverInstance.port)}/health`, {
       method: "POST",
     });
-    expect(postResponse.status).toBe(200);
+    expect(postResponse.status).toBe(404);
   });
 
-  test("unknown routes return SPA for client-side routing", async () => {
+  test("unknown routes return 404", async () => {
     serverInstance = createServer(testConfig);
 
-    // Unknown routes return 200 (SPA handles routing client-side)
+    // Unknown routes return 404 (only explicit routes are served)
     const response = await fetch(`http://localhost:${String(serverInstance.port)}/unknown`);
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(404);
   });
 
   test("unknown API routes return 404 JSON", async () => {

@@ -6,7 +6,38 @@ import {
   createBillingRoutes,
   type BillingHandlerDeps,
 } from "@/api/handlers/billing";
-import index from "./frontend/index.html";
+// Fallback HTML for when bundled import fails (e.g., in CI tests)
+const fallbackHTML = `<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AISku Alerts - Bsale Inventory Management</title>
+    <link rel="stylesheet" href="/frontend/styles/output.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/frontend/main.tsx"></script>
+  </body>
+</html>`;
+
+// Import HTML or use fallback - use dynamic import to handle test environment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let indexRoute: any;
+
+console.log("[server.ts] NODE_ENV:", process.env.NODE_ENV);
+
+if (process.env.NODE_ENV === "test") {
+  // In test environment, use simple Response handler
+  console.log("[server.ts] Using fallback HTML for test environment");
+  indexRoute = (): Response => new Response(fallbackHTML, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+} else {
+  // In development/production, use bundled HTML for HMR support
+  console.log("[server.ts] Using bundled HTML import");
+  indexRoute = (await import("./frontend/index.html")).default;
+}
 
 export interface HealthResponse {
   status: "ok";
@@ -99,8 +130,16 @@ export function createServer(
   return Bun.serve({
     port: config.port,
     routes: {
-      // Serve frontend
-      "/": index,
+      // Serve frontend (SPA)
+      /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+      "/": indexRoute,
+      "/login": indexRoute,
+      "/app": indexRoute,
+      "/app/alerts": indexRoute,
+      "/app/products": indexRoute,
+      "/app/thresholds": indexRoute,
+      "/app/settings": indexRoute,
+      /* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
       // Health check
       "/health": {
@@ -227,31 +266,66 @@ export function createServer(
           const body = await req.json() as { email?: string; password?: string };
           // Mock login - always succeeds for demo
           if (body.email && body.password) {
-            return Response.json({
-              user: {
-                id: "u1",
-                email: body.email,
-                name: "Usuario Demo",
+            const isProduction = process.env.NODE_ENV === "production";
+            const maxAge = 30 * 24 * 60 * 60; // 30 days
+            const sessionToken = `mock_${String(Date.now())}_${Math.random().toString(36)}`;
+
+            const cookieParts = [
+              `session_token=${sessionToken}`,
+              "HttpOnly",
+              "Path=/",
+              `Max-Age=${String(maxAge)}`,
+            ];
+
+            if (isProduction) {
+              cookieParts.push("Secure", "SameSite=Strict");
+            }
+
+            return Response.json(
+              {
+                user: {
+                  id: "u1",
+                  email: body.email,
+                  name: "Usuario Demo",
+                  role: "admin" as const,
+                },
               },
-            });
+              {
+                headers: {
+                  "Set-Cookie": cookieParts.join("; "),
+                },
+              }
+            );
           }
           return Response.json({ error: "Invalid credentials" }, { status: 401 });
         },
       },
 
       "/api/auth/logout": {
-        POST: () => Response.json({ success: true }),
+        POST: () =>
+          new Response(JSON.stringify({ success: true }), {
+            headers: {
+              "Content-Type": "application/json",
+              "Set-Cookie": "session_token=; HttpOnly; Path=/; Max-Age=0",
+            },
+          }),
       },
 
       "/api/auth/me": {
-        GET: () =>
-          Response.json({
+        GET: (req) => {
+          const cookie = req.headers.get("Cookie") ?? "";
+          if (!cookie.includes("session_token=")) {
+            return Response.json({ user: null }, { status: 401 });
+          }
+          return Response.json({
             user: {
               id: "u1",
               email: "demo@empresa.cl",
               name: "Usuario Demo",
+              role: "admin" as const,
             },
-          }),
+          });
+        },
       },
     },
 
@@ -294,9 +368,66 @@ export function createServer(
         return Response.json({ error: "Not Found" }, { status: 404 });
       }
 
-      // For all other routes, serve the frontend (SPA routing)
-      // index is an HTMLBundle, which is a valid Response-like object in Bun
-      return index as unknown as Response;
+      // All other routes not defined in the routes object should return 404
+      return new Response(
+        `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>404 - Page Not Found</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 4rem;
+      margin: 0;
+      color: #0ea5e9;
+    }
+    p {
+      font-size: 1.25rem;
+      margin: 1rem 0;
+      color: #64748b;
+    }
+    a {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: #0ea5e9;
+      color: white;
+      text-decoration: none;
+      border-radius: 0.5rem;
+      transition: background 0.2s;
+    }
+    a:hover {
+      background: #0284c7;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>404</h1>
+    <p>La página que buscas no existe</p>
+    <a href="/">Volver al inicio</a>
+  </div>
+</body>
+</html>`,
+        {
+          status: 404,
+          headers: { "Content-Type": "text/html" },
+        }
+      );
     },
 
     development:

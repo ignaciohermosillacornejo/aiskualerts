@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Pre-commit hook to run lint and tests before allowing commits
+
+echo "Running pre-commit checks..."
+
+# Run linter
+echo "1/2 Running linter..."
+if ! bun run lint; then
+    echo "❌ Linting failed. Please fix errors before committing."
+    exit 1
+fi
+
+# Run unit tests
+echo "2/2 Running unit tests..."
+if ! bun run test:unit; then
+    echo "❌ Unit tests failed. Please fix tests before committing."
+    exit 1
+fi
+
+echo "✅ All pre-commit checks passed!"
+exit 0
