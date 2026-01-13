@@ -1,0 +1,7 @@
+echo "Running pre-push checks..."
+
+# Run unit tests
+echo "Running unit tests..."
+bun run test:unit || exit 1
+
+echo "✅ Pre-push checks passed!"
