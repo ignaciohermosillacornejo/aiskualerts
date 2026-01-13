@@ -67,4 +67,35 @@ export default [
       "@typescript-eslint/use-unknown-in-catch-callback-variable": "off",
     },
   },
+
+  // Test files - relaxed rules for test patterns
+  {
+    files: ["tests/**/*.ts", "tests/**/*.tsx"],
+    linterOptions: {
+      // Tests may have eslint-disable comments that become unused after rule relaxation
+      reportUnusedDisableDirectives: "off",
+    },
+    rules: {
+      // Empty functions are common in test mocks
+      "@typescript-eslint/no-empty-function": "off",
+      // Unnecessary conditionals are often intentional in tests to verify logic
+      "@typescript-eslint/no-unnecessary-condition": "off",
+      // Template literals with numbers are common in test data
+      "@typescript-eslint/restrict-template-expressions": ["error", {
+        allowNumber: true,
+      }],
+      // Async functions without await are sometimes used for Promise wrapping
+      "@typescript-eslint/require-await": "off",
+      // Unused vars in tests are sometimes used for destructuring or prefixed with _
+      "@typescript-eslint/no-unused-vars": ["error", {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+      }],
+      // Allow any in test type assertions
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      // Console logs are useful in tests for debugging
+      "no-console": "off",
+    },
+  },
 ];
