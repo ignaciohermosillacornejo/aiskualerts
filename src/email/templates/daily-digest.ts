@@ -28,6 +28,7 @@ function getAlertTypeBadge(alertType: AlertSummary["alertType"]): string {
     low_velocity: { label: "Baja Rotacion", color: "#6366f1" },
   };
 
+  // eslint-disable-next-line security/detect-object-injection -- alertType is a 3-value union type, not user input
   const badge = badges[alertType];
   return `<span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; color: white; background-color: ${badge.color};">${badge.label}</span>`;
 }
@@ -38,6 +39,7 @@ function getAlertTypeRowColor(alertType: AlertSummary["alertType"]): string {
     low_stock: "#fffbeb",
     low_velocity: "#eef2ff",
   };
+  // eslint-disable-next-line security/detect-object-injection -- alertType is a 3-value union type, not user input
   return colors[alertType];
 }
 
@@ -177,5 +179,6 @@ function escapeHtml(text: string): string {
     '"': "&quot;",
     "'": "&#39;",
   };
+  // eslint-disable-next-line security/detect-object-injection -- char comes from regex [&<>"'], not user input
   return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] ?? char);
 }
