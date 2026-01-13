@@ -23,7 +23,7 @@ import {
   type AuthContext,
 } from "@/api/middleware/auth";
 import {
-  createRateLimitMiddleware,
+  createPathBasedRateLimiter,
   RateLimitPresets,
 } from "@/api/middleware/rate-limit";
 import {
@@ -267,8 +267,21 @@ export function createServer(
   config: Config,
   deps?: ServerDependencies
 ): Server<undefined> {
-  // Create security middleware
-  const authRateLimiter = createRateLimitMiddleware(RateLimitPresets.auth);
+  // Create path-based rate limiters for different API endpoints
+  const apiRateLimiter = createPathBasedRateLimiter({
+    "/api/auth/": RateLimitPresets.auth,
+    "/api/billing/": RateLimitPresets.strict,
+    "/api/sync/": RateLimitPresets.strict,
+    "/api/alerts/": RateLimitPresets.api,
+    "/api/thresholds/": RateLimitPresets.api,
+    "/api/products/": RateLimitPresets.api,
+    "/api/dashboard/": RateLimitPresets.api,
+    "/api/settings/": RateLimitPresets.api,
+    "/api/webhooks/": RateLimitPresets.webhook,
+  });
+
+  // Health check paths that should bypass rate limiting
+  const healthPaths = ["/health", "/api/health"];
 
   const csrfMiddleware: CSRFMiddleware | null = config.csrfTokenSecret
     ? createCSRFMiddleware({
@@ -894,16 +907,16 @@ export function createServer(
           }
         }
 
+        // Apply rate limiting to API endpoints (bypass health checks)
+        if (url.pathname.startsWith("/api/") && !healthPaths.includes(url.pathname)) {
+          const rateLimitResponse = apiRateLimiter.check(request);
+          if (rateLimitResponse) {
+            return rateLimitResponse;
+          }
+        }
+
         // OAuth routes (if configured)
         if (oauthRoutes) {
-          // Apply rate limiting to auth endpoints
-          if (url.pathname.startsWith("/api/auth/bsale/")) {
-            const rateLimitResponse = authRateLimiter.check(request);
-            if (rateLimitResponse) {
-              return rateLimitResponse;
-            }
-          }
-
           if (url.pathname === "/api/auth/bsale/start" && request.method === "GET") {
             return oauthRoutes.start(request);
           }
