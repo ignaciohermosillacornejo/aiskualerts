@@ -1,7 +1,7 @@
 import { test, expect, describe, mock, type Mock } from "bun:test";
-import { syncTenant, type TenantSyncDependencies } from "@/sync/tenant-sync";
-import type { Tenant } from "@/db/repositories/types";
-import type { StockItem } from "@/bsale/types";
+import { syncTenant, enrichSnapshotWithVariant, type TenantSyncDependencies } from "@/sync/tenant-sync";
+import type { Tenant, StockSnapshotInput } from "@/db/repositories/types";
+import type { StockItem, Variant } from "@/bsale/types";
 import { BsaleAuthError, BsaleRateLimitError } from "@/lib/errors";
 
 const mockTenant: Tenant = {
@@ -19,20 +19,24 @@ const mockTenant: Tenant = {
 
 interface MockDeps {
   updateSyncStatus: Mock<(tenantId: string, status: string) => Promise<void>>;
-  upsertBatch: Mock<() => Promise<number>>;
+  upsertBatch: Mock<(batch: StockSnapshotInput[]) => Promise<number>>;
   getAllStocks: Mock<() => AsyncGenerator<StockItem>>;
+  getVariantsBatch: Mock<(ids: number[]) => Promise<Map<number, Variant>>>;
 }
 
 function createMockDeps(): { deps: TenantSyncDependencies; mocks: MockDeps } {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- args captured by mock
   const updateSyncStatus = mock((_tenantId: string, _status: string) => Promise.resolve());
-  const upsertBatch = mock(() => Promise.resolve(0));
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- args captured by mock
+  const upsertBatch = mock((_batch: StockSnapshotInput[]) => Promise.resolve(0));
 
   // eslint-disable-next-line require-yield
   async function* emptyGenerator(): AsyncGenerator<StockItem> {
     await Promise.resolve();
   }
   const getAllStocks = mock(() => emptyGenerator());
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- args captured by mock
+  const getVariantsBatch = mock((_ids: number[]) => Promise.resolve(new Map<number, Variant>()));
 
   const deps: TenantSyncDependencies = {
     tenantRepo: {
@@ -47,10 +51,11 @@ function createMockDeps(): { deps: TenantSyncDependencies; mocks: MockDeps } {
     createBsaleClient: () =>
       ({
         getAllStocks,
+        getVariantsBatch,
       }) as unknown as ReturnType<TenantSyncDependencies["createBsaleClient"]>,
   };
 
-  return { deps, mocks: { updateSyncStatus, upsertBatch, getAllStocks } };
+  return { deps, mocks: { updateSyncStatus, upsertBatch, getAllStocks, getVariantsBatch } };
 }
 
 function createMockStock(id: number, officeId: number | null = null): StockItem {
@@ -273,5 +278,211 @@ describe("syncTenant", () => {
       expect(calls.length).toBe(2);
       expect(calls[1]?.[1]).toBe("failed");
     });
+  });
+
+  describe("variant enrichment", () => {
+    test("enriches stock snapshots with variant data", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* stockGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        yield createMockStock(100, 1);
+        yield createMockStock(200, 1);
+      }
+      mocks.getAllStocks.mockImplementation(() => stockGenerator());
+
+      const variantsMap = new Map<number, Variant>([
+        [100, { id: 100, code: "SKU-100", barCode: "BC-100", description: "Variant 100", product: { name: "Product 100" } }],
+        [200, { id: 200, code: "SKU-200", barCode: "BC-200", description: "Variant 200", product: { name: "Product 200" } }],
+      ]);
+      mocks.getVariantsBatch.mockImplementation(() => Promise.resolve(variantsMap));
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(true);
+      expect(result.itemsSynced).toBe(2);
+
+      // Verify upsertBatch was called with enriched data
+      const batchCall = mocks.upsertBatch.mock.calls[0]?.[0];
+      expect(batchCall).toBeDefined();
+      expect(batchCall?.[0]?.sku).toBe("SKU-100");
+      expect(batchCall?.[0]?.barcode).toBe("BC-100");
+      expect(batchCall?.[0]?.product_name).toBe("Product 100");
+      expect(batchCall?.[1]?.sku).toBe("SKU-200");
+      expect(batchCall?.[1]?.barcode).toBe("BC-200");
+      expect(batchCall?.[1]?.product_name).toBe("Product 200");
+    });
+
+    test("handles missing variants gracefully", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* stockGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        yield createMockStock(100, 1);
+        yield createMockStock(200, 1);
+      }
+      mocks.getAllStocks.mockImplementation(() => stockGenerator());
+
+      // Only variant 100 is available
+      const variantsMap = new Map<number, Variant>([
+        [100, { id: 100, code: "SKU-100", barCode: "BC-100", description: "Variant 100", product: { name: "Product 100" } }],
+      ]);
+      mocks.getVariantsBatch.mockImplementation(() => Promise.resolve(variantsMap));
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(true);
+      expect(result.itemsSynced).toBe(2);
+
+      // Verify first snapshot is enriched, second has null values
+      const batchCall = mocks.upsertBatch.mock.calls[0]?.[0];
+      expect(batchCall?.[0]?.sku).toBe("SKU-100");
+      expect(batchCall?.[1]?.sku).toBeNull();
+      expect(batchCall?.[1]?.barcode).toBeNull();
+      expect(batchCall?.[1]?.product_name).toBeNull();
+    });
+
+    test("uses description as fallback when product.name is missing", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* stockGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        yield createMockStock(100, 1);
+      }
+      mocks.getAllStocks.mockImplementation(() => stockGenerator());
+
+      const variantsMap = new Map<number, Variant>([
+        [100, { id: 100, code: "SKU-100", barCode: null, description: "Fallback Description", product: null }],
+      ]);
+      mocks.getVariantsBatch.mockImplementation(() => Promise.resolve(variantsMap));
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(true);
+
+      const batchCall = mocks.upsertBatch.mock.calls[0]?.[0];
+      expect(batchCall?.[0]?.product_name).toBe("Fallback Description");
+    });
+
+    test("calls getVariantsBatch with unique variant IDs", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* stockGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        yield createMockStock(100, 1);
+        yield createMockStock(100, 2); // Same variant, different office
+        yield createMockStock(200, 1);
+      }
+      mocks.getAllStocks.mockImplementation(() => stockGenerator());
+
+      await syncTenant(mockTenant, deps);
+
+      // Should be called with deduplicated IDs
+      const variantIdsArg = mocks.getVariantsBatch.mock.calls[0]?.[0];
+      expect(variantIdsArg).toBeDefined();
+      if (!variantIdsArg) throw new Error("variantIdsArg should be defined");
+      // Should only contain unique IDs
+      const uniqueIds = [...new Set(variantIdsArg)];
+      expect(uniqueIds.length).toBe(variantIdsArg.length);
+      expect(variantIdsArg).toContain(100);
+      expect(variantIdsArg).toContain(200);
+    });
+  });
+});
+
+describe("enrichSnapshotWithVariant", () => {
+  const baseSnapshot: StockSnapshotInput = {
+    tenant_id: "tenant-123",
+    bsale_variant_id: 100,
+    bsale_office_id: 1,
+    sku: null,
+    barcode: null,
+    product_name: null,
+    quantity: 50,
+    quantity_reserved: 5,
+    quantity_available: 45,
+    snapshot_date: new Date(),
+  };
+
+  test("enriches snapshot with variant data", () => {
+    const variant: Variant = {
+      id: 100,
+      code: "SKU-100",
+      barCode: "BC-100",
+      description: "Description",
+      product: { name: "Product Name" },
+    };
+
+    const enriched = enrichSnapshotWithVariant(baseSnapshot, variant);
+
+    expect(enriched.sku).toBe("SKU-100");
+    expect(enriched.barcode).toBe("BC-100");
+    expect(enriched.product_name).toBe("Product Name");
+  });
+
+  test("returns original snapshot when variant is undefined", () => {
+    const enriched = enrichSnapshotWithVariant(baseSnapshot, undefined);
+
+    expect(enriched).toEqual(baseSnapshot);
+  });
+
+  test("uses description as fallback for product_name", () => {
+    const variant: Variant = {
+      id: 100,
+      code: "SKU-100",
+      barCode: "BC-100",
+      description: "Fallback Description",
+      product: null,
+    };
+
+    const enriched = enrichSnapshotWithVariant(baseSnapshot, variant);
+
+    expect(enriched.product_name).toBe("Fallback Description");
+  });
+
+  test("preserves existing values when variant fields are null", () => {
+    const snapshotWithValues: StockSnapshotInput = {
+      ...baseSnapshot,
+      sku: "EXISTING-SKU",
+      barcode: "EXISTING-BC",
+      product_name: "Existing Name",
+    };
+
+    const variant: Variant = {
+      id: 100,
+      code: null,
+      barCode: null,
+      description: null,
+      product: null,
+    };
+
+    const enriched = enrichSnapshotWithVariant(snapshotWithValues, variant);
+
+    expect(enriched.sku).toBe("EXISTING-SKU");
+    expect(enriched.barcode).toBe("EXISTING-BC");
+    expect(enriched.product_name).toBe("Existing Name");
+  });
+
+  test("prefers variant values over existing snapshot values", () => {
+    const snapshotWithValues: StockSnapshotInput = {
+      ...baseSnapshot,
+      sku: "OLD-SKU",
+      barcode: "OLD-BC",
+      product_name: "Old Name",
+    };
+
+    const variant: Variant = {
+      id: 100,
+      code: "NEW-SKU",
+      barCode: "NEW-BC",
+      description: "Description",
+      product: { name: "New Name" },
+    };
+
+    const enriched = enrichSnapshotWithVariant(snapshotWithValues, variant);
+
+    expect(enriched.sku).toBe("NEW-SKU");
+    expect(enriched.barcode).toBe("NEW-BC");
+    expect(enriched.product_name).toBe("New Name");
   });
 });
