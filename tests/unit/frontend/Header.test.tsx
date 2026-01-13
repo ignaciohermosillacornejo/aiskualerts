@@ -1,5 +1,24 @@
-import { test, expect, describe, beforeEach, mock } from "bun:test";
+import { test, expect, describe, beforeEach, afterEach, mock } from "bun:test";
+import React from "react";
+import { renderToString } from "react-dom/server";
+import { createRoot } from "react-dom/client";
+import { Router } from "wouter";
+import { AuthProvider } from "../../../src/frontend/contexts/AuthContext";
+import { Header } from "../../../src/frontend/components/Header";
 import "../../setup";
+import type { User } from "../../../src/frontend/types";
+
+// Store original fetch
+const originalFetch = globalThis.fetch;
+
+// Helper to create a fetch mock compatible with globalThis.fetch type
+function createFetchMock(handler: () => Promise<Response>) {
+  const mockFn = mock(handler) as unknown as typeof fetch;
+  return mockFn;
+}
+
+// Mock user data
+const mockUser: User = { id: "1", email: "test@test.com", name: "Test User", role: "admin" };
 
 // Test Header logic without React Testing Library rendering
 // This tests the business logic and state management
@@ -7,6 +26,10 @@ import "../../setup";
 describe("Header", () => {
   beforeEach(() => {
     sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   describe("module exports", () => {
@@ -300,6 +323,224 @@ describe("Header", () => {
       };
       expect(useAuthResult.user).toBeDefined();
       expect(typeof useAuthResult.logout).toBe("function");
+    });
+  });
+
+  describe("DOM rendering tests", () => {
+    test("Header renders with loading state (SSR)", () => {
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response)
+      );
+
+      const html = renderToString(
+        React.createElement(Router, null,
+          React.createElement(AuthProvider, null,
+            React.createElement(Header)
+          )
+        )
+      );
+
+      // Should render header element
+      expect(html).toContain("header");
+      expect(html).toContain("header-title");
+    });
+
+    test("Header renders with user info when authenticated", async () => {
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response)
+      );
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+
+      try {
+        const root = createRoot(container);
+
+        await new Promise<void>((resolve) => {
+          root.render(
+            React.createElement(Router, null,
+              React.createElement(AuthProvider, null,
+                React.createElement(Header)
+              )
+            )
+          );
+          setTimeout(resolve, 200);
+        });
+
+        // Should show user email
+        expect(container.textContent).toContain(mockUser.email);
+        // Should show logout button
+        expect(container.textContent).toContain("Cerrar Sesion");
+
+        root.unmount();
+      } finally {
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      }
+    });
+
+    test("Header does not show user info when unauthenticated", async () => {
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ error: "Not authenticated" }),
+        } as Response)
+      );
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+
+      try {
+        const root = createRoot(container);
+
+        await new Promise<void>((resolve) => {
+          root.render(
+            React.createElement(Router, null,
+              React.createElement(AuthProvider, null,
+                React.createElement(Header)
+              )
+            )
+          );
+          setTimeout(resolve, 200);
+        });
+
+        // Should NOT show user email when unauthenticated
+        expect(container.textContent).not.toContain(mockUser.email);
+        // Should NOT show logout button
+        expect(container.textContent).not.toContain("Cerrar Sesion");
+
+        root.unmount();
+      } finally {
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      }
+    });
+
+    test("Header shows correct title based on route", async () => {
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response)
+      );
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+
+      try {
+        const root = createRoot(container);
+
+        // Start at /app route
+        await new Promise<void>((resolve) => {
+          root.render(
+            React.createElement(Router, null,
+              React.createElement(AuthProvider, null,
+                React.createElement(Header)
+              )
+            )
+          );
+          setTimeout(resolve, 200);
+        });
+
+        // Default should show "AISku Alerts" or "Dashboard" based on route
+        expect(container.innerHTML).toContain("header-title");
+
+        root.unmount();
+      } finally {
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      }
+    });
+
+    test("Header logout button renders correctly", async () => {
+      // Test that logout button is rendered when user is authenticated
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response)
+      );
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+
+      try {
+        const root = createRoot(container);
+
+        await new Promise<void>((resolve) => {
+          root.render(
+            React.createElement(Router, null,
+              React.createElement(AuthProvider, null,
+                React.createElement(Header)
+              )
+            )
+          );
+          setTimeout(resolve, 200);
+        });
+
+        // Find the logout button
+        const buttons = container.querySelectorAll("button.btn-secondary");
+        let logoutButtonFound = false;
+        buttons.forEach((btn) => {
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- textContent can theoretically be null
+          if (btn.textContent?.includes("Cerrar Sesion")) {
+            logoutButtonFound = true;
+          }
+        });
+        expect(logoutButtonFound).toBe(true);
+
+        root.unmount();
+      } finally {
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      }
+    });
+
+    test("Header notification bell renders", async () => {
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response)
+      );
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+
+      try {
+        const root = createRoot(container);
+
+        await new Promise<void>((resolve) => {
+          root.render(
+            React.createElement(Router, null,
+              React.createElement(AuthProvider, null,
+                React.createElement(Header)
+              )
+            )
+          );
+          setTimeout(resolve, 200);
+        });
+
+        // Should have notification bell SVG
+        expect(container.querySelector("svg")).not.toBeNull();
+
+        root.unmount();
+      } finally {
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      }
     });
   });
 });

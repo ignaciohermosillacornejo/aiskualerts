@@ -342,25 +342,6 @@ describe("Frontend Components Unit Tests", () => {
   });
 });
 
-describe("Component Exports", () => {
-  test("Header component is exported", async () => {
-    const headerModule = await import("../../../src/frontend/components/Header");
-    expect(headerModule.Header).toBeFunction();
-  });
-
-  test("ProtectedRoute component is exported", async () => {
-    const protectedRouteModule = await import("../../../src/frontend/components/ProtectedRoute");
-    expect(protectedRouteModule.ProtectedRoute).toBeFunction();
-  });
-
-  test("AuthProvider and useAuth are exported", async () => {
-    const authModule = await import("../../../src/frontend/contexts/AuthContext");
-    expect(authModule.AuthProvider).toBeFunction();
-    expect(authModule.useAuth).toBeFunction();
-  });
-
-  test("Login component is exported", async () => {
-    const loginModule = await import("../../../src/frontend/pages/Login");
-    expect(loginModule.Login).toBeFunction();
-  });
-});
+// Note: Component export tests have been moved to individual test files
+// (AuthContext.test.tsx, Header.test.tsx, etc.) to avoid conflicts with
+// Bun's mock.module in component-ssr.test.tsx
