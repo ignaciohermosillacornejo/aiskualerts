@@ -153,6 +153,7 @@ describe("Migration Runner Integration Tests", () => {
       // Verify versions are in ascending order
       for (let i = 1; i < migrations.length; i++) {
         const prev = migrations[i - 1]?.version ?? 0;
+        // eslint-disable-next-line security/detect-object-injection -- index is bounds-checked
         const curr = migrations[i]?.version ?? 0;
         expect(curr).toBeGreaterThan(prev);
       }
