@@ -1,5 +1,5 @@
 import type { BsaleClient } from "@/bsale/client";
-import type { StockItem } from "@/bsale/types";
+import type { StockItem, Variant } from "@/bsale/types";
 import type { StockSnapshotRepository } from "@/db/repositories/stock-snapshot";
 import type { TenantRepository } from "@/db/repositories/tenant";
 import type { Tenant, StockSnapshotInput } from "@/db/repositories/types";
@@ -14,29 +14,43 @@ export interface TenantSyncDependencies {
 }
 
 /**
- * Convert Bsale stock item to StockSnapshotInput
- *
- * NOTE: SKU, barcode, and product_name are currently set to null because
- * the stock API response only includes variant.id without detailed variant info.
- * Future enhancement: Make additional API call to /v1/variants/:id for complete data.
+ * Convert Bsale stock item to StockSnapshotInput with optional variant enrichment
  */
 function stockToSnapshot(
   stock: StockItem,
   tenantId: string,
-  snapshotDate: Date
+  snapshotDate: Date,
+  variant?: Variant
 ): StockSnapshotInput {
   return {
     tenant_id: tenantId,
     bsale_variant_id: stock.variant.id,
     bsale_office_id: stock.office?.id ?? null,
-    // TODO: Fetch variant details for complete product information
-    sku: null,
-    barcode: null,
-    product_name: null,
+    sku: variant?.code ?? null,
+    barcode: variant?.barCode ?? null,
+    product_name: variant?.product?.name ?? variant?.description ?? null,
     quantity: stock.quantity,
     quantity_reserved: stock.quantityReserved,
     quantity_available: stock.quantityAvailable,
     snapshot_date: snapshotDate,
+  };
+}
+
+/**
+ * Enrich stock snapshot with variant details
+ */
+export function enrichSnapshotWithVariant(
+  snapshot: StockSnapshotInput,
+  variant: Variant | undefined
+): StockSnapshotInput {
+  if (!variant) {
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    sku: variant.code ?? snapshot.sku,
+    barcode: variant.barCode ?? snapshot.barcode,
+    product_name: variant.product?.name ?? variant.description ?? snapshot.product_name,
   };
 }
 
@@ -53,10 +67,24 @@ export async function syncTenant(
     const client = deps.createBsaleClient(tenant.bsale_access_token);
     const snapshotDate = new Date();
     let itemsSynced = 0;
-    let batch: StockSnapshotInput[] = [];
 
+    // Collect all stock items first
+    const stockItems: StockItem[] = [];
     for await (const stock of client.getAllStocks()) {
-      const snapshot = stockToSnapshot(stock, tenant.id, snapshotDate);
+      stockItems.push(stock);
+    }
+
+    // Extract unique variant IDs
+    const variantIds = [...new Set(stockItems.map((s) => s.variant.id))];
+
+    // Batch fetch variant details
+    const variantsMap = await client.getVariantsBatch(variantIds);
+
+    // Process stocks in batches with enriched data
+    let batch: StockSnapshotInput[] = [];
+    for (const stock of stockItems) {
+      const variant = variantsMap.get(stock.variant.id);
+      const snapshot = stockToSnapshot(stock, tenant.id, snapshotDate, variant);
       batch.push(snapshot);
 
       if (batch.length >= options.batchSize) {
