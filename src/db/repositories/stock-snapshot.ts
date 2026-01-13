@@ -184,4 +184,11 @@ export class StockSnapshotRepository {
     );
     return parseInt(result?.count ?? "0", 10);
   }
+
+  async getById(id: string): Promise<StockSnapshot | null> {
+    return this.db.queryOne<StockSnapshot>(
+      `SELECT * FROM stock_snapshots WHERE id = $1`,
+      [id]
+    );
+  }
 }
