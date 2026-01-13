@@ -96,6 +96,23 @@ export interface AlertInput {
 
 export type SyncStatus = "pending" | "syncing" | "success" | "failed";
 
+export interface PaginationParams {
+  limit: number;
+  offset: number;
+}
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: PaginationMeta;
+}
+
 export interface Session {
   id: string;
   userId: string;

@@ -25,6 +25,9 @@ const testConfig: Config = {
   syncMinute: 0,
   syncBatchSize: 100,
   syncTenantDelay: 5000,
+  digestEnabled: false,
+  digestHour: 8,
+  digestMinute: 0,
   sentryEnvironment: "test",
 };
 
@@ -376,14 +379,17 @@ describe("createServer", () => {
   });
 
   describe("Products API", () => {
-    test("GET /api/products returns mock products", async () => {
+    test("GET /api/products returns paginated mock products", async () => {
       serverInstance = createServer(testConfig);
       const response = await fetch(`http://localhost:${String(serverInstance.port)}/api/products`);
 
       expect(response.status).toBe(200);
-      const body = (await response.json()) as { products: unknown[]; total: number };
-      expect(Array.isArray(body.products)).toBe(true);
-      expect(body.total).toBeGreaterThan(0);
+      const body = (await response.json()) as {
+        data: unknown[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      };
+      expect(Array.isArray(body.data)).toBe(true);
+      expect(body.pagination.total).toBeGreaterThan(0);
     });
 
     test("GET /api/products/:id returns product", async () => {
@@ -408,14 +414,17 @@ describe("createServer", () => {
   });
 
   describe("Thresholds API", () => {
-    test("GET /api/thresholds returns mock thresholds", async () => {
+    test("GET /api/thresholds returns paginated mock thresholds", async () => {
       serverInstance = createServer(testConfig);
       const response = await fetch(`http://localhost:${String(serverInstance.port)}/api/thresholds`);
 
       expect(response.status).toBe(200);
-      const body = (await response.json()) as { thresholds: unknown[]; total: number };
-      expect(Array.isArray(body.thresholds)).toBe(true);
-      expect(body.total).toBeGreaterThan(0);
+      const body = (await response.json()) as {
+        data: unknown[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      };
+      expect(Array.isArray(body.data)).toBe(true);
+      expect(body.pagination.total).toBeGreaterThan(0);
     });
 
     test("POST /api/thresholds creates new threshold", async () => {
@@ -761,6 +770,9 @@ describe("createServer", () => {
         syncMinute: 0,
         syncBatchSize: 100,
         syncTenantDelay: 5000,
+        digestEnabled: false,
+        digestHour: 8,
+        digestMinute: 0,
         sentryEnvironment: "test",
       };
       serverInstance = createServer(customConfig);
@@ -776,6 +788,9 @@ describe("createServer", () => {
         syncMinute: 0,
         syncBatchSize: 100,
         syncTenantDelay: 5000,
+        digestEnabled: false,
+        digestHour: 8,
+        digestMinute: 0,
         sentryEnvironment: "test",
       };
       serverInstance = createServer(productionConfig);
@@ -791,6 +806,9 @@ describe("createServer", () => {
         syncMinute: 0,
         syncBatchSize: 100,
         syncTenantDelay: 5000,
+        digestEnabled: false,
+        digestHour: 8,
+        digestMinute: 0,
         sentryEnvironment: "test",
       };
       serverInstance = createServer(devConfig);
@@ -812,6 +830,9 @@ describe("createServer", () => {
           syncMinute: 0,
           syncBatchSize: 100,
           syncTenantDelay: 5000,
+          digestEnabled: false,
+          digestHour: 8,
+          digestMinute: 0,
           sentryEnvironment: "test",
         };
         serverInstance = createServer(productionConfig);
@@ -953,6 +974,27 @@ describe("createServer with dependencies", () => {
             },
           ])
         ),
+        getByUserPaginated: mock(() =>
+          Promise.resolve({
+            data: [
+              {
+                id: "threshold-1",
+                tenant_id: "tenant-123",
+                user_id: "user-123",
+                bsale_variant_id: 1001,
+                min_quantity: 10,
+                created_at: new Date(),
+                updated_at: new Date(),
+              },
+            ],
+            pagination: {
+              page: 1,
+              limit: 20,
+              total: 1,
+              totalPages: 1,
+            },
+          })
+        ),
         countByUser: mock(() => Promise.resolve(5)),
         getById: mock(() =>
           Promise.resolve({
@@ -992,6 +1034,7 @@ describe("createServer with dependencies", () => {
       stockSnapshotRepo: {
         countDistinctProductsByTenant: mock(() => Promise.resolve(100)),
         countLowStockByTenant: mock(() => Promise.resolve(15)),
+        getById: mock(() => Promise.resolve(null)), // Returns null to fall back to mock data
         getLatestByTenant: mock(() =>
           Promise.resolve([
             {
@@ -1009,6 +1052,32 @@ describe("createServer with dependencies", () => {
               created_at: new Date(),
             },
           ])
+        ),
+        getLatestByTenantPaginated: mock(() =>
+          Promise.resolve({
+            data: [
+              {
+                id: "snapshot-1",
+                tenant_id: "tenant-123",
+                bsale_variant_id: 1001,
+                bsale_office_id: null,
+                sku: "SKU001",
+                barcode: "123456",
+                product_name: "Test Product",
+                quantity: 50,
+                quantity_reserved: 5,
+                quantity_available: 45,
+                snapshot_date: new Date(),
+                created_at: new Date(),
+              },
+            ],
+            pagination: {
+              page: 1,
+              limit: 20,
+              total: 1,
+              totalPages: 1,
+            },
+          })
         ),
       } as unknown as ServerDependencies["stockSnapshotRepo"],
     } as ServerDependencies;
@@ -1139,7 +1208,7 @@ describe("createServer with dependencies", () => {
   });
 
   describe("Authenticated Products API", () => {
-    test("GET /api/products returns DB products when authenticated", async () => {
+    test("GET /api/products returns paginated DB products when authenticated", async () => {
       const deps = createMockDeps();
       serverInstance = createServer(testConfig, deps);
 
@@ -1149,8 +1218,12 @@ describe("createServer with dependencies", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = (await response.json()) as { products: { sku: string }[] };
-      expect(body.products[0]?.sku).toBe("SKU001");
+      const body = (await response.json()) as {
+        data: { sku: string }[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      };
+      expect(body.data[0]?.sku).toBe("SKU001");
+      expect(body.pagination.page).toBe(1);
     });
 
     test("GET /api/products/:id falls back to mock for authenticated requests", async () => {
@@ -1167,7 +1240,7 @@ describe("createServer with dependencies", () => {
   });
 
   describe("Authenticated Thresholds API", () => {
-    test("GET /api/thresholds returns DB thresholds when authenticated", async () => {
+    test("GET /api/thresholds returns paginated DB thresholds when authenticated", async () => {
       const deps = createMockDeps();
       serverInstance = createServer(testConfig, deps);
 
@@ -1177,8 +1250,12 @@ describe("createServer with dependencies", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = (await response.json()) as { thresholds: { minQuantity: number }[] };
-      expect(body.thresholds[0]?.minQuantity).toBe(10);
+      const body = (await response.json()) as {
+        data: { minQuantity: number }[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      };
+      expect(body.data[0]?.minQuantity).toBe(10);
+      expect(body.pagination.page).toBe(1);
     });
 
     test("POST /api/thresholds creates threshold in DB", async () => {

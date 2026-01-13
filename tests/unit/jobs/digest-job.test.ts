@@ -36,6 +36,9 @@ function createMockConfig(): Config {
     syncMinute: 0,
     syncBatchSize: 100,
     syncTenantDelay: 5000,
+    digestEnabled: true,
+    digestHour: 8,
+    digestMinute: 0,
     resendApiKey: "re_test_key",
     notificationFromEmail: "test@aiskualerts.com",
     sentryEnvironment: "test",
@@ -144,6 +147,78 @@ describe("createDigestJob", () => {
 
     await expect(job()).rejects.toThrow("Database error");
     expect(console.error).toHaveBeenCalled();
+  });
+
+  test("logs warnings when job completes with errors", async () => {
+    const { db, mocks } = createMockDb();
+
+    let callCount = 0;
+    mocks.query.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve([mockTenant]);
+      }
+      if (callCount === 2) {
+        return Promise.resolve([mockUser]);
+      }
+      if (callCount === 3) {
+        return Promise.resolve([mockAlert]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const config = createMockConfig();
+    const emailClient = createMockEmailClient({ success: false, error: "Send failed" });
+
+    const job = createDigestJob({ db, config, emailClient });
+    await job();
+
+    expect(console.warn).toHaveBeenCalled();
+  });
+
+  test("logs duration on successful completion", async () => {
+    const { db, mocks } = createMockDb();
+
+    let callCount = 0;
+    mocks.query.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve([mockTenant]);
+      }
+      if (callCount === 2) {
+        return Promise.resolve([mockUser]);
+      }
+      if (callCount === 3) {
+        return Promise.resolve([mockAlert]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const config = createMockConfig();
+    const emailClient = createMockEmailClient();
+
+    const job = createDigestJob({ db, config, emailClient });
+    await job();
+
+    // Verify console.info was called (includes duration log)
+    const infoMock = console.info as Mock<typeof console.info>;
+    expect(infoMock.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  test("handles non-Error exceptions in wrapper", async () => {
+    const { db, mocks } = createMockDb();
+    // eslint-disable-next-line @typescript-eslint/only-throw-error
+    mocks.query.mockRejectedValue("string error");
+
+    const config = createMockConfig();
+    const emailClient = createMockEmailClient();
+
+    const job = createDigestJob({ db, config, emailClient });
+
+    await expect(job()).rejects.toBe("string error");
+    // Error message should contain "Unknown error" since it's not an Error instance
+    const errorMock = console.error as Mock<typeof console.error>;
+    expect(errorMock.mock.calls.length).toBeGreaterThan(0);
   });
 });
 
@@ -395,26 +470,18 @@ describe("runDigestJob", () => {
     let callCount = 0;
     mocks.query.mockImplementation(() => {
       callCount++;
-      // Query order:
+      // Query order (batch pattern):
       // 1. getActiveTenants -> [tenant1, tenant2]
-      // 2. getWithDigestEnabled(tenant1) -> [user1]
-      // 3. getPendingByTenant(tenant1) -> [alert1]
-      // 4. getWithDigestEnabled(tenant2) -> [user2]
-      // 5. getPendingByTenant(tenant2) -> [alert2]
+      // 2. getWithDigestEnabledBatch -> [user1, user2]
+      // 3. getPendingByTenants -> [alert1, alert2]
       if (callCount === 1) {
         return Promise.resolve([mockTenant, tenant2]);
       }
       if (callCount === 2) {
-        return Promise.resolve([mockUser]);
+        return Promise.resolve([mockUser, user2]);
       }
       if (callCount === 3) {
-        return Promise.resolve([mockAlert]);
-      }
-      if (callCount === 4) {
-        return Promise.resolve([user2]);
-      }
-      if (callCount === 5) {
-        return Promise.resolve([alert2]);
+        return Promise.resolve([mockAlert, alert2]);
       }
       return Promise.resolve([]);
     });
@@ -524,25 +591,33 @@ describe("runDigestJob", () => {
   test("handles tenant processing error gracefully", async () => {
     const { db, mocks } = createMockDb();
     const tenant2 = { ...mockTenant, id: "tenant-456", bsale_client_name: "Company 2" };
+    const user2 = { ...mockUser, id: "user-456", tenant_id: "tenant-456" };
+    const alert2 = { ...mockAlert, id: "alert-456", tenant_id: "tenant-456", user_id: "user-456" };
 
     let callCount = 0;
     mocks.query.mockImplementation(() => {
       callCount++;
+      // Batch queries
       if (callCount === 1) {
         return Promise.resolve([mockTenant, tenant2]);
       }
       if (callCount === 2) {
-        // First tenant throws error
-        throw new Error("Database error");
+        return Promise.resolve([mockUser, user2]);
       }
       if (callCount === 3) {
-        // Second tenant works
-        return Promise.resolve([{ ...mockUser, tenant_id: "tenant-456" }]);
-      }
-      if (callCount === 4) {
-        return Promise.resolve([{ ...mockAlert, tenant_id: "tenant-456", user_id: mockUser.id }]);
+        return Promise.resolve([mockAlert, alert2]);
       }
       return Promise.resolve([]);
+    });
+
+    // First call to markAsSent throws error (for tenant-123), second succeeds (for tenant-456)
+    let executeCallCount = 0;
+    mocks.execute.mockImplementation(() => {
+      executeCallCount++;
+      if (executeCallCount === 1) {
+        throw new Error("Database error");
+      }
+      return Promise.resolve();
     });
 
     const config = createMockConfig();
@@ -552,8 +627,8 @@ describe("runDigestJob", () => {
 
     expect(result.errors.length).toBe(1);
     expect(result.errors[0]).toContain("tenant-123");
-    expect(result.tenantsProcessed).toBe(1);
-    expect(result.emailsSent).toBe(1);
+    expect(result.tenantsProcessed).toBe(2);
+    expect(result.emailsSent).toBe(2);
   });
 
   test("runs with weekly frequency", async () => {
@@ -659,5 +734,657 @@ describe("runDigestJob", () => {
 
     expect(result.alertsMarkedSent).toBe(3);
     expect(result.emailsSent).toBe(1);
+  });
+
+  describe("batch operations", () => {
+    test("handles large batch of alerts for single user", async () => {
+      const { db, mocks } = createMockDb();
+      // Generate 50 alerts for one user
+      const manyAlerts = Array.from({ length: 50 }, (_, i) => ({
+        ...mockAlert,
+        id: `alert-${String(i)}`,
+        sku: `SKU${String(i).padStart(3, "0")}`,
+        product_name: `Product ${String(i)}`,
+      }));
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve(manyAlerts);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.emailsSent).toBe(1);
+      expect(result.alertsMarkedSent).toBe(50);
+    });
+
+    test("handles alerts with missing optional fields", async () => {
+      const { db, mocks } = createMockDb();
+      const alertsWithNulls = [
+        { ...mockAlert, id: "alert-1", sku: null, product_name: null },
+        { ...mockAlert, id: "alert-2", sku: "SKU002", product_name: null },
+        { ...mockAlert, id: "alert-3", sku: null, product_name: "Product 3" },
+        { ...mockAlert, id: "alert-4", threshold_quantity: null },
+      ];
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve(alertsWithNulls);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.emailsSent).toBe(1);
+      expect(result.alertsMarkedSent).toBe(4);
+    });
+
+    test("marks alerts as sent in batch for multiple users in same tenant", async () => {
+      const { db, mocks } = createMockDb();
+      const users = [
+        mockUser,
+        { ...mockUser, id: "user-456", email: "user2@example.com" },
+        { ...mockUser, id: "user-789", email: "user3@example.com" },
+      ];
+      const alerts = [
+        { ...mockAlert, id: "alert-1", user_id: "user-123" },
+        { ...mockAlert, id: "alert-2", user_id: "user-123" },
+        { ...mockAlert, id: "alert-3", user_id: "user-456" },
+        { ...mockAlert, id: "alert-4", user_id: "user-789" },
+        { ...mockAlert, id: "alert-5", user_id: "user-789" },
+      ];
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve(users);
+        }
+        if (callCount === 3) {
+          return Promise.resolve(alerts);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.emailsSent).toBe(3);
+      expect(result.alertsMarkedSent).toBe(5);
+      // Each user's alerts are marked separately
+      expect(mocks.execute.mock.calls.length).toBe(3);
+    });
+  });
+
+  describe("error scenarios", () => {
+    test("handles email client throwing exception", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = {
+        sendEmail: mock(() => Promise.reject(new Error("SMTP connection failed"))),
+      };
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      // The tenant processing catches the error
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain("tenant-123");
+      expect(result.emailsSent).toBe(0);
+      expect(result.alertsMarkedSent).toBe(0);
+    });
+
+    test("handles database error when marking alerts as sent", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      mocks.execute.mockRejectedValue(new Error("Database write error"));
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      // Email was sent but marking failed - error caught at tenant level
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain("Database write error");
+    });
+
+    test("handles partial failure - first user succeeds, second fails", async () => {
+      const { db, mocks } = createMockDb();
+      const users = [
+        mockUser,
+        { ...mockUser, id: "user-456", email: "user2@example.com" },
+      ];
+      const alerts = [
+        { ...mockAlert, id: "alert-1", user_id: "user-123" },
+        { ...mockAlert, id: "alert-2", user_id: "user-456" },
+      ];
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve(users);
+        }
+        if (callCount === 3) {
+          return Promise.resolve(alerts);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      let emailCallCount = 0;
+      const emailClient = {
+        sendEmail: mock(() => {
+          emailCallCount++;
+          if (emailCallCount === 1) {
+            return Promise.resolve({ success: true, id: "email-123" } as SendEmailResult);
+          }
+          return Promise.resolve({ success: false, error: "Recipient rejected" } as SendEmailResult);
+        }),
+      };
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.emailsSent).toBe(1);
+      expect(result.emailsFailed).toBe(1);
+      expect(result.alertsMarkedSent).toBe(1);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain("user2@example.com");
+    });
+
+    test("handles non-Error exception types", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw "string error";
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain("Unknown error");
+    });
+
+    test("records error with unknown error message for email failure without message", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      // Return failure without error message
+      const emailClient = createMockEmailClient({ success: false });
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.emailsFailed).toBe(1);
+      expect(result.errors[0]).toContain("Unknown error");
+    });
+
+    test("continues processing remaining tenants after one tenant fails completely", async () => {
+      const { db, mocks } = createMockDb();
+      const tenant2 = { ...mockTenant, id: "tenant-456", bsale_client_name: "Company 2" };
+      const tenant3 = { ...mockTenant, id: "tenant-789", bsale_client_name: "Company 3" };
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant, tenant2, tenant3]);
+        }
+        if (callCount === 2) {
+          throw new Error("Tenant 1 database error");
+        }
+        if (callCount === 3) {
+          return Promise.resolve([{ ...mockUser, tenant_id: "tenant-456" }]);
+        }
+        if (callCount === 4) {
+          return Promise.resolve([{ ...mockAlert, tenant_id: "tenant-456", user_id: mockUser.id }]);
+        }
+        if (callCount === 5) {
+          return Promise.resolve([{ ...mockUser, tenant_id: "tenant-789" }]);
+        }
+        if (callCount === 6) {
+          return Promise.resolve([{ ...mockAlert, tenant_id: "tenant-789", user_id: mockUser.id }]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.errors.length).toBe(1);
+      expect(result.tenantsProcessed).toBe(2);
+      expect(result.emailsSent).toBe(2);
+    });
+  });
+
+  describe("frequency filtering", () => {
+    test("uses daily frequency by default", async () => {
+      const { db, mocks } = createMockDb();
+
+      let capturedFrequency: string | undefined;
+      let callCount = 0;
+      mocks.query.mockImplementation((...args: unknown[]) => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          // Capture the frequency parameter from getWithDigestEnabled query
+          const queryArgs = args as [string, unknown[]];
+          if (queryArgs[1] && Array.isArray(queryArgs[1])) {
+            capturedFrequency = queryArgs[1][1] as string;
+          }
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      await runDigestJob({ db, config, emailClient });
+
+      expect(capturedFrequency).toBe("daily");
+    });
+
+    test("filters users by weekly frequency when specified", async () => {
+      const { db, mocks } = createMockDb();
+      const weeklyUser = { ...mockUser, digest_frequency: "weekly" as const };
+
+      let capturedFrequency: string | undefined;
+      let callCount = 0;
+      mocks.query.mockImplementation((...args: unknown[]) => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          const queryArgs = args as [string, unknown[]];
+          if (queryArgs[1] && Array.isArray(queryArgs[1])) {
+            capturedFrequency = queryArgs[1][1] as string;
+          }
+          return Promise.resolve([weeklyUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      await runDigestJob({ db, config, emailClient }, "weekly");
+
+      expect(capturedFrequency).toBe("weekly");
+    });
+
+    test("excludes users with none frequency from daily digest", async () => {
+      const { db, mocks } = createMockDb();
+      // Simulating that the repository returns no users because all have "none" frequency
+      // The actual filtering happens in the repository, but we test that the job handles empty result
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          // No users with digest enabled (simulates all users have "none")
+          return Promise.resolve([]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.tenantsProcessed).toBe(0);
+      expect(result.emailsSent).toBe(0);
+    });
+
+    test("processes only users matching the specified frequency", async () => {
+      const { db, mocks } = createMockDb();
+      const dailyUser = { ...mockUser, id: "daily-user", digest_frequency: "daily" as const };
+      const weeklyUser = { ...mockUser, id: "weekly-user", digest_frequency: "weekly" as const };
+
+      // Run daily digest - should only get daily user
+      let dailyCallCount = 0;
+      mocks.query.mockImplementation(() => {
+        dailyCallCount++;
+        if (dailyCallCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (dailyCallCount === 2) {
+          // Repository returns only daily user for daily frequency
+          return Promise.resolve([dailyUser]);
+        }
+        if (dailyCallCount === 3) {
+          return Promise.resolve([{ ...mockAlert, user_id: "daily-user" }]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const dailyResult = await runDigestJob({ db, config, emailClient }, "daily");
+
+      expect(dailyResult.emailsSent).toBe(1);
+
+      // Reset and run weekly digest
+      let weeklyCallCount = 0;
+      mocks.query.mockImplementation(() => {
+        weeklyCallCount++;
+        if (weeklyCallCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (weeklyCallCount === 2) {
+          // Repository returns only weekly user for weekly frequency
+          return Promise.resolve([weeklyUser]);
+        }
+        if (weeklyCallCount === 3) {
+          return Promise.resolve([{ ...mockAlert, user_id: "weekly-user" }]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const weeklyResult = await runDigestJob({ db, config, emailClient }, "weekly");
+
+      expect(weeklyResult.emailsSent).toBe(1);
+    });
+  });
+
+  describe("edge cases", () => {
+    test("handles alert with null sku - defaults to N/A in email", async () => {
+      const { db, mocks } = createMockDb();
+      const alertWithNullSku = { ...mockAlert, sku: null };
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([alertWithNullSku]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.emailsSent).toBe(1);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
+      const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
+      expect(callArgs[0].html).toContain("N/A");
+    });
+
+    test("handles alert with null product_name - uses fallback", async () => {
+      const { db, mocks } = createMockDb();
+      const alertWithNullName = { ...mockAlert, product_name: null, bsale_variant_id: 9999 };
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([alertWithNullName]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.emailsSent).toBe(1);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
+      const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
+      expect(callArgs[0].html).toContain("Product 9999");
+    });
+
+    test("skips user when user found but has no alerts after grouping", async () => {
+      const { db, mocks } = createMockDb();
+      // User exists but all alerts belong to other users
+      const otherUserAlert = { ...mockAlert, user_id: "other-user-id" };
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]); // user-123
+        }
+        if (callCount === 3) {
+          return Promise.resolve([otherUserAlert]); // Alert for different user
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.tenantsProcessed).toBe(1);
+      expect(result.emailsSent).toBe(0);
+      expect((emailClient.sendEmail as Mock<() => Promise<SendEmailResult>>).mock.calls.length).toBe(0);
+    });
+
+    test("skips empty user alerts array after finding user", async () => {
+      const { db, mocks } = createMockDb();
+      const users = [mockUser, { ...mockUser, id: "user-456" }];
+      // Only one alert for user-123, nothing for user-456
+      const alerts = [{ ...mockAlert, user_id: "user-123" }];
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve(users);
+        }
+        if (callCount === 3) {
+          return Promise.resolve(alerts);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      // Only one email sent (for user-123), user-456 has no alerts
+      expect(result.emailsSent).toBe(1);
+      expect(result.alertsMarkedSent).toBe(1);
+    });
+
+    test("handles zero quantity and zero threshold values", async () => {
+      const { db, mocks } = createMockDb();
+      const alertWithZeros = {
+        ...mockAlert,
+        current_quantity: 0,
+        threshold_quantity: 0,
+        alert_type: "out_of_stock" as const,
+      };
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([alertWithZeros]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.emailsSent).toBe(1);
+    });
+
+    test("handles special characters in tenant name and product name", async () => {
+      const { db, mocks } = createMockDb();
+      const tenantWithSpecialChars = {
+        ...mockTenant,
+        bsale_client_name: "Test & Company <S.A.> \"Quoted\"",
+      };
+      const alertWithSpecialChars = {
+        ...mockAlert,
+        product_name: "Product <script>alert('xss')</script>",
+        sku: "SKU & Test",
+      };
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([tenantWithSpecialChars]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([alertWithSpecialChars]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+
+      const result = await runDigestJob({ db, config, emailClient });
+
+      expect(result.emailsSent).toBe(1);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
+      const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
+      // Verify HTML escaping
+      expect(callArgs[0].html).not.toContain("<script>");
+      expect(callArgs[0].html).toContain("&lt;script&gt;");
+    });
   });
 });

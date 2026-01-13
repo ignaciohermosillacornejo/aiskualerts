@@ -5,6 +5,7 @@ import {
 } from "../handlers/oauth";
 import { extractSessionToken } from "../../utils/cookies";
 import type { CSRFMiddleware } from "../middleware/csrf";
+import { logger } from "@/utils/logger";
 
 export interface OAuthRoutesConfig {
   csrfMiddleware?: CSRFMiddleware;
@@ -37,7 +38,7 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps, config?: OAuthRoutesCo
           headers: { Location: authorizationUrl },
         });
       } catch (error) {
-        console.error("OAuth start error:", error);
+        logger.error("OAuth start error", error instanceof Error ? error : new Error(String(error)));
         return new Response(
           JSON.stringify({ error: "Failed to initiate OAuth flow" }),
           { status: 500, headers: { "Content-Type": "application/json" } }
@@ -104,7 +105,7 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps, config?: OAuthRoutesCo
           headers,
         });
       } catch (error) {
-        console.error("OAuth callback error:", error);
+        logger.error("OAuth callback error", error instanceof Error ? error : new Error(String(error)));
         return new Response(
           JSON.stringify({ error: "Failed to complete OAuth flow" }),
           { status: 500, headers: { "Content-Type": "application/json" } }
@@ -144,7 +145,7 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps, config?: OAuthRoutesCo
           headers,
         });
       } catch (error) {
-        console.error("Logout error:", error);
+        logger.error("Logout error", error instanceof Error ? error : new Error(String(error)));
         return new Response(
           JSON.stringify({ error: "Failed to logout" }),
           { status: 500, headers: { "Content-Type": "application/json" } }

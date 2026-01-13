@@ -1,5 +1,5 @@
 import type { DatabaseClient } from "@/db/client";
-import type { StockSnapshot, StockSnapshotInput } from "./types";
+import type { StockSnapshot, StockSnapshotInput, PaginationParams, PaginatedResult } from "./types";
 
 export class StockSnapshotRepository {
   constructor(private db: DatabaseClient) {}
@@ -84,6 +84,50 @@ export class StockSnapshotRepository {
        ORDER BY bsale_variant_id, bsale_office_id, snapshot_date DESC`,
       [tenantId]
     );
+  }
+
+  /**
+   * Get paginated latest stock snapshots for all variants in a tenant
+   */
+  async getLatestByTenantPaginated(
+    tenantId: string,
+    pagination: PaginationParams
+  ): Promise<PaginatedResult<StockSnapshot>> {
+    const [snapshots, countResult] = await Promise.all([
+      this.db.query<StockSnapshot>(
+        `SELECT * FROM (
+           SELECT DISTINCT ON (bsale_variant_id, bsale_office_id) *
+           FROM stock_snapshots
+           WHERE tenant_id = $1
+           ORDER BY bsale_variant_id, bsale_office_id, snapshot_date DESC
+         ) AS latest
+         ORDER BY product_name ASC NULLS LAST
+         LIMIT $2 OFFSET $3`,
+        [tenantId, pagination.limit, pagination.offset]
+      ),
+      this.db.queryOne<{ count: string }>(
+        `SELECT COUNT(*) as count FROM (
+           SELECT DISTINCT ON (bsale_variant_id, bsale_office_id) id
+           FROM stock_snapshots
+           WHERE tenant_id = $1
+           ORDER BY bsale_variant_id, bsale_office_id, snapshot_date DESC
+         ) AS latest`,
+        [tenantId]
+      ),
+    ]);
+
+    const total = parseInt(countResult?.count ?? "0", 10);
+    const page = Math.floor(pagination.offset / pagination.limit) + 1;
+
+    return {
+      data: snapshots,
+      pagination: {
+        page,
+        limit: pagination.limit,
+        total,
+        totalPages: Math.ceil(total / pagination.limit),
+      },
+    };
   }
 
   async getByVariant(
@@ -183,5 +227,12 @@ export class StockSnapshotRepository {
       [tenantId, thresholdQuantity]
     );
     return parseInt(result?.count ?? "0", 10);
+  }
+
+  async getById(id: string): Promise<StockSnapshot | null> {
+    return this.db.queryOne<StockSnapshot>(
+      `SELECT * FROM stock_snapshots WHERE id = $1`,
+      [id]
+    );
   }
 }

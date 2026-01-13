@@ -6,6 +6,7 @@ import { UserRepository } from "@/db/repositories/user";
 import { AlertRepository } from "@/db/repositories/alert";
 import { renderDailyDigestEmail, type AlertSummary } from "@/email/templates/daily-digest";
 import type { Alert, DigestFrequency, User } from "@/db/repositories/types";
+import { logger } from "@/utils/logger";
 
 export interface DigestJobResult {
   tenantsProcessed: number;
@@ -30,30 +31,47 @@ export function createDigestJob(
   deps: DigestJobDependencies
 ): () => Promise<void> {
   return async function digestJob(): Promise<void> {
-    console.info("Starting scheduled digest job...");
+    logger.info("Starting scheduled digest job...");
     const startedAt = new Date();
 
     try {
       const result = await runDigestJob(deps);
 
-      console.info(
-        `Digest job completed: ${String(result.emailsSent)} emails sent, ` +
-          `${String(result.alertsMarkedSent)} alerts marked as sent`
-      );
+      logger.info("Digest job completed", {
+        emailsSent: result.emailsSent,
+        alertsMarkedSent: result.alertsMarkedSent,
+      });
 
       if (result.errors.length > 0) {
-        console.warn(`Digest job completed with ${String(result.errors.length)} errors:`, result.errors);
+        logger.warn("Digest job completed with errors", { errorCount: result.errors.length, errors: result.errors });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`Digest job failed: ${message}`);
+      logger.error("Digest job failed", error instanceof Error ? error : new Error(message));
       throw error;
     }
 
     const completedAt = new Date();
     const duration = completedAt.getTime() - startedAt.getTime();
-    console.info(`Digest job duration: ${String(duration)}ms`);
+    logger.info("Digest job duration", { durationMs: duration });
   };
+}
+
+/**
+ * Group items by a key extracted from each item
+ */
+function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyFn(item);
+    const existing = map.get(key);
+    if (existing) {
+      existing.push(item);
+    } else {
+      map.set(key, [item]);
+    }
+  }
+  return map;
 }
 
 /**
@@ -78,17 +96,39 @@ export async function runDigestJob(
   // Get all active tenants
   const tenants = await tenantRepo.getActiveTenants();
 
+  if (tenants.length === 0) {
+    return {
+      tenantsProcessed,
+      emailsSent,
+      emailsFailed,
+      alertsMarkedSent,
+      startedAt,
+      completedAt: new Date(),
+      errors,
+    };
+  }
+
+  const tenantIds = tenants.map((t) => t.id);
+
+  // Batch fetch all users and alerts (3 queries total instead of 1+2N)
+  const [allUsers, allAlerts] = await Promise.all([
+    userRepo.getWithDigestEnabledBatch(tenantIds, frequency),
+    alertRepo.getPendingByTenants(tenantIds),
+  ]);
+
+  // Group by tenant_id in memory
+  const usersByTenant = groupBy(allUsers, (u) => u.tenant_id);
+  const alertsByTenant = groupBy(allAlerts, (a) => a.tenant_id);
+
   for (const tenant of tenants) {
     try {
-      // Get users who want digest emails at this frequency
-      const users = await userRepo.getWithDigestEnabled(tenant.id, frequency);
+      const users = usersByTenant.get(tenant.id) ?? [];
 
       if (users.length === 0) {
         continue;
       }
 
-      // Get pending alerts for this tenant
-      const pendingAlerts = await alertRepo.getPendingByTenant(tenant.id);
+      const pendingAlerts = alertsByTenant.get(tenant.id) ?? [];
 
       if (pendingAlerts.length === 0) {
         continue;
@@ -96,11 +136,14 @@ export async function runDigestJob(
 
       tenantsProcessed++;
 
+      // Create user lookup map for O(1) access
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
       // Group alerts by user
       const alertsByUser = groupAlertsByUser(pendingAlerts, users);
 
       for (const [userId, userAlerts] of alertsByUser) {
-        const user = users.find((u) => u.id === userId);
+        const user = userMap.get(userId);
         if (!user || userAlerts.length === 0) {
           continue;
         }

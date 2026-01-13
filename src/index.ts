@@ -4,6 +4,8 @@ import { Scheduler } from "@/scheduler";
 import { getDb } from "@/db/client";
 import { createSyncJob } from "@/jobs/sync-job";
 import { createSessionCleanupScheduler } from "@/jobs/session-cleanup-job";
+import { createDigestJob } from "@/jobs/digest-job";
+import { createEmailClient } from "@/email/resend-client";
 import { BsaleOAuthClient } from "@/bsale/oauth-client";
 import { TenantRepository } from "@/db/repositories/tenant";
 import { UserRepository } from "@/db/repositories/user";
@@ -15,8 +17,11 @@ import {
   setupProcessErrorHandlers,
   flushSentry,
 } from "@/monitoring/sentry";
+import { StripeClient } from "@/billing/stripe";
+import { createAuthMiddleware } from "@/api/middleware/auth";
+import { logger } from "@/utils/logger";
 
-function main(): void {
+export function main(): void {
   const config = loadConfig();
 
   // Initialize Sentry error monitoring
@@ -26,7 +31,7 @@ function main(): void {
     setupProcessErrorHandlers();
   }
 
-  console.info(`Starting AI SKU Alerts in ${config.nodeEnv} mode...`);
+  logger.info("Starting AI SKU Alerts", { nodeEnv: config.nodeEnv });
 
   // Initialize database
   const db = getDb();
@@ -41,15 +46,33 @@ function main(): void {
     minute: config.syncMinute,
   });
 
-  // Initialize session cleanup scheduler (runs every hour)
+  // Initialize repositories (shared across features)
   const sessionRepo = new SessionRepository(db);
+  const tenantRepo = new TenantRepository(db);
+  const userRepo = new UserRepository(db);
+
+  // Initialize session cleanup scheduler (runs every hour)
   const sessionCleanupScheduler = createSessionCleanupScheduler(sessionRepo, {
     intervalMs: 60 * 60 * 1000, // 1 hour
     runOnStart: true,
   });
 
-  // Initialize OAuth dependencies (if configured)
+  // Initialize digest email scheduler
+  const emailClient = createEmailClient(config);
+  const digestJob = createDigestJob({ db, config, emailClient });
+  const digestScheduler = new Scheduler(digestJob, {
+    enabled: config.digestEnabled,
+    hour: config.digestHour,
+    minute: config.digestMinute,
+  });
+
+  // Create auth middleware for protected routes
+  const authMiddleware = createAuthMiddleware(sessionRepo, userRepo);
+
+  // Initialize server dependencies
   const serverDeps: ServerDependencies = {};
+
+  // OAuth dependencies (if configured)
   if (
     config.bsaleAppId &&
     config.bsaleIntegratorToken &&
@@ -62,9 +85,6 @@ function main(): void {
       ...(config.bsaleOAuthBaseUrl && { oauthBaseUrl: config.bsaleOAuthBaseUrl }),
     };
     const oauthClient = new BsaleOAuthClient(oauthConfig);
-
-    const tenantRepo = new TenantRepository(db);
-    const userRepo = new UserRepository(db);
     const stateStore = new OAuthStateStore(10); // 10 minute TTL
 
     serverDeps.oauthDeps = {
@@ -75,32 +95,66 @@ function main(): void {
       stateStore,
     };
 
-    console.info("OAuth endpoints enabled");
+    logger.info("OAuth endpoints enabled");
   } else {
-    console.info("OAuth endpoints disabled (missing configuration)");
+    logger.info("OAuth endpoints disabled (missing configuration)");
   }
+
+  // Billing dependencies (if Stripe is configured)
+  const stripeSecretKey = process.env["STRIPE_SECRET_KEY"];
+  const stripePriceId = process.env["STRIPE_PRICE_ID"];
+  if (stripeSecretKey && stripePriceId) {
+    const stripeClient = new StripeClient({
+      secretKey: stripeSecretKey,
+      priceId: stripePriceId,
+      webhookSecret: process.env["STRIPE_WEBHOOK_SECRET"],
+      appUrl: process.env["APP_URL"] ?? `http://localhost:${String(config.port)}`,
+    });
+
+    serverDeps.billingDeps = {
+      stripeClient,
+      authMiddleware,
+      tenantRepo,
+      userRepo,
+    };
+
+    logger.info("Billing endpoints enabled");
+  } else {
+    logger.info("Billing endpoints disabled (missing Stripe configuration)");
+  }
+
+  // Sync dependencies (always enabled when auth is available)
+  serverDeps.syncDeps = {
+    authMiddleware,
+    db,
+    config,
+    tenantRepo,
+  };
+  logger.info("Sync endpoints enabled");
 
   // Start the HTTP server
   const server = createServer(config, serverDeps);
-  console.info(`HTTP server listening on port ${String(server.port)}`);
+  logger.info("HTTP server listening", { port: server.port });
 
   // Start the schedulers
   scheduler.start();
   sessionCleanupScheduler.start();
+  digestScheduler.start();
 
   // Handle graceful shutdown
   const shutdown = async (): Promise<void> => {
-    console.info("Shutting down...");
+    logger.info("Shutting down...");
 
     scheduler.stop();
     sessionCleanupScheduler.stop();
+    digestScheduler.stop();
     await server.stop(true);
     await db.close();
 
     // Flush any pending Sentry events
     await flushSentry();
 
-    console.info("Shutdown complete");
+    logger.info("Shutdown complete");
     process.exit(0);
   };
 
@@ -108,4 +162,7 @@ function main(): void {
   process.on("SIGTERM", () => void shutdown());
 }
 
-main();
+// Only run when executed directly (not imported)
+if (import.meta.main) {
+  main();
+}

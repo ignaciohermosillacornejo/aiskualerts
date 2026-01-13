@@ -142,13 +142,66 @@ describe("Server Routes - Extended Coverage", () => {
   });
 
   describe("GET /api/products", () => {
-    test("returns products array", async () => {
+    test("returns paginated products", async () => {
       const response = await fetch(`${baseUrl}/api/products`);
-      const body = (await response.json()) as { products: unknown[]; total: number };
+      const body = (await response.json()) as {
+        data: unknown[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      };
 
       expect(response.status).toBe(200);
-      expect(Array.isArray(body.products)).toBe(true);
-      expect(typeof body.total).toBe("number");
+      expect(Array.isArray(body.data)).toBe(true);
+      expect(body.pagination).toBeDefined();
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(20);
+      expect(typeof body.pagination.total).toBe("number");
+      expect(typeof body.pagination.totalPages).toBe("number");
+    });
+
+    test("respects page parameter", async () => {
+      const response = await fetch(`${baseUrl}/api/products?page=2&limit=2`);
+      const body = (await response.json()) as {
+        data: unknown[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      };
+
+      expect(response.status).toBe(200);
+      expect(body.pagination.page).toBe(2);
+      expect(body.pagination.limit).toBe(2);
+    });
+
+    test("caps limit at 100", async () => {
+      const response = await fetch(`${baseUrl}/api/products?limit=200`);
+      const body = (await response.json()) as {
+        data: unknown[];
+        pagination: { page: number; limit: number };
+      };
+
+      expect(response.status).toBe(200);
+      expect(body.pagination.limit).toBe(100);
+    });
+
+    test("handles invalid page parameter", async () => {
+      const response = await fetch(`${baseUrl}/api/products?page=0`);
+      const body = (await response.json()) as {
+        data: unknown[];
+        pagination: { page: number };
+      };
+
+      expect(response.status).toBe(200);
+      expect(body.pagination.page).toBe(1);
+    });
+
+    test("returns correct slice for page 2", async () => {
+      const response = await fetch(`${baseUrl}/api/products?page=2&limit=2`);
+      const body = (await response.json()) as {
+        data: { id: string }[];
+        pagination: { page: number; limit: number; total: number };
+      };
+
+      expect(response.status).toBe(200);
+      // Mock data has 5 products, page 2 with limit 2 should return items 3-4
+      expect(body.data.length).toBeLessThanOrEqual(2);
     });
   });
 
@@ -168,12 +221,43 @@ describe("Server Routes - Extended Coverage", () => {
   });
 
   describe("GET /api/thresholds", () => {
-    test("returns thresholds array", async () => {
+    test("returns paginated thresholds", async () => {
       const response = await fetch(`${baseUrl}/api/thresholds`);
-      const body = (await response.json()) as { thresholds: unknown[]; total: number };
+      const body = (await response.json()) as {
+        data: unknown[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      };
 
       expect(response.status).toBe(200);
-      expect(Array.isArray(body.thresholds)).toBe(true);
+      expect(Array.isArray(body.data)).toBe(true);
+      expect(body.pagination).toBeDefined();
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(20);
+      expect(typeof body.pagination.total).toBe("number");
+      expect(typeof body.pagination.totalPages).toBe("number");
+    });
+
+    test("respects pagination parameters", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds?page=1&limit=10`);
+      const body = (await response.json()) as {
+        data: unknown[];
+        pagination: { page: number; limit: number };
+      };
+
+      expect(response.status).toBe(200);
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.limit).toBe(10);
+    });
+
+    test("caps limit at 100", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds?limit=150`);
+      const body = (await response.json()) as {
+        data: unknown[];
+        pagination: { limit: number };
+      };
+
+      expect(response.status).toBe(200);
+      expect(body.pagination.limit).toBe(100);
     });
   });
 

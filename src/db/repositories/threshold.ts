@@ -1,5 +1,5 @@
 import type { DatabaseClient } from "@/db/client";
-import type { Threshold } from "./types";
+import type { Threshold, PaginationParams, PaginatedResult } from "./types";
 
 export interface CreateThresholdInput {
   tenant_id: string;
@@ -109,6 +109,38 @@ export class ThresholdRepository {
       `SELECT * FROM thresholds WHERE user_id = $1`,
       [userId]
     );
+  }
+
+  async getByUserPaginated(
+    userId: string,
+    pagination: PaginationParams
+  ): Promise<PaginatedResult<Threshold>> {
+    const [thresholds, countResult] = await Promise.all([
+      this.db.query<Threshold>(
+        `SELECT * FROM thresholds
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, pagination.limit, pagination.offset]
+      ),
+      this.db.queryOne<{ count: string }>(
+        `SELECT COUNT(*) as count FROM thresholds WHERE user_id = $1`,
+        [userId]
+      ),
+    ]);
+
+    const total = parseInt(countResult?.count ?? "0", 10);
+    const page = Math.floor(pagination.offset / pagination.limit) + 1;
+
+    return {
+      data: thresholds,
+      pagination: {
+        page,
+        limit: pagination.limit,
+        total,
+        totalPages: Math.ceil(total / pagination.limit),
+      },
+    };
   }
 
   async getByVariant(

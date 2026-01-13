@@ -3,6 +3,7 @@ import type { AuthMiddleware, AuthContext } from "@/api/middleware/auth";
 import type { DatabaseClient } from "@/db/client";
 import type { Config } from "@/config";
 import { runSyncAndAlerts, type SyncJobResult } from "@/jobs/sync-job";
+import { logger } from "@/utils/logger";
 
 export interface SyncHandlerDeps {
   tenantRepo: TenantRepository;
@@ -70,7 +71,7 @@ export function createSyncRoutes(deps: SyncHandlerDeps): SyncRoutes {
         return Response.json(response);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Sync failed";
-        console.error("Manual sync error:", error);
+        logger.error("Manual sync error", error instanceof Error ? error : new Error(String(error)));
 
         return Response.json(
           {

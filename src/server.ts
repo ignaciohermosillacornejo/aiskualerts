@@ -1,5 +1,4 @@
 import type { Server } from "bun";
-import { z, ZodError } from "zod";
 import { loadConfig, type Config } from "@/config";
 import type { OAuthHandlerDeps } from "@/api/handlers/oauth";
 import { createOAuthRoutes } from "@/api/routes/oauth";
@@ -11,7 +10,7 @@ import {
   createSyncRoutes,
   type SyncHandlerDeps,
 } from "@/api/handlers/sync";
-import type { AlertRepository, AlertFilter } from "@/db/repositories/alert";
+import type { AlertRepository } from "@/db/repositories/alert";
 import type { ThresholdRepository } from "@/db/repositories/threshold";
 import type { UserRepository } from "@/db/repositories/user";
 import type { TenantRepository } from "@/db/repositories/tenant";
@@ -20,10 +19,9 @@ import type { SessionRepository } from "@/db/repositories/session";
 import {
   createAuthMiddleware,
   type AuthMiddleware,
-  type AuthContext,
 } from "@/api/middleware/auth";
 import {
-  createRateLimitMiddleware,
+  createPathBasedRateLimiter,
   RateLimitPresets,
 } from "@/api/middleware/rate-limit";
 import {
@@ -31,109 +29,43 @@ import {
   type CSRFMiddleware,
 } from "@/api/middleware/csrf";
 import { captureException } from "@/monitoring/sentry";
+import { logger } from "@/utils/logger";
 
-// CORS configuration
-// Parse allowed origins from environment (comma-separated list)
-function getAllowedOrigins(): string[] {
-  const origins = process.env["ALLOWED_ORIGINS"] ?? process.env["ALLOWED_ORIGIN"] ?? "";
-  if (!origins) {
-    return [];
-  }
-  return origins.split(",").map((o) => o.trim()).filter((o) => o.length > 0);
-}
+// Import route modules
+import {
+  getCorsHeaders,
+  jsonWithCors,
+  responseWithCors,
+  preflightResponse,
+  validateOrigin,
+  shouldRejectCorsRequest,
+  corsRejectionResponse,
+} from "@/api/routes/utils";
+import { createDashboardRoutes } from "@/api/routes/dashboard";
+import { createAlertRoutes } from "@/api/routes/alerts";
+import { createProductRoutes } from "@/api/routes/products";
+import { createThresholdRoutes, CreateThresholdSchema, UpdateThresholdSchema } from "@/api/routes/thresholds";
+import { createSettingsRoutes, UpdateSettingsSchema } from "@/api/routes/settings";
+import { createAuthRoutes, LoginSchema } from "@/api/routes/auth";
 
-// Validate request origin against allowed origins
-export function validateOrigin(request: Request | null): string | null {
-  const allowedOrigins = getAllowedOrigins();
+// Re-export utilities for backward compatibility
+export {
+  getCorsHeaders,
+  jsonWithCors,
+  responseWithCors,
+  preflightResponse,
+  validateOrigin,
+  shouldRejectCorsRequest,
+  corsRejectionResponse,
+};
 
-  // If no origins configured, reject in production
-  if (allowedOrigins.length === 0) {
-    // eslint-disable-next-line @typescript-eslint/dot-notation -- env var access requires bracket notation
-    if (process.env["NODE_ENV"] === "production") {
-      // Return null to indicate origin should be rejected
-      return null;
-    }
-    // In non-production, allow all origins for development convenience
-    return "*";
-  }
-
-  // Get the request origin
-  const requestOrigin = request?.headers.get("Origin");
-
-  // If request has no origin header (same-origin request or non-browser client),
-  // use the first allowed origin
-  if (!requestOrigin) {
-    return allowedOrigins[0] ?? null;
-  }
-
-  // Check if request origin is in allowed list
-  if (allowedOrigins.includes(requestOrigin)) {
-    return requestOrigin;
-  }
-
-  // Origin not allowed - return null to indicate rejection
-  return null;
-}
-
-export function getCorsHeaders(request?: Request | null): Record<string, string> {
-  const origin = validateOrigin(request ?? null);
-
-  // If origin is null, still return headers but with empty origin
-  // The caller should handle rejecting the request
-  return {
-    "Access-Control-Allow-Origin": origin ?? "",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-CSRF-Token",
-    "Access-Control-Allow-Credentials": "true",
-    // Add Vary header to ensure proper caching with dynamic origins
-    ...(origin && origin !== "*" ? { "Vary": "Origin" } : {}),
-  };
-}
-
-// Helper to create JSON response with CORS headers
-export function jsonWithCors(data: unknown, init?: ResponseInit, request?: Request | null): Response {
-  const corsHeaders = getCorsHeaders(request);
-  const headers = new Headers(init?.headers);
-  for (const [key, value] of Object.entries(corsHeaders)) {
-    headers.set(key, value);
-  }
-  headers.set("Content-Type", "application/json");
-  return new Response(JSON.stringify(data), { ...init, headers });
-}
-
-// Helper to create Response with CORS headers
-export function responseWithCors(body: BodyInit | null, init?: ResponseInit, request?: Request | null): Response {
-  const corsHeaders = getCorsHeaders(request);
-  const headers = new Headers(init?.headers);
-  for (const [key, value] of Object.entries(corsHeaders)) {
-    headers.set(key, value);
-  }
-  return new Response(body, { ...init, headers });
-}
-
-// Preflight response for OPTIONS requests
-export function preflightResponse(request?: Request | null): Response {
-  return new Response(null, {
-    status: 204,
-    headers: getCorsHeaders(request),
-  });
-}
-
-// Helper to check if a cross-origin request should be rejected
-export function shouldRejectCorsRequest(request: Request): boolean {
-  const origin = validateOrigin(request);
-  // Reject if origin is null (means origin validation failed)
-  // and the request has an Origin header (meaning it's a cross-origin request)
-  return origin === null && request.headers.get("Origin") !== null;
-}
-
-// Create a CORS rejection response
-export function corsRejectionResponse(): Response {
-  return new Response(JSON.stringify({ error: "Origin not allowed" }), {
-    status: 403,
-    headers: { "Content-Type": "application/json" },
-  });
-}
+// Re-export schemas for backward compatibility
+export {
+  CreateThresholdSchema,
+  UpdateThresholdSchema,
+  UpdateSettingsSchema,
+  LoginSchema,
+};
 
 // Type for route handler functions
 type RouteHandler = (req: Request) => Response | Promise<Response>;
@@ -148,7 +80,7 @@ export function withErrorBoundary(handler: RouteHandler): RouteHandler {
       return await handler(req);
     } catch (error) {
       const url = new URL(req.url);
-      console.error(`[ErrorBoundary] Unhandled error in ${req.method} ${url.pathname}:`, error);
+      logger.error(`Unhandled error in ${req.method} ${url.pathname}`, error instanceof Error ? error : new Error(String(error)));
 
       // Capture to Sentry with request context
       captureException(error, {
@@ -165,52 +97,12 @@ export function withErrorBoundary(handler: RouteHandler): RouteHandler {
       // Return generic error response
       return jsonWithCors(
         { error: "Internal server error" },
-        { status: 500 },
-        req
+        { status: 500 }
       );
     }
   };
 }
 
-// Zod schemas for API request validation
-export const CreateThresholdSchema = z.object({
-  productId: z.string().min(1, "productId is required"),
-  minQuantity: z.number().int().nonnegative("minQuantity must be a non-negative integer"),
-});
-
-export const UpdateThresholdSchema = z.object({
-  minQuantity: z.number().int().nonnegative("minQuantity must be a non-negative integer"),
-});
-
-export const UpdateSettingsSchema = z.object({
-  companyName: z.string().optional(),
-  email: z.email("Invalid email format").optional(),
-  bsaleConnected: z.boolean().optional(),
-  lastSyncAt: z.string().optional(),
-  emailNotifications: z.boolean().optional(),
-  notificationEmail: z.email("Invalid notification email format").optional(),
-  syncFrequency: z.enum(["hourly", "daily", "weekly"]).optional(),
-  digestFrequency: z.enum(["daily", "weekly", "none"]).optional(),
-});
-
-export const LoginSchema = z.object({
-  email: z.email("Invalid email format"),
-  password: z.string().min(1, "Password is required"),
-});
-
-// Helper function to create validation error response with CORS
-function createValidationErrorResponse(error: ZodError): Response {
-  return jsonWithCors(
-    {
-      error: "Validation failed",
-      details: error.issues.map((e) => ({
-        path: e.path.join("."),
-        message: e.message,
-      })),
-    },
-    { status: 400 }
-  );
-}
 // Fallback HTML for when bundled import fails (e.g., in CI tests)
 const fallbackHTML = `<!DOCTYPE html>
 <html lang="es">
@@ -230,17 +122,17 @@ const fallbackHTML = `<!DOCTYPE html>
 type IndexRouteType = (() => Response) | import("bun").HTMLBundle;
 let indexRoute: IndexRouteType;
 
-console.info("[server.ts] NODE_ENV:", process.env.NODE_ENV);
+logger.info("Server initialization", { nodeEnv: process.env.NODE_ENV });
 
 if (process.env.NODE_ENV === "test") {
   // In test environment, use simple Response handler
-  console.info("[server.ts] Using fallback HTML for test environment");
+  logger.info("Using fallback HTML for test environment");
   indexRoute = (): Response => new Response(fallbackHTML, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 } else {
   // In development/production, use bundled HTML for HMR support
-  console.info("[server.ts] Using bundled HTML import");
+  logger.info("Using bundled HTML import");
   indexRoute = (await import("./frontend/index.html")).default;
 }
 
@@ -269,71 +161,25 @@ export function createHealthResponse(): HealthResponse {
   };
 }
 
-// Mock data for development - will be replaced with real database queries
-const mockDashboardStats = {
-  totalProducts: 156,
-  activeAlerts: 3,
-  lowStockProducts: 12,
-  configuredThresholds: 45,
-};
-
-const mockAlerts = [
-  {
-    id: "1",
-    type: "threshold_breach" as const,
-    productId: "p1",
-    productName: "Producto A - SKU001",
-    message: "Stock bajo el umbral minimo (5 < 10)",
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    dismissedAt: null,
-  },
-  {
-    id: "2",
-    type: "low_velocity" as const,
-    productId: "p2",
-    productName: "Producto B - SKU002",
-    message: "Velocidad de venta muy baja en ultimos 30 dias",
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    dismissedAt: null,
-  },
-  {
-    id: "3",
-    type: "threshold_breach" as const,
-    productId: "p3",
-    productName: "Producto C - SKU003",
-    message: "Stock agotado (0 < 5)",
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    dismissedAt: null,
-  },
-];
-
-const mockProducts = [
-  { id: "p1", bsaleId: 1001, sku: "SKU001", name: "Producto A", currentStock: 5, threshold: 10, lastSyncAt: new Date().toISOString() },
-  { id: "p2", bsaleId: 1002, sku: "SKU002", name: "Producto B", currentStock: 150, threshold: 20, lastSyncAt: new Date().toISOString() },
-  { id: "p3", bsaleId: 1003, sku: "SKU003", name: "Producto C", currentStock: 0, threshold: 5, lastSyncAt: new Date().toISOString() },
-  { id: "p4", bsaleId: 1004, sku: "SKU004", name: "Producto D", currentStock: 75, threshold: 15, lastSyncAt: new Date().toISOString() },
-  { id: "p5", bsaleId: 1005, sku: "SKU005", name: "Producto E", currentStock: 200, threshold: null, lastSyncAt: new Date().toISOString() },
-];
-
-const mockSettings = {
-  companyName: "Mi Empresa SpA",
-  email: "admin@miempresa.cl",
-  bsaleConnected: true,
-  lastSyncAt: new Date(Date.now() - 3600000).toISOString(),
-  emailNotifications: true,
-  notificationEmail: "alertas@miempresa.cl",
-  syncFrequency: "daily" as const,
-  digestFrequency: "daily" as const,
-  isPaid: false,
-  stripeCustomerId: null as string | null,
-};
-
 export function createServer(
   config: Config,
   deps?: ServerDependencies
 ): Server<undefined> {
-  // Create security middleware
-  const authRateLimiter = createRateLimitMiddleware(RateLimitPresets.auth);
+  // Create path-based rate limiters for different API endpoints
+  const apiRateLimiter = createPathBasedRateLimiter({
+    "/api/auth/": RateLimitPresets.auth,
+    "/api/billing/": RateLimitPresets.strict,
+    "/api/sync/": RateLimitPresets.strict,
+    "/api/alerts/": RateLimitPresets.api,
+    "/api/thresholds/": RateLimitPresets.api,
+    "/api/products/": RateLimitPresets.api,
+    "/api/dashboard/": RateLimitPresets.api,
+    "/api/settings/": RateLimitPresets.api,
+    "/api/webhooks/": RateLimitPresets.webhook,
+  });
+
+  // Health check paths that should bypass rate limiting
+  const healthPaths = ["/health", "/api/health"];
 
   const csrfMiddleware: CSRFMiddleware | null = config.csrfTokenSecret
     ? createCSRFMiddleware({
@@ -342,6 +188,13 @@ export function createServer(
       })
     : null;
 
+  // Create auth middleware if repos are available
+  const authMiddleware: AuthMiddleware | null =
+    deps?.sessionRepo && deps.userRepo
+      ? createAuthMiddleware(deps.sessionRepo, deps.userRepo)
+      : null;
+
+  // Create route handlers from external modules
   const oauthRoutes = deps?.oauthDeps
     ? createOAuthRoutes(deps.oauthDeps, csrfMiddleware ? { csrfMiddleware } : {})
     : null;
@@ -350,28 +203,37 @@ export function createServer(
     : null;
   const syncRoutes = deps?.syncDeps ? createSyncRoutes(deps.syncDeps) : null;
 
-  // Per-instance mock data to avoid test isolation issues
-  const mockThresholds = [
-    { id: "t1", productId: "p1", productName: "Producto A - SKU001", minQuantity: 10, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: "t2", productId: "p2", productName: "Producto B - SKU002", minQuantity: 20, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: "t3", productId: "p3", productName: "Producto C - SKU003", minQuantity: 5, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  ];
+  // Create route modules
+  const dashboardRoutes = createDashboardRoutes({
+    alertRepo: deps?.alertRepo,
+    thresholdRepo: deps?.thresholdRepo,
+    stockSnapshotRepo: deps?.stockSnapshotRepo,
+    authMiddleware: authMiddleware ?? undefined,
+  });
 
-  // Create auth middleware if repos are available
-  const authMiddleware: AuthMiddleware | null =
-    deps?.sessionRepo && deps.userRepo
-      ? createAuthMiddleware(deps.sessionRepo, deps.userRepo)
-      : null;
+  const alertRoutes = createAlertRoutes({
+    alertRepo: deps?.alertRepo,
+    authMiddleware: authMiddleware ?? undefined,
+  });
 
-  // Helper to authenticate request and return context or null (for optional auth)
-  async function tryAuthenticate(req: Request): Promise<AuthContext | null> {
-    if (!authMiddleware) return null;
-    try {
-      return await authMiddleware.authenticate(req);
-    } catch {
-      return null;
-    }
-  }
+  const productRoutes = createProductRoutes({
+    thresholdRepo: deps?.thresholdRepo,
+    stockSnapshotRepo: deps?.stockSnapshotRepo,
+    authMiddleware: authMiddleware ?? undefined,
+  });
+
+  const thresholdRoutes = createThresholdRoutes({
+    thresholdRepo: deps?.thresholdRepo,
+    authMiddleware: authMiddleware ?? undefined,
+  });
+
+  const settingsRoutes = createSettingsRoutes({
+    userRepo: deps?.userRepo,
+    tenantRepo: deps?.tenantRepo,
+    authMiddleware: authMiddleware ?? undefined,
+  });
+
+  const authRoutesModule = createAuthRoutes();
 
   return Bun.serve({
     port: config.port,
@@ -385,563 +247,38 @@ export function createServer(
       "/app/thresholds": indexRoute,
       "/app/settings": indexRoute,
 
-      // Health check (not wrapped with CORS validation for monitoring tools)
+      // Health check
       "/health": {
-        GET: (req) => jsonWithCors(createHealthResponse(), undefined, req),
+        GET: () => jsonWithCors(createHealthResponse()),
       },
 
       // API Routes
       "/api/health": {
-        GET: (req) => jsonWithCors(createHealthResponse(), undefined, req),
+        GET: () => jsonWithCors(createHealthResponse()),
       },
 
-      "/api/dashboard/stats": {
-        GET: async (req) => {
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If repos available and authenticated, use real data
-          if (
-            authContext &&
-            deps?.stockSnapshotRepo &&
-            deps.alertRepo &&
-            deps.thresholdRepo
-          ) {
-            const [totalProducts, activeAlerts, configuredThresholds] =
-              await Promise.all([
-                deps.stockSnapshotRepo.countDistinctProductsByTenant(
-                  authContext.tenantId
-                ),
-                deps.alertRepo.countPendingByUser(authContext.userId),
-                deps.thresholdRepo.countByUser(authContext.userId),
-              ]);
-
-            // Low stock count uses a default threshold of 10
-            const lowStockProducts =
-              await deps.stockSnapshotRepo.countLowStockByTenant(
-                authContext.tenantId,
-                10
-              );
-
-            return jsonWithCors({
-              totalProducts,
-              activeAlerts,
-              lowStockProducts,
-              configuredThresholds,
-            }, undefined, req);
-          }
-
-          // Fallback to mock data
-          return jsonWithCors(mockDashboardStats, undefined, req);
-        },
-      },
-
-      "/api/alerts": {
-        GET: async (req) => {
-          const url = new URL(req.url);
-          const type = url.searchParams.get("type");
-          const limit = parseInt(url.searchParams.get("limit") ?? "100", 10);
-
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If alertRepo available and authenticated, use real data
-          if (authContext && deps?.alertRepo) {
-            const filter: AlertFilter = { limit };
-
-            // Map frontend alert types to database types
-            if (type === "threshold_breach") {
-              filter.type = "low_stock";
-            } else if (type === "low_velocity") {
-              filter.type = "low_velocity";
-            } else if (type === "out_of_stock") {
-              filter.type = "out_of_stock";
-            }
-
-            const result = await deps.alertRepo.findByUserWithFilter(
-              authContext.userId,
-              filter
-            );
-
-            // Transform DB alerts to API format
-            const alerts = result.alerts.map((alert) => ({
-              id: alert.id,
-              type:
-                alert.alert_type === "low_stock"
-                  ? ("threshold_breach" as const)
-                  : alert.alert_type,
-              productId: String(alert.bsale_variant_id),
-              productName: alert.product_name ?? `SKU ${alert.sku ?? "Unknown"}`,
-              message:
-                alert.alert_type === "low_stock"
-                  ? `Stock bajo el umbral minimo (${String(alert.current_quantity)} < ${String(alert.threshold_quantity ?? 0)})`
-                  : alert.alert_type === "out_of_stock"
-                    ? `Stock agotado (${String(alert.current_quantity)})`
-                    : `Velocidad de venta muy baja en ultimos 30 dias`,
-              createdAt: alert.created_at.toISOString(),
-              dismissedAt:
-                alert.status === "dismissed" ? alert.sent_at?.toISOString() ?? null : null,
-            }));
-
-            return jsonWithCors({
-              alerts,
-              total: result.total,
-            }, undefined, req);
-          }
-
-          // Fallback to mock data
-          let filtered = mockAlerts;
-          if (type) {
-            filtered = filtered.filter((a) => a.type === type);
-          }
-
-          return jsonWithCors({
-            alerts: filtered.slice(0, limit),
-            total: filtered.length,
-          }, undefined, req);
-        },
-      },
-
-      "/api/alerts/:id/dismiss": {
-        POST: async (req) => {
-          const id = req.params.id;
-
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If alertRepo available and authenticated, use real data
-          if (authContext && deps?.alertRepo) {
-            const alert = await deps.alertRepo.getById(id);
-            if (!alert) {
-              return jsonWithCors({ error: "Alert not found" }, { status: 404 }, req);
-            }
-            // Verify user owns this alert
-            if (alert.user_id !== authContext.userId) {
-              return jsonWithCors({ error: "Alert not found" }, { status: 404 }, req);
-            }
-            await deps.alertRepo.markAsDismissed(id);
-            return jsonWithCors({ success: true }, undefined, req);
-          }
-
-          // Fallback to mock data
-          const alert = mockAlerts.find((a) => a.id === id);
-          if (!alert) {
-            return jsonWithCors({ error: "Alert not found" }, { status: 404 }, req);
-          }
-          return jsonWithCors({ success: true }, undefined, req);
-        },
-      },
-
-      "/api/products": {
-        GET: async (req) => {
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If stockSnapshotRepo available and authenticated, use real data
-          if (authContext && deps?.stockSnapshotRepo && deps.thresholdRepo) {
-            const [snapshots, thresholds] = await Promise.all([
-              deps.stockSnapshotRepo.getLatestByTenant(authContext.tenantId),
-              deps.thresholdRepo.getByUser(authContext.userId),
-            ]);
-
-            // Create a map of variant thresholds for quick lookup
-            const thresholdMap = new Map<number, number>();
-            for (const t of thresholds) {
-              if (t.bsale_variant_id !== null) {
-                thresholdMap.set(t.bsale_variant_id, t.min_quantity);
-              }
-            }
-
-            // Transform snapshots to products
-            const products = snapshots.map((s) => ({
-              id: s.id,
-              bsaleId: s.bsale_variant_id,
-              sku: s.sku ?? "",
-              name: s.product_name ?? `Product ${String(s.bsale_variant_id)}`,
-              currentStock: s.quantity_available,
-              threshold: thresholdMap.get(s.bsale_variant_id) ?? null,
-              lastSyncAt: s.created_at.toISOString(),
-            }));
-
-            return jsonWithCors({
-              products,
-              total: products.length,
-            }, undefined, req);
-          }
-
-          // Fallback to mock data
-          return jsonWithCors({
-            products: mockProducts,
-            total: mockProducts.length,
-          }, undefined, req);
-        },
-      },
-
-      "/api/products/:id": {
-        GET: async (req) => {
-          const productId = req.params.id;
-
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // For DB lookup, we'd need to add a getById method to stockSnapshotRepo
-          // For now, fallback to mock if not a valid mock ID
-          if (authContext && deps?.stockSnapshotRepo) {
-            // Note: This would need a getById method on stockSnapshotRepo
-            // For now, check mock data first for backwards compatibility
-          }
-
-          // Fallback to mock data
-          const product = mockProducts.find((p) => p.id === productId);
-          if (!product) {
-            return jsonWithCors({ error: "Product not found" }, { status: 404 }, req);
-          }
-          return jsonWithCors(product, undefined, req);
-        },
-      },
-
-      "/api/thresholds": {
-        GET: async (req) => {
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If thresholdRepo available and authenticated, use real data
-          if (authContext && deps?.thresholdRepo) {
-            const thresholds = await deps.thresholdRepo.getByUser(
-              authContext.userId
-            );
-
-            // Transform DB thresholds to API format
-            const apiThresholds = thresholds.map((t) => ({
-              id: t.id,
-              productId: t.bsale_variant_id ? String(t.bsale_variant_id) : null,
-              productName: t.bsale_variant_id
-                ? `Product ${String(t.bsale_variant_id)}`
-                : "Default Threshold",
-              minQuantity: t.min_quantity,
-              createdAt: t.created_at.toISOString(),
-              updatedAt: t.updated_at.toISOString(),
-            }));
-
-            return jsonWithCors({
-              thresholds: apiThresholds,
-              total: apiThresholds.length,
-            }, undefined, req);
-          }
-
-          // Fallback to mock data
-          return jsonWithCors({
-            thresholds: mockThresholds,
-            total: mockThresholds.length,
-          }, undefined, req);
-        },
-        POST: async (req) => {
-          const parseResult = CreateThresholdSchema.safeParse(await req.json());
-          if (!parseResult.success) {
-            return createValidationErrorResponse(parseResult.error);
-          }
-          const body = parseResult.data;
-
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If thresholdRepo available and authenticated, use real data
-          if (authContext && deps?.thresholdRepo) {
-            const threshold = await deps.thresholdRepo.create({
-              tenant_id: authContext.tenantId,
-              user_id: authContext.userId,
-              bsale_variant_id: parseInt(body.productId, 10) || null,
-              min_quantity: body.minQuantity,
-            });
-
-            return jsonWithCors(
-              {
-                id: threshold.id,
-                productId: threshold.bsale_variant_id
-                  ? String(threshold.bsale_variant_id)
-                  : null,
-                productName: threshold.bsale_variant_id
-                  ? `Product ${String(threshold.bsale_variant_id)}`
-                  : "Default Threshold",
-                minQuantity: threshold.min_quantity,
-                createdAt: threshold.created_at.toISOString(),
-                updatedAt: threshold.updated_at.toISOString(),
-              },
-              { status: 201 },
-              req
-            );
-          }
-
-          // Fallback to mock data
-          const newThreshold = {
-            id: `t${String(Date.now())}`,
-            productId: body.productId,
-            productName:
-              mockProducts.find((p) => p.id === body.productId)?.name ?? "Unknown",
-            minQuantity: body.minQuantity,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          mockThresholds.push(newThreshold);
-          return jsonWithCors(newThreshold, { status: 201 }, req);
-        },
-      },
-
-      "/api/thresholds/:id": {
-        PUT: async (req) => {
-          const id = req.params.id;
-          const parseResult = UpdateThresholdSchema.safeParse(await req.json());
-          if (!parseResult.success) {
-            return createValidationErrorResponse(parseResult.error);
-          }
-          const body = parseResult.data;
-
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If thresholdRepo available and authenticated, use real data
-          if (authContext && deps?.thresholdRepo) {
-            const existingThreshold = await deps.thresholdRepo.getById(id);
-            if (!existingThreshold) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
-            }
-            // Verify user owns this threshold
-            if (existingThreshold.user_id !== authContext.userId) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
-            }
-
-            const updated = await deps.thresholdRepo.update(id, {
-              min_quantity: body.minQuantity,
-            });
-
-            return jsonWithCors({
-              id: updated.id,
-              productId: updated.bsale_variant_id
-                ? String(updated.bsale_variant_id)
-                : null,
-              productName: updated.bsale_variant_id
-                ? `Product ${String(updated.bsale_variant_id)}`
-                : "Default Threshold",
-              minQuantity: updated.min_quantity,
-              createdAt: updated.created_at.toISOString(),
-              updatedAt: updated.updated_at.toISOString(),
-            }, undefined, req);
-          }
-
-          // Fallback to mock data
-          const idx = mockThresholds.findIndex((t) => t.id === id);
-          if (idx === -1) {
-            return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
-          }
-          // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
-          const existing = mockThresholds[idx];
-          if (existing) {
-            // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
-            mockThresholds[idx] = {
-              ...existing,
-              minQuantity: body.minQuantity,
-              updatedAt: new Date().toISOString(),
-            };
-          }
-          // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
-          return jsonWithCors(mockThresholds[idx], undefined, req);
-        },
-        DELETE: async (req) => {
-          const id = req.params.id;
-
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If thresholdRepo available and authenticated, use real data
-          if (authContext && deps?.thresholdRepo) {
-            const existingThreshold = await deps.thresholdRepo.getById(id);
-            if (!existingThreshold) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
-            }
-            // Verify user owns this threshold
-            if (existingThreshold.user_id !== authContext.userId) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
-            }
-
-            const deleted = await deps.thresholdRepo.delete(id);
-            if (!deleted) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
-            }
-            return responseWithCors(null, { status: 204 }, req);
-          }
-
-          // Fallback to mock data
-          const idx = mockThresholds.findIndex((t) => t.id === id);
-          if (idx === -1) {
-            return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
-          }
-          mockThresholds.splice(idx, 1);
-          return responseWithCors(null, { status: 204 }, req);
-        },
-      },
-
-      "/api/settings": {
-        GET: async (req) => {
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If userRepo and tenantRepo available and authenticated, use real data
-          if (authContext && deps?.userRepo && deps.tenantRepo) {
-            const [user, tenant] = await Promise.all([
-              deps.userRepo.getById(authContext.userId),
-              deps.tenantRepo.getById(authContext.tenantId),
-            ]);
-
-            if (!user || !tenant) {
-              return jsonWithCors(mockSettings, undefined, req);
-            }
-
-            return jsonWithCors({
-              companyName: tenant.bsale_client_name,
-              email: user.email,
-              bsaleConnected: tenant.sync_status === "success",
-              lastSyncAt: tenant.last_sync_at?.toISOString() ?? null,
-              emailNotifications: user.notification_enabled,
-              notificationEmail: user.notification_email,
-              syncFrequency: "daily" as const, // Default, could be stored in a settings table
-              digestFrequency: user.digest_frequency,
-              isPaid: tenant.is_paid,
-              stripeCustomerId: tenant.stripe_customer_id,
-            }, undefined, req);
-          }
-
-          // Fallback to mock data
-          return jsonWithCors(mockSettings, undefined, req);
-        },
-        PUT: async (req) => {
-          const parseResult = UpdateSettingsSchema.safeParse(await req.json());
-          if (!parseResult.success) {
-            return createValidationErrorResponse(parseResult.error);
-          }
-          const body = parseResult.data;
-
-          // Try to get authenticated user context
-          const authContext = await tryAuthenticate(req);
-
-          // If userRepo available and authenticated, use real data
-          if (authContext && deps?.userRepo && deps.tenantRepo) {
-            // Update user settings
-            const updateInput: Partial<{
-              name: string | null;
-              notification_enabled: boolean;
-              notification_email: string | null;
-              digest_frequency: "daily" | "weekly" | "none";
-            }> = {};
-
-            if (body.emailNotifications !== undefined) {
-              updateInput.notification_enabled = body.emailNotifications;
-            }
-            if (body.notificationEmail !== undefined) {
-              updateInput.notification_email = body.notificationEmail ?? null;
-            }
-            if (body.digestFrequency !== undefined) {
-              updateInput.digest_frequency = body.digestFrequency;
-            }
-
-            const updatedUser = await deps.userRepo.update(
-              authContext.userId,
-              updateInput
-            );
-
-            // Get tenant for complete response
-            const tenant = await deps.tenantRepo.getById(authContext.tenantId);
-
-            return jsonWithCors({
-              companyName: body.companyName ?? tenant?.bsale_client_name ?? "",
-              email: body.email ?? updatedUser.email,
-              bsaleConnected: tenant?.sync_status === "success",
-              lastSyncAt: tenant?.last_sync_at?.toISOString() ?? null,
-              emailNotifications: updatedUser.notification_enabled,
-              notificationEmail: updatedUser.notification_email,
-              syncFrequency: body.syncFrequency ?? "daily",
-              digestFrequency: updatedUser.digest_frequency,
-              isPaid: tenant?.is_paid ?? false,
-              stripeCustomerId: tenant?.stripe_customer_id ?? null,
-            }, undefined, req);
-          }
-
-          // Fallback to mock data
-          Object.assign(mockSettings, body);
-          return jsonWithCors(mockSettings, undefined, req);
-        },
-      },
-
-      "/api/auth/login": {
-        POST: async (req) => {
-          const parseResult = LoginSchema.safeParse(await req.json());
-          if (!parseResult.success) {
-            return createValidationErrorResponse(parseResult.error);
-          }
-          const body = parseResult.data;
-          // Mock login - always succeeds for demo
-          const isProduction = process.env.NODE_ENV === "production";
-          const maxAge = 30 * 24 * 60 * 60; // 30 days
-          const sessionToken = `mock_${String(Date.now())}_${Math.random().toString(36)}`;
-
-          const cookieParts = [
-            `session_token=${sessionToken}`,
-            "HttpOnly",
-            "Path=/",
-            `Max-Age=${String(maxAge)}`,
-          ];
-
-          if (isProduction) {
-            cookieParts.push("Secure", "SameSite=Strict");
-          }
-
-          return jsonWithCors(
-            {
-              user: {
-                id: "u1",
-                email: body.email,
-                name: "Usuario Demo",
-                role: "admin" as const,
-              },
-            },
-            {
-              headers: {
-                "Set-Cookie": cookieParts.join("; "),
-              },
-            },
-            req
-          );
-        },
-      },
-
-      "/api/auth/logout": {
-        POST: (req) =>
-          jsonWithCors(
-            { success: true },
-            {
-              headers: {
-                "Set-Cookie": "session_token=; HttpOnly; Path=/; Max-Age=0",
-              },
-            },
-            req
-          ),
-      },
-
-      "/api/auth/me": {
-        GET: (req) => {
-          const cookie = req.headers.get("Cookie") ?? "";
-          if (!cookie.includes("session_token=")) {
-            return jsonWithCors({ user: null }, { status: 401 }, req);
-          }
-          return jsonWithCors({
-            user: {
-              id: "u1",
-              email: "demo@empresa.cl",
-              name: "Usuario Demo",
-              role: "admin" as const,
-            },
-          }, undefined, req);
-        },
-      },
+      // Dashboard routes
+      "/api/dashboard/stats": dashboardRoutes["/api/dashboard/stats"],
+
+      // Alert routes
+      "/api/alerts": alertRoutes["/api/alerts"],
+      "/api/alerts/:id/dismiss": alertRoutes["/api/alerts/:id/dismiss"],
+
+      // Product routes
+      "/api/products": productRoutes["/api/products"],
+      "/api/products/:id": productRoutes["/api/products/:id"],
+
+      // Threshold routes
+      "/api/thresholds": thresholdRoutes["/api/thresholds"],
+      "/api/thresholds/:id": thresholdRoutes["/api/thresholds/:id"],
+
+      // Settings routes
+      "/api/settings": settingsRoutes["/api/settings"],
+
+      // Auth routes
+      "/api/auth/login": authRoutesModule["/api/auth/login"],
+      "/api/auth/logout": authRoutesModule["/api/auth/logout"],
+      "/api/auth/me": authRoutesModule["/api/auth/me"],
     },
 
     // Fallback handler for OAuth routes, billing routes, and SPA routing
@@ -969,16 +306,16 @@ export function createServer(
           }
         }
 
+        // Apply rate limiting to API endpoints (bypass health checks)
+        if (url.pathname.startsWith("/api/") && !healthPaths.includes(url.pathname)) {
+          const rateLimitResponse = apiRateLimiter.check(request);
+          if (rateLimitResponse) {
+            return rateLimitResponse;
+          }
+        }
+
         // OAuth routes (if configured)
         if (oauthRoutes) {
-          // Apply rate limiting to auth endpoints
-          if (url.pathname.startsWith("/api/auth/bsale/")) {
-            const rateLimitResponse = authRateLimiter.check(request);
-            if (rateLimitResponse) {
-              return rateLimitResponse;
-            }
-          }
-
           if (url.pathname === "/api/auth/bsale/start" && request.method === "GET") {
             return oauthRoutes.start(request);
           }
@@ -1016,7 +353,7 @@ export function createServer(
 
         // API routes that don't match should return 404
         if (url.pathname.startsWith("/api/")) {
-          return jsonWithCors({ error: "Not Found" }, { status: 404 }, request);
+          return jsonWithCors({ error: "Not Found" }, { status: 404 });
         }
 
         // All other routes not defined in the routes object should return 404
@@ -1080,7 +417,7 @@ export function createServer(
         }
       );
       } catch (error) {
-        console.error(`[FetchHandler] Unhandled error in ${request.method} ${url.pathname}:`, error);
+        logger.error(`Unhandled error in ${request.method} ${url.pathname}`, error instanceof Error ? error : new Error(String(error)));
 
         // Capture to Sentry with request context
         captureException(error, {
@@ -1097,8 +434,7 @@ export function createServer(
         // Return generic error response
         return jsonWithCors(
           { error: "Internal server error" },
-          { status: 500 },
-          request
+          { status: 500 }
         );
       }
     },
@@ -1119,7 +455,7 @@ export function startServer(
 ): Server<undefined> {
   const resolvedConfig = config ?? loadConfig();
   const server = createServer(resolvedConfig, deps);
-  console.info(`Server started on port ${String(resolvedConfig.port)}`);
+  logger.info("Server started", { port: resolvedConfig.port });
   return server;
 }
 
