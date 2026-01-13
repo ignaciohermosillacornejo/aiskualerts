@@ -3,6 +3,14 @@ import { z } from "zod";
 const configSchema = z.object({
   port: z.coerce.number().int().min(1).max(65535).default(3000),
   nodeEnv: z.enum(["development", "production", "test"]).default("development"),
+  // CORS configuration - comma-separated list of allowed origins
+  allowedOrigins: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (!val || val.trim() === "") return [];
+      return val.split(",").map((origin) => origin.trim()).filter(Boolean);
+    }),
   syncEnabled: z
     .string()
     .default("true")
@@ -38,9 +46,20 @@ const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>;
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
+  const nodeEnv = env["NODE_ENV"] ?? "development";
+
+  // Validate ALLOWED_ORIGINS is set in production
+  if (nodeEnv === "production" && !env["ALLOWED_ORIGINS"]) {
+    throw new Error(
+      "ALLOWED_ORIGINS environment variable must be configured in production. " +
+      "Set it to a comma-separated list of allowed origins (e.g., 'https://example.com,https://app.example.com')"
+    );
+  }
+
   return configSchema.parse({
     port: env["PORT"],
     nodeEnv: env["NODE_ENV"],
+    allowedOrigins: env["ALLOWED_ORIGINS"],
     syncEnabled: env["SYNC_ENABLED"],
     syncHour: env["SYNC_HOUR"],
     syncMinute: env["SYNC_MINUTE"],
