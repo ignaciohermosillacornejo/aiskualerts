@@ -442,7 +442,7 @@ describe("Header", () => {
         // Start at /app route
         await new Promise<void>((resolve) => {
           root.render(
-            React.createElement(Router, { base: "/app" },
+            React.createElement(Router, null,
               React.createElement(AuthProvider, null,
                 React.createElement(Header)
               )
@@ -492,6 +492,7 @@ describe("Header", () => {
         const buttons = container.querySelectorAll("button.btn-secondary");
         let logoutButtonFound = false;
         buttons.forEach((btn) => {
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- textContent can theoretically be null
           if (btn.textContent?.includes("Cerrar Sesion")) {
             logoutButtonFound = true;
           }

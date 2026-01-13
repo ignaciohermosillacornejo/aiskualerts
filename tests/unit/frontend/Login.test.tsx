@@ -609,18 +609,18 @@ describe("Login", () => {
         });
 
         // Find email input and change value
-        const emailInput = container.querySelector('input[type="email"]') as HTMLInputElement;
+        const emailInput = container.querySelector('input[type="email"]');
         expect(emailInput).not.toBeNull();
         if (emailInput) {
-          emailInput.value = "test@example.com";
+          (emailInput as HTMLInputElement).value = "test@example.com";
           emailInput.dispatchEvent(new Event("change", { bubbles: true }));
         }
 
         // Find password input and change value
-        const passwordInput = container.querySelector('input[type="password"]') as HTMLInputElement;
+        const passwordInput = container.querySelector('input[type="password"]');
         expect(passwordInput).not.toBeNull();
         if (passwordInput) {
-          passwordInput.value = "password123";
+          (passwordInput as HTMLInputElement).value = "password123";
           passwordInput.dispatchEvent(new Event("change", { bubbles: true }));
         }
 
@@ -659,7 +659,7 @@ describe("Login", () => {
         });
 
         // Find and click submit button without entering any data
-        const form = container.querySelector("form") as HTMLFormElement;
+        const form = container.querySelector("form");
         if (form) {
           // Manually trigger submit event
           const submitEvent = new Event("submit", { bubbles: true, cancelable: true });

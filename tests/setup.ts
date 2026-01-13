@@ -29,13 +29,13 @@ global.Event = happyWindow.Event;
 // Create a window object for React DOM client that doesn't override Bun's fetch
 // React DOM needs window.event for update priority resolution
 const windowProxy = new Proxy(happyWindow, {
-  get(target, prop) {
+  get(target: GlobalWindow, prop: string | symbol): unknown {
     // Preserve Bun's native fetch
     if (prop === "fetch") {
       return bunFetch;
     }
-    // @ts-expect-error - Proxy access
-    return target[prop];
+    // eslint-disable-next-line security/detect-object-injection -- Proxy handler for happy-dom window object
+    return (target as unknown as Record<string | symbol, unknown>)[prop];
   },
 });
 
@@ -47,7 +47,6 @@ global.window = windowProxy;
 global.location = happyWindow.location;
 
 // Add history global for wouter navigation
-// @ts-expect-error - Adding history for wouter
 global.history = happyWindow.history;
 
 // Ensure fetch is still Bun's fetch after window setup
