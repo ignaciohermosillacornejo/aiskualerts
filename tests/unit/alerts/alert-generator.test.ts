@@ -443,8 +443,10 @@ describe("generateAlertsForUser", () => {
     const createAlertsCall = mocks.createAlerts.mock.calls[0] as unknown as [AlertInput[]];
     const alerts = createAlertsCall[0];
     expect(alerts.length).toBe(1);
-    expect(alerts[0]!.alert_type).toBe("low_velocity");
-    expect(alerts[0]!.days_to_stockout).not.toBeNull();
+    const firstAlert = alerts[0];
+    expect(firstAlert).toBeDefined();
+    expect(firstAlert?.alert_type).toBe("low_velocity");
+    expect(firstAlert?.days_to_stockout).not.toBeNull();
   });
 
   test("does not create velocity alert when days_warning is 0", async () => {
@@ -493,7 +495,9 @@ describe("generateAlertsForUser", () => {
 
     const createAlertsCall = mocks.createAlerts.mock.calls[0] as unknown as [AlertInput[]];
     const alerts = createAlertsCall[0];
-    expect(alerts[0]!.alert_type).toBe("out_of_stock");
+    const firstAlert = alerts[0];
+    expect(firstAlert).toBeDefined();
+    expect(firstAlert?.alert_type).toBe("out_of_stock");
   });
 
   test("does not create velocity alert when pending low_velocity alert exists", async () => {
