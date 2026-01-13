@@ -357,6 +357,21 @@ lsof -i :5432
 6. **Use SSL/TLS** - Enable HTTPS in production
 7. **Rotate credentials** - Regularly update passwords and tokens
 8. **Limit SSH access** - Use SSH keys only, disable password auth
+9. **Configure CORS** - Always set `ALLOWED_ORIGINS` in production (see below)
+
+### CORS Configuration (Required)
+
+The `ALLOWED_ORIGINS` environment variable is **required** in production. The server will fail to start without it configured.
+
+```bash
+# Single origin
+ALLOWED_ORIGINS=https://aiskualerts.com
+
+# Multiple origins (comma-separated)
+ALLOWED_ORIGINS=https://aiskualerts.com,https://app.aiskualerts.com
+```
+
+This prevents cross-origin requests from unauthorized domains. In development/test mode, if not set, all origins are allowed for convenience.
 
 ## Cost Optimization
 

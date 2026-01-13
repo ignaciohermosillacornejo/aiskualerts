@@ -36,6 +36,7 @@ describe("Server Routing", () => {
   const mockConfig: Config = {
     port: 0, // Use port 0 to get a random available port
     nodeEnv: "test" as const,
+    allowedOrigins: [],
     syncEnabled: false,
     syncHour: 2,
     syncMinute: 0,

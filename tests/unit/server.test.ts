@@ -1,4 +1,4 @@
-import { test, expect, afterEach, describe, mock, type Mock } from "bun:test";
+import { test, expect, afterEach, beforeEach, describe, mock, type Mock } from "bun:test";
 import {
   createServer,
   createHealthResponse,
@@ -12,6 +12,8 @@ import {
   UpdateSettingsSchema,
   LoginSchema,
   startServer,
+  configureCors,
+  resetCorsConfig,
   type HealthResponse,
   type ServerDependencies,
 } from "@/server";
@@ -20,6 +22,7 @@ import type { Config } from "@/config";
 const testConfig: Config = {
   port: 0,
   nodeEnv: "test",
+  allowedOrigins: [],
   syncEnabled: false,
   syncHour: 2,
   syncMinute: 0,
@@ -38,9 +41,15 @@ afterEach(async () => {
     await serverInstance.stop(true);
     serverInstance = null;
   }
+  resetCorsConfig();
 });
 
 describe("CORS Helpers", () => {
+  beforeEach(() => {
+    resetCorsConfig();
+    configureCors({ allowedOrigins: [], nodeEnv: "test" });
+  });
+
   describe("getCorsHeaders", () => {
     test("returns required CORS headers", () => {
       const headers = getCorsHeaders();
@@ -50,30 +59,21 @@ describe("CORS Helpers", () => {
       expect(headers["Access-Control-Allow-Credentials"]).toBe("true");
     });
 
-    test("uses ALLOWED_ORIGIN env variable when set", () => {
-      const originalOrigin = process.env["ALLOWED_ORIGIN"];
-      process.env["ALLOWED_ORIGIN"] = "https://example.com";
+    test("uses configured allowed origins", () => {
+      configureCors({
+        allowedOrigins: ["https://example.com"],
+        nodeEnv: "production",
+      });
 
-      const headers = getCorsHeaders();
+      const headers = getCorsHeaders("https://example.com");
       expect(headers["Access-Control-Allow-Origin"]).toBe("https://example.com");
-
-      if (originalOrigin !== undefined) {
-        process.env["ALLOWED_ORIGIN"] = originalOrigin;
-      } else {
-        delete process.env["ALLOWED_ORIGIN"];
-      }
     });
 
-    test("uses wildcard when ALLOWED_ORIGIN not set", () => {
-      const originalOrigin = process.env["ALLOWED_ORIGIN"];
-      delete process.env["ALLOWED_ORIGIN"];
+    test("uses wildcard when no origins configured in test mode", () => {
+      configureCors({ allowedOrigins: [], nodeEnv: "test" });
 
       const headers = getCorsHeaders();
       expect(headers["Access-Control-Allow-Origin"]).toBe("*");
-
-      if (originalOrigin !== undefined) {
-        process.env["ALLOWED_ORIGIN"] = originalOrigin;
-      }
     });
   });
 
@@ -765,6 +765,7 @@ describe("createServer", () => {
       const customConfig: Config = {
         port: 0,
         nodeEnv: "test",
+        allowedOrigins: [],
         syncEnabled: false,
         syncHour: 2,
         syncMinute: 0,
@@ -783,6 +784,7 @@ describe("createServer", () => {
       const productionConfig: Config = {
         port: 0,
         nodeEnv: "production",
+        allowedOrigins: ["https://example.com"],
         syncEnabled: false,
         syncHour: 2,
         syncMinute: 0,
@@ -801,6 +803,7 @@ describe("createServer", () => {
       const devConfig: Config = {
         port: 0,
         nodeEnv: "development",
+        allowedOrigins: [],
         syncEnabled: false,
         syncHour: 2,
         syncMinute: 0,
@@ -825,6 +828,7 @@ describe("createServer", () => {
         const productionConfig: Config = {
           port: 0,
           nodeEnv: "production",
+          allowedOrigins: ["https://example.com"],
           syncEnabled: false,
           syncHour: 2,
           syncMinute: 0,

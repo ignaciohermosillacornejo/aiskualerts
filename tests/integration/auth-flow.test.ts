@@ -14,6 +14,7 @@ describe("Authentication Flow Integration", () => {
   const mockConfig: Config = {
     port: 3002,
     nodeEnv: "test" as const,
+    allowedOrigins: [],
     syncEnabled: false,
     syncHour: 2,
     syncMinute: 0,

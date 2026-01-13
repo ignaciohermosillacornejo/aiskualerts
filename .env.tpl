@@ -35,9 +35,10 @@ PORT=3000
 # ===========================================
 # CORS Configuration
 # ===========================================
-# Allowed origin for CORS requests (defaults to "*" if not set)
-# For production, set to your frontend domain (e.g., https://aiskualerts.com)
-ALLOWED_ORIGIN=https://aiskualerts.com
+# Comma-separated list of allowed origins for CORS requests
+# REQUIRED in production - server will fail to start without this
+# For production, set to your frontend domain(s)
+ALLOWED_ORIGINS=https://aiskualerts.com
 
 # ===========================================
 # Bsale API Configuration
