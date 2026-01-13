@@ -1,0 +1,11 @@
+echo "Running pre-commit checks..."
+
+# 1. Lint
+echo "1/2 Running linter..."
+bun run lint || exit 1
+
+# 2. Type check
+echo "2/2 Running type check..."
+bun run typecheck || exit 1
+
+echo "✅ Pre-commit checks passed!"
