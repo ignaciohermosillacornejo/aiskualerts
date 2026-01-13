@@ -5,8 +5,8 @@ const configSchema = z.object({
   nodeEnv: z.enum(["development", "production", "test"]).default("development"),
   syncEnabled: z
     .string()
-    .transform((val) => val.toLowerCase() === "true")
-    .default("true"),
+    .default("true")
+    .transform((val) => val.toLowerCase() === "true"),
   syncHour: z.coerce.number().int().min(0).max(23).default(2),
   syncMinute: z.coerce.number().int().min(0).max(59).default(0),
   syncBatchSize: z.coerce.number().int().min(1).max(1000).default(100),
@@ -16,7 +16,7 @@ const configSchema = z.object({
   bsaleRedirectUri: z.string().optional(),
   bsaleOAuthBaseUrl: z.string().optional(),
   resendApiKey: z.string().optional(),
-  notificationFromEmail: z.string().email().optional(),
+  notificationFromEmail: z.email().optional(),
   sentryDsn: z.string().optional(),
   sentryEnvironment: z.string().default("development"),
   // Security configuration

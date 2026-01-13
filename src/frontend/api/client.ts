@@ -17,13 +17,13 @@ const ThresholdInputSchema = z.object({
 });
 
 const LoginCredentialsSchema = z.object({
-  email: z.string().email("Invalid email format").max(255),
+  email: z.email("Invalid email format").max(255),
   password: z.string().min(1, "Password is required").max(255),
 });
 
 const SettingsUpdateSchema = z.object({
   emailNotifications: z.boolean().optional(),
-  notificationEmail: z.string().email().max(255).optional(),
+  notificationEmail: z.email().max(255).optional(),
   syncFrequency: z.enum(["hourly", "daily", "weekly"]).optional(),
 }).partial();
 
