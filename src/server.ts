@@ -146,6 +146,14 @@ function createValidationErrorResponse(error: ZodError): Response {
     { status: 400 }
   );
 }
+
+// Helper function to parse pagination parameters from URL
+function parsePaginationParams(url: URL): { page: number; limit: number; offset: number } {
+  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
+  const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") ?? "20", 10)));
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}
 // Fallback HTML for when bundled import fails (e.g., in CI tests)
 const fallbackHTML = `<!DOCTYPE html>
 <html lang="es">
@@ -482,13 +490,16 @@ export function createServer(
 
       "/api/products": {
         GET: async (req) => {
+          const url = new URL(req.url);
+          const { page, limit, offset } = parsePaginationParams(url);
+
           // Try to get authenticated user context
           const authContext = await tryAuthenticate(req);
 
           // If stockSnapshotRepo available and authenticated, use real data
           if (authContext && deps?.stockSnapshotRepo && deps.thresholdRepo) {
-            const [snapshots, thresholds] = await Promise.all([
-              deps.stockSnapshotRepo.getLatestByTenant(authContext.tenantId),
+            const [paginatedSnapshots, thresholds] = await Promise.all([
+              deps.stockSnapshotRepo.getLatestByTenantPaginated(authContext.tenantId, { limit, offset }),
               deps.thresholdRepo.getByUser(authContext.userId),
             ]);
 
@@ -501,7 +512,7 @@ export function createServer(
             }
 
             // Transform snapshots to products
-            const products = snapshots.map((s) => ({
+            const products = paginatedSnapshots.data.map((s) => ({
               id: s.id,
               bsaleId: s.bsale_variant_id,
               sku: s.sku ?? "",
@@ -512,15 +523,22 @@ export function createServer(
             }));
 
             return jsonWithCors({
-              products,
-              total: products.length,
+              data: products,
+              pagination: paginatedSnapshots.pagination,
             });
           }
 
-          // Fallback to mock data
+          // Fallback to mock data with pagination
+          const total = mockProducts.length;
+          const paginatedProducts = mockProducts.slice(offset, offset + limit);
           return jsonWithCors({
-            products: mockProducts,
-            total: mockProducts.length,
+            data: paginatedProducts,
+            pagination: {
+              page,
+              limit,
+              total,
+              totalPages: Math.ceil(total / limit),
+            },
           });
         },
       },
@@ -560,17 +578,21 @@ export function createServer(
 
       "/api/thresholds": {
         GET: async (req) => {
+          const url = new URL(req.url);
+          const { page, limit, offset } = parsePaginationParams(url);
+
           // Try to get authenticated user context
           const authContext = await tryAuthenticate(req);
 
           // If thresholdRepo available and authenticated, use real data
           if (authContext && deps?.thresholdRepo) {
-            const thresholds = await deps.thresholdRepo.getByUser(
-              authContext.userId
+            const paginatedThresholds = await deps.thresholdRepo.getByUserPaginated(
+              authContext.userId,
+              { limit, offset }
             );
 
             // Transform DB thresholds to API format
-            const apiThresholds = thresholds.map((t) => ({
+            const apiThresholds = paginatedThresholds.data.map((t) => ({
               id: t.id,
               productId: t.bsale_variant_id ? String(t.bsale_variant_id) : null,
               productName: t.bsale_variant_id
@@ -582,15 +604,22 @@ export function createServer(
             }));
 
             return jsonWithCors({
-              thresholds: apiThresholds,
-              total: apiThresholds.length,
+              data: apiThresholds,
+              pagination: paginatedThresholds.pagination,
             });
           }
 
-          // Fallback to mock data
+          // Fallback to mock data with pagination
+          const total = mockThresholds.length;
+          const paginatedThresholds = mockThresholds.slice(offset, offset + limit);
           return jsonWithCors({
-            thresholds: mockThresholds,
-            total: mockThresholds.length,
+            data: paginatedThresholds,
+            pagination: {
+              page,
+              limit,
+              total,
+              totalPages: Math.ceil(total / limit),
+            },
           });
         },
         POST: async (req) => {
