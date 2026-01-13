@@ -33,11 +33,24 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          echo "SSH_HOST=$(op read 'op://Dev/HETZNER_SERVER_IP/credential')" >> $GITHUB_ENV
-          echo "B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')" >> $GITHUB_ENV
-          echo "B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')" >> $GITHUB_ENV
-          echo "B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')" >> $GITHUB_ENV
-          echo "BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')" >> $GITHUB_ENV
+          # Load secrets and mask them in logs
+          SSH_HOST=$(op read 'op://Dev/HETZNER_SERVER_IP/credential')
+          B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
+          B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
+          B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')
+          BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
+
+          # Mask sensitive values
+          echo "::add-mask::$B2_KEY_ID"
+          echo "::add-mask::$B2_APPLICATION_KEY"
+          echo "::add-mask::$BACKUP_ENCRYPTION_KEY"
+
+          # Export to environment
+          echo "SSH_HOST=$SSH_HOST" >> $GITHUB_ENV
+          echo "B2_KEY_ID=$B2_KEY_ID" >> $GITHUB_ENV
+          echo "B2_APPLICATION_KEY=$B2_APPLICATION_KEY" >> $GITHUB_ENV
+          echo "B2_BUCKET_NAME=$B2_BUCKET_NAME" >> $GITHUB_ENV
+          echo "BACKUP_ENCRYPTION_KEY=$BACKUP_ENCRYPTION_KEY" >> $GITHUB_ENV
 
       - name: Setup SSH
         env:
