@@ -3,6 +3,36 @@ import { api } from "../api/client";
 import type { TenantSettings } from "../types";
 import { ApiError } from "../api/client";
 
+// Validate Stripe URLs to prevent open redirect attacks
+function isValidStripeUrl(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    return (
+      parsedUrl.protocol === "https:" &&
+      (parsedUrl.hostname === "checkout.stripe.com" ||
+        parsedUrl.hostname === "billing.stripe.com" ||
+        parsedUrl.hostname.endsWith(".stripe.com"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Sanitize error messages for user display
+function getSafeErrorMessage(err: unknown, defaultMessage: string): string {
+  if (err instanceof ApiError) {
+    // Only show safe, known error messages
+    const safeMessages: Record<number, string> = {
+      400: "No se pudo procesar la solicitud",
+      401: "Sesion expirada, por favor inicia sesion nuevamente",
+      404: "Recurso no encontrado",
+      500: "Error del servidor, intenta nuevamente",
+    };
+    return safeMessages[err.status] ?? defaultMessage;
+  }
+  return defaultMessage;
+}
+
 export function Settings() {
   const [settings, setSettings] = useState<TenantSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,13 +78,15 @@ export function Settings() {
       setBillingLoading(true);
       setError(null);
       const { url } = await api.createCheckoutSession();
+
+      // Validate URL before redirect to prevent open redirect attacks
+      if (!isValidStripeUrl(url)) {
+        throw new Error("Invalid redirect URL");
+      }
+
       window.location.href = url;
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("Error al iniciar el proceso de pago");
-      }
+      setError(getSafeErrorMessage(err, "Error al iniciar el proceso de pago"));
       setBillingLoading(false);
     }
   }, []);
@@ -64,13 +96,15 @@ export function Settings() {
       setBillingLoading(true);
       setError(null);
       const { url } = await api.createPortalSession();
+
+      // Validate URL before redirect to prevent open redirect attacks
+      if (!isValidStripeUrl(url)) {
+        throw new Error("Invalid redirect URL");
+      }
+
       window.location.href = url;
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError("Error al abrir el portal de facturacion");
-      }
+      setError(getSafeErrorMessage(err, "Error al abrir el portal de facturacion"));
       setBillingLoading(false);
     }
   }, []);
