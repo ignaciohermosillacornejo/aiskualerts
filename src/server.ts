@@ -532,11 +532,21 @@ export function createServer(
           // Try to get authenticated user context
           const authContext = await tryAuthenticate(req);
 
-          // For DB lookup, we'd need to add a getById method to stockSnapshotRepo
-          // For now, fallback to mock if not a valid mock ID
           if (authContext && deps?.stockSnapshotRepo) {
-            // Note: This would need a getById method on stockSnapshotRepo
-            // For now, check mock data first for backwards compatibility
+            const snapshot = await deps.stockSnapshotRepo.getById(productId);
+            if (snapshot) {
+              return jsonWithCors({
+                id: snapshot.id,
+                name: snapshot.product_name ?? `Variant ${String(snapshot.bsale_variant_id)}`,
+                sku: snapshot.sku ?? "",
+                barcode: snapshot.barcode,
+                currentStock: snapshot.quantity_available,
+                reservedStock: snapshot.quantity_reserved,
+                totalStock: snapshot.quantity,
+                lastUpdated: snapshot.snapshot_date.toISOString(),
+              });
+            }
+            return jsonWithCors({ error: "Product not found" }, { status: 404 });
           }
 
           // Fallback to mock data
