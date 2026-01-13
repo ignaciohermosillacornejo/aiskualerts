@@ -3,6 +3,7 @@ import { createServer, type ServerDependencies } from "@/server";
 import { Scheduler } from "@/scheduler";
 import { getDb } from "@/db/client";
 import { createSyncJob } from "@/jobs/sync-job";
+import { createSessionCleanupScheduler } from "@/jobs/session-cleanup-job";
 import { BsaleOAuthClient } from "@/bsale/oauth-client";
 import { TenantRepository } from "@/db/repositories/tenant";
 import { UserRepository } from "@/db/repositories/user";
@@ -27,6 +28,13 @@ function main(): void {
     minute: config.syncMinute,
   });
 
+  // Initialize session cleanup scheduler (runs every hour)
+  const sessionRepo = new SessionRepository(db);
+  const sessionCleanupScheduler = createSessionCleanupScheduler(sessionRepo, {
+    intervalMs: 60 * 60 * 1000, // 1 hour
+    runOnStart: true,
+  });
+
   // Initialize OAuth dependencies (if configured)
   const serverDeps: ServerDependencies = {};
   if (
@@ -44,7 +52,6 @@ function main(): void {
 
     const tenantRepo = new TenantRepository(db);
     const userRepo = new UserRepository(db);
-    const sessionRepo = new SessionRepository(db);
     const stateStore = new OAuthStateStore(10); // 10 minute TTL
 
     serverDeps.oauthDeps = {
@@ -64,14 +71,16 @@ function main(): void {
   const server = createServer(config, serverDeps);
   console.info(`HTTP server listening on port ${String(server.port)}`);
 
-  // Start the scheduler
+  // Start the schedulers
   scheduler.start();
+  sessionCleanupScheduler.start();
 
   // Handle graceful shutdown
   const shutdown = async (): Promise<void> => {
     console.info("Shutting down...");
 
     scheduler.stop();
+    sessionCleanupScheduler.stop();
     await server.stop(true);
     await db.close();
 
