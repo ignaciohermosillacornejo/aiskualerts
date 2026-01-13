@@ -1,4 +1,4 @@
-import { test, expect, afterEach, describe, beforeEach, mock, type Mock } from "bun:test";
+import { test, expect, afterEach, describe, mock, type Mock } from "bun:test";
 import {
   createServer,
   createHealthResponse,
@@ -15,8 +15,6 @@ import {
   type ServerDependencies,
 } from "@/server";
 import type { Config } from "@/config";
-import type { OAuthHandlerDeps } from "@/api/handlers/oauth";
-import type { BillingHandlerDeps } from "@/api/handlers/billing";
 
 const testConfig: Config = {
   port: 0,
@@ -83,12 +81,12 @@ describe("CORS Helpers", () => {
       expect(body.data).toBe("test");
     });
 
-    test("accepts custom status code", async () => {
+    test("accepts custom status code", () => {
       const response = jsonWithCors({ error: "Not found" }, { status: 404 });
       expect(response.status).toBe(404);
     });
 
-    test("merges provided headers with CORS headers", async () => {
+    test("merges provided headers with CORS headers", () => {
       const response = jsonWithCors({ data: "test" }, { headers: { "X-Custom": "value" } });
       expect(response.headers.get("X-Custom")).toBe("value");
       expect(response.headers.get("Access-Control-Allow-Origin")).toBeDefined();

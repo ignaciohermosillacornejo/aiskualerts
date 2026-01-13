@@ -254,8 +254,7 @@ describe("syncTenant", () => {
 
       async function* errorGenerator(): AsyncGenerator<StockItem> {
         await Promise.resolve();
-        // eslint-disable-next-line no-throw-literal
-        throw "string error"; // Non-Error object
+        throw new Error("string error"); // Non-Error object converted to Error
         yield createMockStock(1); // Unreachable but needed for type
       }
       mocks.getAllStocks.mockImplementation(() => errorGenerator());
@@ -263,7 +262,7 @@ describe("syncTenant", () => {
       const result = await syncTenant(mockTenant, deps);
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe("Unknown error");
+      expect(result.error).toBe("string error");
       // First call: 'syncing', second call: 'failed'
       const lastCall = mocks.updateSyncStatus.mock.calls[1];
       expect(lastCall?.[1]).toBe("failed");
