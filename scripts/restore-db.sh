@@ -14,7 +14,7 @@ fi
 : "${BACKUP_FILE:?Environment variable BACKUP_FILE is required}"
 
 # Configuration
-POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-aiskualerts-postgres-1}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-aiskualerts-db}"
 POSTGRES_USER="${POSTGRES_USER:-aiskualerts}"
 POSTGRES_DB="${POSTGRES_DB:-aiskualerts}"
 

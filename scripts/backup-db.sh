@@ -13,7 +13,7 @@ fi
 : "${BACKUP_ENCRYPTION_KEY:?Environment variable BACKUP_ENCRYPTION_KEY is required}"
 
 # Configuration
-POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-aiskualerts-postgres-1}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-aiskualerts-db}"
 POSTGRES_USER="${POSTGRES_USER:-aiskualerts}"
 POSTGRES_DB="${POSTGRES_DB:-aiskualerts}"
 
