@@ -1443,7 +1443,7 @@ describe("withErrorBoundary", () => {
   });
 
   test("returns async response from handler", async () => {
-    const handler = async () => new Response("Async OK", { status: 200 });
+    const handler = () => Promise.resolve(new Response("Async OK", { status: 200 }));
     const wrapped = withErrorBoundary(handler);
 
     const request = new Request("http://localhost/test");
@@ -1468,9 +1468,7 @@ describe("withErrorBoundary", () => {
   });
 
   test("catches async errors and returns 500", async () => {
-    const handler = async () => {
-      throw new Error("Async error");
-    };
+    const handler = () => Promise.reject(new Error("Async error"));
     const wrapped = withErrorBoundary(handler);
 
     const request = new Request("http://localhost/test");

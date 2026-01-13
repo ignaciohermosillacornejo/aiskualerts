@@ -18,9 +18,9 @@ import type { Config } from "@/config";
 // Create mock scope
 function createMockScope() {
   return {
-    setTag: mock(() => {}),
-    setExtra: mock(() => {}),
-    setUser: mock(() => {}),
+    setTag: mock(() => undefined),
+    setExtra: mock(() => undefined),
+    setUser: mock(() => undefined),
   };
 }
 
@@ -28,7 +28,7 @@ function createMockScope() {
 function createMockSentry() {
   const mockScope = createMockScope();
   return {
-    init: mock(() => {}),
+    init: mock(() => undefined),
     captureException: mock(() => "event-id-123"),
     captureMessage: mock(() => "message-id-456"),
     flush: mock(() => Promise.resolve(true)),
@@ -304,7 +304,7 @@ describe("captureMessage", () => {
       environment: "test",
     });
 
-    const levels: Array<"fatal" | "error" | "warning" | "log" | "info" | "debug"> = [
+    const levels: ("fatal" | "error" | "warning" | "log" | "info" | "debug")[] = [
       "fatal",
       "error",
       "warning",

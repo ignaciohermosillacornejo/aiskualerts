@@ -102,7 +102,7 @@ export function createSentryConfig(config: Config): SentryConfig {
  * Capture an exception and send to Sentry
  */
 export function captureException(
-  error: Error | unknown,
+  error: unknown,
   context?: ErrorContext
 ): string | undefined {
   if (!isInitialized) {
