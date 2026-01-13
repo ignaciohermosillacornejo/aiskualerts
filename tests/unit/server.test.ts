@@ -1064,6 +1064,22 @@ describe("createServer with dependencies", () => {
             },
           })
         ),
+        getById: mock(() =>
+          Promise.resolve({
+            id: "snapshot-1",
+            tenant_id: "tenant-123",
+            bsale_variant_id: 1001,
+            bsale_office_id: null,
+            sku: "SKU001",
+            barcode: "123456",
+            product_name: "Test Product",
+            quantity: 50,
+            quantity_reserved: 5,
+            quantity_available: 45,
+            snapshot_date: new Date(),
+            created_at: new Date(),
+          })
+        ),
       } as unknown as ServerDependencies["stockSnapshotRepo"],
     } as ServerDependencies;
   }
