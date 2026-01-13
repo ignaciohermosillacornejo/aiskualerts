@@ -1,8 +1,66 @@
 import type { DatabaseClient } from "@/db/client";
 import type { Alert, AlertInput } from "./types";
 
+export interface AlertFilter {
+  type?: "low_stock" | "out_of_stock" | "low_velocity";
+  status?: "pending" | "sent" | "dismissed";
+  limit?: number;
+}
+
 export class AlertRepository {
   constructor(private db: DatabaseClient) {}
+
+  async getById(alertId: string): Promise<Alert | null> {
+    return this.db.queryOne<Alert>(
+      `SELECT * FROM alerts WHERE id = $1`,
+      [alertId]
+    );
+  }
+
+  async findByUserWithFilter(
+    userId: string,
+    filter?: AlertFilter
+  ): Promise<{ alerts: Alert[]; total: number }> {
+    const conditions = ["user_id = $1"];
+    const values: unknown[] = [userId];
+    let paramCount = 2;
+
+    if (filter?.type) {
+      conditions.push(`alert_type = $${String(paramCount++)}`);
+      values.push(filter.type);
+    }
+
+    if (filter?.status) {
+      conditions.push(`status = $${String(paramCount++)}`);
+      values.push(filter.status);
+    }
+
+    const whereClause = conditions.join(" AND ");
+
+    // Get total count
+    const countResult = await this.db.queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM alerts WHERE ${whereClause}`,
+      values
+    );
+    const total = parseInt(countResult?.count ?? "0", 10);
+
+    // Get alerts with limit
+    const limit = filter?.limit ?? 100;
+    const alerts = await this.db.query<Alert>(
+      `SELECT * FROM alerts WHERE ${whereClause} ORDER BY created_at DESC LIMIT $${String(paramCount)}`,
+      [...values, limit]
+    );
+
+    return { alerts, total };
+  }
+
+  async countPendingByUser(userId: string): Promise<number> {
+    const result = await this.db.queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM alerts WHERE user_id = $1 AND status = 'pending'`,
+      [userId]
+    );
+    return parseInt(result?.count ?? "0", 10);
+  }
 
   async create(input: AlertInput): Promise<Alert> {
     const result = await this.db.queryOne<Alert>(

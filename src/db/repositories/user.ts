@@ -61,4 +61,50 @@ export class UserRepository {
       [tenantId]
     );
   }
+
+  async update(
+    userId: string,
+    input: Partial<Pick<User, "name" | "notification_enabled" | "notification_email">>
+  ): Promise<User> {
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    let paramCount = 1;
+
+    if (input.name !== undefined) {
+      updates.push(`name = $${String(paramCount++)}`);
+      values.push(input.name);
+    }
+
+    if (input.notification_enabled !== undefined) {
+      updates.push(`notification_enabled = $${String(paramCount++)}`);
+      values.push(input.notification_enabled);
+    }
+
+    if (input.notification_email !== undefined) {
+      updates.push(`notification_email = $${String(paramCount++)}`);
+      values.push(input.notification_email);
+    }
+
+    if (updates.length === 0) {
+      const user = await this.getById(userId);
+      if (!user) {
+        throw new Error(`User ${userId} not found`);
+      }
+      return user;
+    }
+
+    values.push(userId);
+
+    const users = await this.db.query<User>(
+      `UPDATE users SET ${updates.join(", ")} WHERE id = $${String(paramCount)} RETURNING *`,
+      values
+    );
+
+    const user = users[0];
+    if (!user) {
+      throw new Error(`User ${userId} not found`);
+    }
+
+    return user;
+  }
 }

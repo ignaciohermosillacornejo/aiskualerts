@@ -558,3 +558,44 @@ describe("Server with OAuth routes", () => {
     await server.stop();
   });
 });
+
+describe("Server with repository dependencies", () => {
+  test("createServer accepts repository dependencies", async () => {
+    const config = loadConfig();
+    config.port = 0;
+
+    // Create minimal mocks that satisfy the types
+    const server = createServer(config, {
+      alertRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["alertRepo"]>,
+      thresholdRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["thresholdRepo"]>,
+      userRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["userRepo"]>,
+      tenantRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["tenantRepo"]>,
+      stockSnapshotRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["stockSnapshotRepo"]>,
+      sessionRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["sessionRepo"]>,
+    });
+    expect(server).toBeDefined();
+    await server.stop();
+  });
+
+  test("routes fall back to mock data when repos are provided but user is not authenticated", async () => {
+    const config = loadConfig();
+    config.port = 0;
+
+    // Create minimal mocks - routes should use mock data when not authenticated
+    const server = createServer(config, {
+      sessionRepo: {
+        findByToken: () => Promise.resolve(null), // User not authenticated
+      } as unknown as NonNullable<import("../../../src/server").ServerDependencies["sessionRepo"]>,
+      userRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["userRepo"]>,
+    });
+    const baseUrl = `http://localhost:${String(server.port)}`;
+
+    // Dashboard stats should return mock data when not authenticated
+    const response = await fetch(`${baseUrl}/api/dashboard/stats`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { totalProducts: number };
+    expect(body.totalProducts).toBe(156); // Mock data value
+
+    await server.stop();
+  });
+});

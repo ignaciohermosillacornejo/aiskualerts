@@ -121,4 +121,35 @@ export class StockSnapshotRepository {
     );
     return result[0]?.count ?? 0;
   }
+
+  async countDistinctProductsByTenant(tenantId: string): Promise<number> {
+    const result = await this.db.queryOne<{ count: string }>(
+      `SELECT COUNT(DISTINCT bsale_variant_id) as count
+       FROM stock_snapshots
+       WHERE tenant_id = $1`,
+      [tenantId]
+    );
+    return parseInt(result?.count ?? "0", 10);
+  }
+
+  async countLowStockByTenant(
+    tenantId: string,
+    thresholdQuantity: number
+  ): Promise<number> {
+    // Count products where latest snapshot shows quantity below threshold
+    const result = await this.db.queryOne<{ count: string }>(
+      `WITH latest_snapshots AS (
+         SELECT DISTINCT ON (bsale_variant_id, bsale_office_id)
+           bsale_variant_id, quantity_available
+         FROM stock_snapshots
+         WHERE tenant_id = $1
+         ORDER BY bsale_variant_id, bsale_office_id, snapshot_date DESC
+       )
+       SELECT COUNT(*) as count
+       FROM latest_snapshots
+       WHERE quantity_available < $2`,
+      [tenantId, thresholdQuantity]
+    );
+    return parseInt(result?.count ?? "0", 10);
+  }
 }
