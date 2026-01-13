@@ -16,7 +16,7 @@ import {
   flushSentry,
 } from "@/monitoring/sentry";
 
-function main(): void {
+export function main(): void {
   const config = loadConfig();
 
   // Initialize Sentry error monitoring
@@ -108,4 +108,7 @@ function main(): void {
   process.on("SIGTERM", () => void shutdown());
 }
 
-main();
+// Only run when executed directly (not imported)
+if (import.meta.main) {
+  main();
+}
