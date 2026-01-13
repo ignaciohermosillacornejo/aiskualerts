@@ -101,14 +101,12 @@ export function main(): void {
   }
 
   // Billing dependencies (if Stripe is configured)
-  const stripeSecretKey = process.env["STRIPE_SECRET_KEY"];
-  const stripePriceId = process.env["STRIPE_PRICE_ID"];
-  if (stripeSecretKey && stripePriceId) {
+  if (config.stripeSecretKey && config.stripePriceId) {
     const stripeClient = new StripeClient({
-      secretKey: stripeSecretKey,
-      priceId: stripePriceId,
-      webhookSecret: process.env["STRIPE_WEBHOOK_SECRET"],
-      appUrl: process.env["APP_URL"] ?? `http://localhost:${String(config.port)}`,
+      secretKey: config.stripeSecretKey,
+      priceId: config.stripePriceId,
+      webhookSecret: config.stripeWebhookSecret,
+      appUrl: config.appUrl ?? `http://localhost:${String(config.port)}`,
     });
 
     serverDeps.billingDeps = {

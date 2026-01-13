@@ -28,6 +28,11 @@ const configSchema = z.object({
   // Security configuration
   tokenEncryptionKey: z.string().min(32).optional(),
   csrfTokenSecret: z.string().min(32).optional(),
+  // Stripe billing configuration
+  stripeSecretKey: z.string().optional(),
+  stripePriceId: z.string().optional(),
+  stripeWebhookSecret: z.string().optional(),
+  appUrl: z.url().optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -55,5 +60,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     // Security configuration
     tokenEncryptionKey: env["TOKEN_ENCRYPTION_KEY"],
     csrfTokenSecret: env["CSRF_TOKEN_SECRET"],
+    // Stripe billing configuration
+    stripeSecretKey: env["STRIPE_SECRET_KEY"],
+    stripePriceId: env["STRIPE_PRICE_ID"],
+    stripeWebhookSecret: env["STRIPE_WEBHOOK_SECRET"],
+    appUrl: env["APP_URL"],
   });
 }
