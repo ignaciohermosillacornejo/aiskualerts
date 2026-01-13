@@ -1105,7 +1105,7 @@ describe("createServer with dependencies", () => {
 
     test("POST /api/alerts/:id/dismiss returns 404 for other user's alert", async () => {
       const deps = createMockDeps();
-      (deps.alertRepo!.getById as Mock).mockResolvedValue({
+      (deps.alertRepo?.getById as unknown as Mock)?.mockResolvedValue({
         id: "alert-other",
         user_id: "other-user",
         bsale_variant_id: 1001,
@@ -1235,7 +1235,7 @@ describe("createServer with dependencies", () => {
 
     test("PUT /api/thresholds/:id returns 404 for other user's threshold", async () => {
       const deps = createMockDeps();
-      (deps.thresholdRepo!.getById as Mock).mockResolvedValue({
+      (deps.thresholdRepo?.getById as unknown as Mock)?.mockResolvedValue({
         id: "threshold-other",
         tenant_id: "tenant-123",
         user_id: "other-user",
@@ -1294,7 +1294,7 @@ describe("createServer with dependencies", () => {
 
     test("DELETE /api/thresholds/:id returns 404 for other user's threshold", async () => {
       const deps = createMockDeps();
-      (deps.thresholdRepo!.getById as Mock).mockResolvedValue({
+      (deps.thresholdRepo?.getById as unknown as Mock)?.mockResolvedValue({
         id: "threshold-other",
         tenant_id: "tenant-123",
         user_id: "other-user",

@@ -190,7 +190,7 @@ describe("syncTenant", () => {
       // First call: 'syncing', second call: 'pending'
       const calls = mocks.updateSyncStatus.mock.calls;
       expect(calls.length).toBe(2);
-      expect(calls[1] && calls[1][1]).toBe("pending");
+      expect(calls[1]?.[1]).toBe("pending");
     });
 
     test("sets status to pending on connection error", async () => {
@@ -210,7 +210,7 @@ describe("syncTenant", () => {
       // First call: 'syncing', second call: 'pending'
       const calls = mocks.updateSyncStatus.mock.calls;
       expect(calls.length).toBe(2);
-      expect(calls[1] && calls[1][1]).toBe("pending");
+      expect(calls[1]?.[1]).toBe("pending");
     });
 
     test("sets status to pending on timeout error", async () => {
@@ -230,7 +230,7 @@ describe("syncTenant", () => {
       // First call: 'syncing', second call: 'pending'
       const calls = mocks.updateSyncStatus.mock.calls;
       expect(calls.length).toBe(2);
-      expect(calls[1] && calls[1][1]).toBe("pending");
+      expect(calls[1]?.[1]).toBe("pending");
     });
 
     test("sets status to failed on other Error", async () => {
@@ -250,7 +250,7 @@ describe("syncTenant", () => {
       // First call: 'syncing', second call: 'failed'
       const calls = mocks.updateSyncStatus.mock.calls;
       expect(calls.length).toBe(2);
-      expect(calls[1] && calls[1][1]).toBe("failed");
+      expect(calls[1]?.[1]).toBe("failed");
     });
 
     test("sets status to failed on unknown error type", async () => {
@@ -270,7 +270,7 @@ describe("syncTenant", () => {
       // First call: 'syncing', second call: 'failed'
       const calls = mocks.updateSyncStatus.mock.calls;
       expect(calls.length).toBe(2);
-      expect(calls[1] && calls[1][1]).toBe("failed");
+      expect(calls[1]?.[1]).toBe("failed");
     });
   });
 });
