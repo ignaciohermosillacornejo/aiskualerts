@@ -1,4 +1,4 @@
-import { test, expect, describe, mock } from "bun:test";
+import { test, expect, describe } from "bun:test";
 import { createEmailClient } from "@/email/resend-client";
 import type { Config } from "@/config";
 
@@ -42,7 +42,8 @@ describe("createEmailClient", () => {
 
     test("sendEmail can be called multiple times", async () => {
       const originalWarn = console.warn;
-      console.warn = mock(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      console.warn = () => {};
 
       const config = createMockConfig({ resendApiKey: undefined });
       const client = createEmailClient(config);
@@ -79,7 +80,7 @@ describe("createEmailClient", () => {
       const config = createMockConfig();
       const client = createEmailClient(config);
 
-      expect(client.sendEmail).toBeDefined();
+      expect("sendEmail" in client).toBe(true);
       expect(typeof client.sendEmail).toBe("function");
     });
   });

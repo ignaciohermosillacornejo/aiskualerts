@@ -44,9 +44,9 @@ export function createEmailClient(config: Config): EmailClient {
 
   if (!apiKey) {
     return {
-      async sendEmail(): Promise<SendEmailResult> {
+      sendEmail(): Promise<SendEmailResult> {
         console.warn("Email sending skipped: RESEND_API_KEY not configured");
-        return { success: false, error: "API key not configured" };
+        return Promise.resolve({ success: false, error: "API key not configured" });
       },
     };
   }
@@ -72,7 +72,7 @@ export function createEmailClient(config: Config): EmailClient {
 
           return {
             success: true,
-            id: result.data?.id,
+            id: result.data.id,
           };
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));

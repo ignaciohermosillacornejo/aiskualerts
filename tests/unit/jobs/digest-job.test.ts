@@ -88,6 +88,7 @@ const mockAlert: Alert = {
   created_at: new Date("2024-01-01"),
 };
 
+/* eslint-disable @typescript-eslint/no-empty-function */
 describe("createDigestJob", () => {
   let originalConsole: { info: typeof console.info; warn: typeof console.warn; error: typeof console.error };
 
@@ -290,6 +291,7 @@ describe("runDigestJob", () => {
 
     await runDigestJob({ db, config, emailClient });
 
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
     expect(sendEmailMock.mock.calls.length).toBe(1);
     const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
@@ -319,6 +321,7 @@ describe("runDigestJob", () => {
 
     await runDigestJob({ db, config, emailClient });
 
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
     expect(sendEmailMock.mock.calls.length).toBe(1);
     const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
@@ -602,6 +605,7 @@ describe("runDigestJob", () => {
 
     await runDigestJob({ db, config, emailClient });
 
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
     const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
     expect(callArgs[0].subject).toContain("Test Company SpA");
