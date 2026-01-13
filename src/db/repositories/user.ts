@@ -1,5 +1,5 @@
 import type { DatabaseClient } from "@/db/client";
-import type { User } from "./types";
+import type { User, DigestFrequency } from "./types";
 
 export interface CreateUserInput {
   tenant_id: string;
@@ -7,6 +7,7 @@ export interface CreateUserInput {
   name?: string;
   notification_enabled?: boolean;
   notification_email?: string;
+  digest_frequency?: DigestFrequency;
 }
 
 export class UserRepository {
@@ -14,8 +15,8 @@ export class UserRepository {
 
   async create(input: CreateUserInput): Promise<User> {
     const users = await this.db.query<User>(
-      `INSERT INTO users (tenant_id, email, name, notification_enabled, notification_email)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (tenant_id, email, name, notification_enabled, notification_email, digest_frequency)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
         input.tenant_id,
@@ -23,6 +24,7 @@ export class UserRepository {
         input.name ?? null,
         input.notification_enabled ?? true,
         input.notification_email ?? null,
+        input.digest_frequency ?? "daily",
       ]
     );
 
@@ -64,7 +66,7 @@ export class UserRepository {
 
   async update(
     userId: string,
-    input: Partial<Pick<User, "name" | "notification_enabled" | "notification_email">>
+    input: Partial<Pick<User, "name" | "notification_enabled" | "notification_email" | "digest_frequency">>
   ): Promise<User> {
     const updates: string[] = [];
     const values: unknown[] = [];
@@ -83,6 +85,11 @@ export class UserRepository {
     if (input.notification_email !== undefined) {
       updates.push(`notification_email = $${String(paramCount++)}`);
       values.push(input.notification_email);
+    }
+
+    if (input.digest_frequency !== undefined) {
+      updates.push(`digest_frequency = $${String(paramCount++)}`);
+      values.push(input.digest_frequency);
     }
 
     if (updates.length === 0) {
@@ -106,5 +113,15 @@ export class UserRepository {
     }
 
     return user;
+  }
+
+  async getWithDigestEnabled(tenantId: string, frequency: DigestFrequency): Promise<User[]> {
+    return this.db.query<User>(
+      `SELECT * FROM users
+       WHERE tenant_id = $1
+         AND notification_enabled = true
+         AND digest_frequency = $2`,
+      [tenantId, frequency]
+    );
   }
 }

@@ -11,6 +11,8 @@ export interface Tenant {
   updated_at: Date;
 }
 
+export type DigestFrequency = "daily" | "weekly" | "none";
+
 export interface User {
   id: string;
   tenant_id: string;
@@ -18,6 +20,7 @@ export interface User {
   name: string | null;
   notification_enabled: boolean;
   notification_email: string | null;
+  digest_frequency: DigestFrequency;
   created_at: Date;
 }
 
