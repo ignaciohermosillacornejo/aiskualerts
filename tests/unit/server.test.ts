@@ -25,6 +25,9 @@ const testConfig: Config = {
   syncMinute: 0,
   syncBatchSize: 100,
   syncTenantDelay: 5000,
+  digestEnabled: false,
+  digestHour: 8,
+  digestMinute: 0,
   sentryEnvironment: "test",
 };
 
@@ -767,6 +770,9 @@ describe("createServer", () => {
         syncMinute: 0,
         syncBatchSize: 100,
         syncTenantDelay: 5000,
+        digestEnabled: false,
+        digestHour: 8,
+        digestMinute: 0,
         sentryEnvironment: "test",
       };
       serverInstance = createServer(customConfig);
@@ -782,6 +788,9 @@ describe("createServer", () => {
         syncMinute: 0,
         syncBatchSize: 100,
         syncTenantDelay: 5000,
+        digestEnabled: false,
+        digestHour: 8,
+        digestMinute: 0,
         sentryEnvironment: "test",
       };
       serverInstance = createServer(productionConfig);
@@ -797,6 +806,9 @@ describe("createServer", () => {
         syncMinute: 0,
         syncBatchSize: 100,
         syncTenantDelay: 5000,
+        digestEnabled: false,
+        digestHour: 8,
+        digestMinute: 0,
         sentryEnvironment: "test",
       };
       serverInstance = createServer(devConfig);
@@ -818,6 +830,9 @@ describe("createServer", () => {
           syncMinute: 0,
           syncBatchSize: 100,
           syncTenantDelay: 5000,
+          digestEnabled: false,
+          digestHour: 8,
+          digestMinute: 0,
           sentryEnvironment: "test",
         };
         serverInstance = createServer(productionConfig);

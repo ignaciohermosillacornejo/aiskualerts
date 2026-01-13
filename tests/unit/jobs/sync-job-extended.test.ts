@@ -43,6 +43,9 @@ describe("runSyncAndAlerts function", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 0, // No delay for tests
+      digestEnabled: false,
+      digestHour: 8,
+      digestMinute: 0,
       sentryEnvironment: "test",
     };
 
@@ -101,6 +104,9 @@ describe("runSyncAndAlerts function", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 0,
+      digestEnabled: false,
+      digestHour: 8,
+      digestMinute: 0,
       sentryEnvironment: "test",
     };
 
@@ -139,6 +145,9 @@ describe("runSyncAndAlerts function", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 0,
+      digestEnabled: false,
+      digestHour: 8,
+      digestMinute: 0,
       sentryEnvironment: "test",
     };
 
@@ -165,6 +174,9 @@ describe("runSyncAndAlerts function", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 0,
+      digestEnabled: false,
+      digestHour: 8,
+      digestMinute: 0,
       sentryEnvironment: "test",
     };
 
