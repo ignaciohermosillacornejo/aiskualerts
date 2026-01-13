@@ -7,6 +7,12 @@ export interface AlertGeneratorDependencies {
     variantId: number,
     officeId: number | null
   ) => Promise<StockSnapshot | null>;
+  getHistoricalSnapshots: (
+    tenantId: string,
+    variantId: number,
+    officeId: number | null,
+    days: number
+  ) => Promise<StockSnapshot[]>;
   hasPendingAlert: (
     userId: string,
     variantId: number,

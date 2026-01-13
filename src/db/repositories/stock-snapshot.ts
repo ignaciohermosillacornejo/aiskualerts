@@ -109,6 +109,38 @@ export class StockSnapshotRepository {
     );
   }
 
+  /**
+   * Get historical snapshots for velocity calculation
+   * Returns snapshots ordered by date descending (most recent first)
+   */
+  async getHistoricalSnapshots(
+    tenantId: string,
+    variantId: number,
+    officeId: number | null,
+    days: number
+  ): Promise<StockSnapshot[]> {
+    if (officeId === null) {
+      return this.db.query<StockSnapshot>(
+        `SELECT * FROM stock_snapshots
+         WHERE tenant_id = $1
+           AND bsale_variant_id = $2
+           AND bsale_office_id IS NULL
+           AND snapshot_date >= CURRENT_DATE - $3::integer
+         ORDER BY snapshot_date DESC`,
+        [tenantId, variantId, days]
+      );
+    }
+    return this.db.query<StockSnapshot>(
+      `SELECT * FROM stock_snapshots
+       WHERE tenant_id = $1
+         AND bsale_variant_id = $2
+         AND bsale_office_id = $3
+         AND snapshot_date >= CURRENT_DATE - $4::integer
+       ORDER BY snapshot_date DESC`,
+      [tenantId, variantId, officeId, days]
+    );
+  }
+
   async deleteOlderThan(days: number): Promise<number> {
     const result = await this.db.query<{ count: number }>(
       `WITH deleted AS (

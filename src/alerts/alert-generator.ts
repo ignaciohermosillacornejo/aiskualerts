@@ -4,6 +4,9 @@ import type {
   AlertGenerationResult,
   ThresholdCheck,
 } from "./types";
+import { checkVelocityAlert } from "./velocity-calculator";
+
+const VELOCITY_HISTORY_DAYS = 7;
 
 /**
  * Check if a threshold breach should trigger an alert
@@ -72,6 +75,28 @@ export function createAlertInput(
 }
 
 /**
+ * Create an AlertInput for a low velocity alert
+ */
+export function createVelocityAlertInput(
+  threshold: Threshold,
+  snapshot: StockSnapshot,
+  daysToStockout: number
+): AlertInput {
+  return {
+    tenant_id: threshold.tenant_id,
+    user_id: threshold.user_id,
+    bsale_variant_id: snapshot.bsale_variant_id,
+    bsale_office_id: snapshot.bsale_office_id,
+    sku: snapshot.sku,
+    product_name: snapshot.product_name,
+    alert_type: "low_velocity",
+    current_quantity: snapshot.quantity_available,
+    threshold_quantity: null,
+    days_to_stockout: daysToStockout,
+  };
+}
+
+/**
  * Generate alerts for a specific user based on their thresholds
  */
 export async function generateAlertsForUser(
@@ -134,6 +159,42 @@ export async function generateAlertsForUser(
           const alertInput = createAlertInput(check);
           if (alertInput) {
             alertsToCreate.push(alertInput);
+          }
+        }
+      }
+
+      // Check for low velocity alert (only if not out of stock)
+      if (snapshot && snapshot.quantity_available > 0 && threshold.days_warning > 0) {
+        // Get historical snapshots for velocity calculation
+        const historicalSnapshots = await deps.getHistoricalSnapshots(
+          tenantId,
+          threshold.bsale_variant_id,
+          threshold.bsale_office_id,
+          VELOCITY_HISTORY_DAYS
+        );
+
+        const velocityCheck = checkVelocityAlert(
+          historicalSnapshots,
+          threshold.days_warning,
+          snapshot.quantity_available
+        );
+
+        if (velocityCheck.shouldAlert && velocityCheck.daysToStockout !== null) {
+          // Check if there's already a pending low_velocity alert
+          const hasPendingVelocity = await deps.hasPendingAlert(
+            userId,
+            snapshot.bsale_variant_id,
+            snapshot.bsale_office_id,
+            "low_velocity"
+          );
+
+          if (!hasPendingVelocity) {
+            const velocityAlertInput = createVelocityAlertInput(
+              threshold,
+              snapshot,
+              velocityCheck.daysToStockout
+            );
+            alertsToCreate.push(velocityAlertInput);
           }
         }
       }
