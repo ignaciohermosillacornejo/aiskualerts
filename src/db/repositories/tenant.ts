@@ -1,5 +1,6 @@
 import type { DatabaseClient } from "@/db/client";
 import type { Tenant, SyncStatus } from "./types";
+import type { EncryptionService } from "@/utils/encryption";
 
 export interface CreateTenantInput {
   bsale_client_code: string;
@@ -12,15 +13,75 @@ export interface UpdateTenantInput {
   bsale_access_token?: string;
 }
 
+export interface TenantRepositoryConfig {
+  encryptionService?: EncryptionService;
+}
+
 export class TenantRepository {
-  constructor(private db: DatabaseClient) {}
+  private encryptionService?: EncryptionService;
+
+  constructor(private db: DatabaseClient, config?: TenantRepositoryConfig) {
+    if (config?.encryptionService) {
+      this.encryptionService = config.encryptionService;
+    }
+  }
+
+  /**
+   * Encrypt a token if encryption service is available
+   */
+  private encryptToken(token: string): string {
+    if (!this.encryptionService) {
+      return token;
+    }
+    // Don't double-encrypt
+    if (this.encryptionService.isEncrypted(token)) {
+      return token;
+    }
+    return this.encryptionService.encrypt(token);
+  }
+
+  /**
+   * Decrypt a token if encryption service is available
+   */
+  private decryptToken(token: string): string {
+    if (!this.encryptionService) {
+      return token;
+    }
+    // Only decrypt if it's encrypted
+    if (!this.encryptionService.isEncrypted(token)) {
+      return token;
+    }
+    return this.encryptionService.decrypt(token);
+  }
+
+  /**
+   * Process tenant from database to decrypt token
+   */
+  private processTenant(tenant: Tenant): Tenant {
+    if (!tenant.bsale_access_token) {
+      return tenant;
+    }
+    return {
+      ...tenant,
+      bsale_access_token: this.decryptToken(tenant.bsale_access_token),
+    };
+  }
+
+  /**
+   * Process multiple tenants from database
+   */
+  private processTenants(tenants: Tenant[]): Tenant[] {
+    return tenants.map((t) => this.processTenant(t));
+  }
 
   async create(input: CreateTenantInput): Promise<Tenant> {
+    const encryptedToken = this.encryptToken(input.bsale_access_token);
+
     const tenants = await this.db.query<Tenant>(
       `INSERT INTO tenants (bsale_client_code, bsale_client_name, bsale_access_token)
        VALUES ($1, $2, $3)
        RETURNING *`,
-      [input.bsale_client_code, input.bsale_client_name, input.bsale_access_token]
+      [input.bsale_client_code, input.bsale_client_name, encryptedToken]
     );
 
     const tenant = tenants[0];
@@ -28,33 +89,37 @@ export class TenantRepository {
       throw new Error("Failed to create tenant");
     }
 
-    return tenant;
+    return this.processTenant(tenant);
   }
 
   async getAll(): Promise<Tenant[]> {
-    return this.db.query<Tenant>(`SELECT * FROM tenants`);
+    const tenants = await this.db.query<Tenant>(`SELECT * FROM tenants`);
+    return this.processTenants(tenants);
   }
 
   async getActiveTenants(): Promise<Tenant[]> {
-    return this.db.query<Tenant>(
+    const tenants = await this.db.query<Tenant>(
       `SELECT * FROM tenants
        WHERE sync_status != 'syncing'
        ORDER BY last_sync_at ASC NULLS FIRST`
     );
+    return this.processTenants(tenants);
   }
 
   async getById(id: string): Promise<Tenant | null> {
-    return this.db.queryOne<Tenant>(
+    const tenant = await this.db.queryOne<Tenant>(
       `SELECT * FROM tenants WHERE id = $1`,
       [id]
     );
+    return tenant ? this.processTenant(tenant) : null;
   }
 
   async findByClientCode(clientCode: string): Promise<Tenant | null> {
-    return this.db.queryOne<Tenant>(
+    const tenant = await this.db.queryOne<Tenant>(
       `SELECT * FROM tenants WHERE bsale_client_code = $1`,
       [clientCode]
     );
+    return tenant ? this.processTenant(tenant) : null;
   }
 
   async update(id: string, input: UpdateTenantInput): Promise<Tenant> {
@@ -69,7 +134,8 @@ export class TenantRepository {
 
     if (input.bsale_access_token !== undefined) {
       updates.push(`bsale_access_token = $${String(paramCount++)}`);
-      values.push(input.bsale_access_token);
+      // Encrypt the token before storing
+      values.push(this.encryptToken(input.bsale_access_token));
     }
 
     if (updates.length === 0) {
@@ -93,7 +159,7 @@ export class TenantRepository {
       throw new Error(`Tenant ${id} not found`);
     }
 
-    return tenant;
+    return this.processTenant(tenant);
   }
 
   async updateSyncStatus(
@@ -119,17 +185,19 @@ export class TenantRepository {
   }
 
   async getTenantsByStatus(status: SyncStatus): Promise<Tenant[]> {
-    return this.db.query<Tenant>(
+    const tenants = await this.db.query<Tenant>(
       `SELECT * FROM tenants WHERE sync_status = $1`,
       [status]
     );
+    return this.processTenants(tenants);
   }
 
   async findByStripeCustomerId(stripeCustomerId: string): Promise<Tenant | null> {
-    return this.db.queryOne<Tenant>(
+    const tenant = await this.db.queryOne<Tenant>(
       `SELECT * FROM tenants WHERE stripe_customer_id = $1`,
       [stripeCustomerId]
     );
+    return tenant ? this.processTenant(tenant) : null;
   }
 
   async updateStripeCustomer(

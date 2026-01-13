@@ -67,6 +67,17 @@ SYNC_BATCH_SIZE=100
 SYNC_TENANT_DELAY_MS=5000
 
 # ===========================================
+# Security Configuration
+# ===========================================
+# Token encryption key for encrypting access tokens at rest (min 32 characters)
+# Generate with: openssl rand -base64 32
+TOKEN_ENCRYPTION_KEY=op://Dev/TOKEN_ENCRYPTION_KEY/credential
+
+# CSRF token secret for CSRF protection (min 32 characters)
+# Generate with: openssl rand -base64 32
+CSRF_TOKEN_SECRET=op://Dev/CSRF_TOKEN_SECRET/credential
+
+# ===========================================
 # Test Database (Local Development Only)
 # ===========================================
 TEST_DATABASE_URL=postgres://test:test@localhost:5433/aiskualerts_test

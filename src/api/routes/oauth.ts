@@ -4,8 +4,13 @@ import {
   type OAuthHandlerDeps,
 } from "../handlers/oauth";
 import { extractSessionToken } from "../../utils/cookies";
+import type { CSRFMiddleware } from "../middleware/csrf";
 
-export function createOAuthRoutes(deps: OAuthHandlerDeps) {
+export interface OAuthRoutesConfig {
+  csrfMiddleware?: CSRFMiddleware;
+}
+
+export function createOAuthRoutes(deps: OAuthHandlerDeps, config?: OAuthRoutesConfig) {
   return {
     /**
      * GET /api/auth/bsale/start?client_code=xxx
@@ -80,12 +85,23 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps) {
           cookieParts.push("Secure", "SameSite=Strict");
         }
 
+        const headers = new Headers({
+          Location: "/app",
+        });
+
+        // Add session cookie
+        headers.append("Set-Cookie", cookieParts.join("; "));
+
+        // Add CSRF cookie if middleware is configured
+        if (config?.csrfMiddleware) {
+          const csrfToken = config.csrfMiddleware.generateToken();
+          const csrfCookie = config.csrfMiddleware.createCookie(csrfToken);
+          headers.append("Set-Cookie", csrfCookie);
+        }
+
         return new Response(null, {
           status: 302,
-          headers: {
-            Location: "/app",
-            "Set-Cookie": cookieParts.join("; "),
-          },
+          headers,
         });
       } catch (error) {
         console.error("OAuth callback error:", error);
@@ -110,12 +126,22 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps) {
           }
         }
 
+        const headers = new Headers({
+          Location: "/",
+        });
+
+        // Clear session cookie
+        headers.append("Set-Cookie", "session_token=; HttpOnly; Path=/; Max-Age=0");
+
+        // Clear CSRF cookie if middleware is configured
+        if (config?.csrfMiddleware) {
+          const csrfCookieName = config.csrfMiddleware.getCookieName();
+          headers.append("Set-Cookie", `${csrfCookieName}=; Path=/; Max-Age=0`);
+        }
+
         return new Response(null, {
           status: 302,
-          headers: {
-            Location: "/",
-            "Set-Cookie": "session_token=; HttpOnly; Path=/; Max-Age=0",
-          },
+          headers,
         });
       } catch (error) {
         console.error("Logout error:", error);
