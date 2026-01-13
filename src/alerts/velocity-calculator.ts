@@ -63,8 +63,9 @@ export function calculateVelocity(snapshots: StockSnapshot[]): VelocityResult {
   }
 
   // Snapshots are ordered descending, so first is latest, last is oldest
-  const latest = snapshots[0];
-  const oldest = snapshots[snapshots.length - 1];
+  // We've already checked length >= 2, so these are guaranteed to exist
+  const latest = snapshots[0]!;
+  const oldest = snapshots[snapshots.length - 1]!;
 
   const days = daysBetween(oldest.snapshot_date, latest.snapshot_date);
 
