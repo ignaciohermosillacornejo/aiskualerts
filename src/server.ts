@@ -28,7 +28,12 @@ import {
   createCSRFMiddleware,
   type CSRFMiddleware,
 } from "@/api/middleware/csrf";
-import { captureException } from "@/monitoring/sentry";
+import {
+  captureException,
+  traceRequest,
+  recordDistribution,
+  incrementCounter,
+} from "@/monitoring/sentry";
 import { logger } from "@/utils/logger";
 
 // Import route modules
@@ -66,15 +71,52 @@ type RouteHandler = (req: Request) => Response | Promise<Response>;
 
 /**
  * Wraps a route handler with error boundary to catch unhandled errors
- * and report them to Sentry
+ * and report them to Sentry, with request tracing
  */
 export function withErrorBoundary(handler: RouteHandler): RouteHandler {
   return async (req: Request): Promise<Response> => {
+    const url = new URL(req.url);
+    const startTime = Date.now();
+
     try {
-      return await handler(req);
+      // Trace the entire request
+      const response = await traceRequest(req.method, url.pathname, async () => {
+        return await handler(req);
+      });
+
+      // Record successful request metrics
+      const duration = Date.now() - startTime;
+      recordDistribution("http.request.duration", duration, "millisecond", {
+        method: req.method,
+        route: url.pathname,
+        status: String(response.status),
+      });
+      incrementCounter("http.requests", 1, {
+        method: req.method,
+        route: url.pathname,
+        status: String(response.status),
+      });
+
+      return response;
     } catch (error) {
-      const url = new URL(req.url);
       logger.error(`Unhandled error in ${req.method} ${url.pathname}`, error instanceof Error ? error : new Error(String(error)));
+
+      // Record error metrics
+      const duration = Date.now() - startTime;
+      recordDistribution("http.request.duration", duration, "millisecond", {
+        method: req.method,
+        route: url.pathname,
+        status: "500",
+      });
+      incrementCounter("http.requests", 1, {
+        method: req.method,
+        route: url.pathname,
+        status: "500",
+      });
+      incrementCounter("http.errors", 1, {
+        method: req.method,
+        route: url.pathname,
+      });
 
       // Capture to Sentry with request context
       captureException(error, {
@@ -278,10 +320,27 @@ export function createServer(
     // Fallback handler for OAuth routes, billing routes, and SPA routing
     async fetch(request: Request): Promise<Response> {
       const url = new URL(request.url);
+      const startTime = Date.now();
+
+      // Helper to record request metrics
+      const recordRequestMetrics = (status: number): void => {
+        const duration = Date.now() - startTime;
+        recordDistribution("http.request.duration", duration, "millisecond", {
+          method: request.method,
+          route: url.pathname,
+          status: String(status),
+        });
+        incrementCounter("http.requests", 1, {
+          method: request.method,
+          route: url.pathname,
+          status: String(status),
+        });
+      };
 
       try {
         // Handle OPTIONS preflight requests for CORS
         if (request.method === "OPTIONS") {
+          recordRequestMetrics(204);
           return preflightResponse();
         }
 
@@ -289,6 +348,7 @@ export function createServer(
         if (csrfMiddleware && url.pathname.startsWith("/api/")) {
           const csrfError = csrfMiddleware.validate(request);
           if (csrfError) {
+            recordRequestMetrics(csrfError.status);
             return csrfError;
           }
         }
@@ -304,48 +364,78 @@ export function createServer(
         // OAuth routes (if configured)
         if (oauthRoutes) {
           if (url.pathname === "/api/auth/bsale/start" && request.method === "GET") {
-            return oauthRoutes.start(request);
+            const response = await traceRequest("GET", "/api/auth/bsale/start", () => {
+              return Promise.resolve(oauthRoutes.start(request));
+            });
+            recordRequestMetrics(response.status);
+            return response;
           }
 
           if (url.pathname === "/api/auth/bsale/callback" && request.method === "GET") {
-            return await oauthRoutes.callback(request);
+            const response = await traceRequest("GET", "/api/auth/bsale/callback", async () => {
+              return await oauthRoutes.callback(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
           }
 
           if (url.pathname === "/api/auth/logout" && request.method === "POST") {
-            return await oauthRoutes.logout(request);
+            const response = await traceRequest("POST", "/api/auth/logout", async () => {
+              return await oauthRoutes.logout(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
           }
         }
 
         // Billing routes (if configured)
         if (billingRoutes) {
           if (url.pathname === "/api/billing/checkout" && request.method === "POST") {
-            return await billingRoutes.checkout(request);
+            const response = await traceRequest("POST", "/api/billing/checkout", async () => {
+              return await billingRoutes.checkout(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
           }
 
           if (url.pathname === "/api/billing/portal" && request.method === "POST") {
-            return await billingRoutes.portal(request);
+            const response = await traceRequest("POST", "/api/billing/portal", async () => {
+              return await billingRoutes.portal(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
           }
 
           if (url.pathname === "/api/webhooks/stripe" && request.method === "POST") {
-            return await billingRoutes.webhook(request);
+            const response = await traceRequest("POST", "/api/webhooks/stripe", async () => {
+              return await billingRoutes.webhook(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
           }
         }
 
         // Sync routes (if configured)
         if (syncRoutes) {
           if (url.pathname === "/api/sync/trigger" && request.method === "POST") {
-            return await syncRoutes.trigger(request);
+            const response = await traceRequest("POST", "/api/sync/trigger", async () => {
+              return await syncRoutes.trigger(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
           }
         }
 
         // API routes that don't match should return 404
         if (url.pathname.startsWith("/api/")) {
+          recordRequestMetrics(404);
           return jsonWithCors({ error: "Not Found" }, { status: 404 });
         }
 
         // All other routes not defined in the routes object should return 404
-      return new Response(
-        `<!DOCTYPE html>
+        recordRequestMetrics(404);
+        return new Response(
+          `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -398,13 +488,20 @@ export function createServer(
   </div>
 </body>
 </html>`,
-        {
-          status: 404,
-          headers: { "Content-Type": "text/html" },
-        }
-      );
+          {
+            status: 404,
+            headers: { "Content-Type": "text/html" },
+          }
+        );
       } catch (error) {
         logger.error(`Unhandled error in ${request.method} ${url.pathname}`, error instanceof Error ? error : new Error(String(error)));
+
+        // Record error metrics
+        recordRequestMetrics(500);
+        incrementCounter("http.errors", 1, {
+          method: request.method,
+          route: url.pathname,
+        });
 
         // Capture to Sentry with request context
         captureException(error, {
