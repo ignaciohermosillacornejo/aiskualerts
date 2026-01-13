@@ -11,6 +11,12 @@ const configSchema = z.object({
   syncMinute: z.coerce.number().int().min(0).max(59).default(0),
   syncBatchSize: z.coerce.number().int().min(1).max(1000).default(100),
   syncTenantDelay: z.coerce.number().int().min(0).default(5000),
+  digestEnabled: z
+    .string()
+    .default("true")
+    .transform((val) => val.toLowerCase() === "true"),
+  digestHour: z.coerce.number().int().min(0).max(23).default(8),
+  digestMinute: z.coerce.number().int().min(0).max(59).default(0),
   bsaleAppId: z.string().optional(),
   bsaleIntegratorToken: z.string().optional(),
   bsaleRedirectUri: z.string().optional(),
@@ -35,6 +41,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     syncMinute: env["SYNC_MINUTE"],
     syncBatchSize: env["SYNC_BATCH_SIZE"],
     syncTenantDelay: env["SYNC_TENANT_DELAY_MS"],
+    digestEnabled: env["DIGEST_ENABLED"],
+    digestHour: env["DIGEST_HOUR"],
+    digestMinute: env["DIGEST_MINUTE"],
     bsaleAppId: env["BSALE_APP_ID"],
     bsaleIntegratorToken: env["BSALE_INTEGRATOR_TOKEN"],
     bsaleRedirectUri: env["BSALE_REDIRECT_URI"],

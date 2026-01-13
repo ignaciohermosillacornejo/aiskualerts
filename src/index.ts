@@ -4,6 +4,8 @@ import { Scheduler } from "@/scheduler";
 import { getDb } from "@/db/client";
 import { createSyncJob } from "@/jobs/sync-job";
 import { createSessionCleanupScheduler } from "@/jobs/session-cleanup-job";
+import { createDigestJob } from "@/jobs/digest-job";
+import { createEmailClient } from "@/email/resend-client";
 import { BsaleOAuthClient } from "@/bsale/oauth-client";
 import { TenantRepository } from "@/db/repositories/tenant";
 import { UserRepository } from "@/db/repositories/user";
@@ -52,6 +54,15 @@ function main(): void {
   const sessionCleanupScheduler = createSessionCleanupScheduler(sessionRepo, {
     intervalMs: 60 * 60 * 1000, // 1 hour
     runOnStart: true,
+  });
+
+  // Initialize digest email scheduler
+  const emailClient = createEmailClient(config);
+  const digestJob = createDigestJob({ db, config, emailClient });
+  const digestScheduler = new Scheduler(digestJob, {
+    enabled: config.digestEnabled,
+    hour: config.digestHour,
+    minute: config.digestMinute,
   });
 
   // Create auth middleware for protected routes
@@ -127,6 +138,7 @@ function main(): void {
   // Start the schedulers
   scheduler.start();
   sessionCleanupScheduler.start();
+  digestScheduler.start();
 
   // Handle graceful shutdown
   const shutdown = async (): Promise<void> => {
@@ -134,6 +146,7 @@ function main(): void {
 
     scheduler.stop();
     sessionCleanupScheduler.stop();
+    digestScheduler.stop();
     await server.stop(true);
     await db.close();
 
