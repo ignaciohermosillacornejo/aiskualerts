@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/require-await, @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression */
-import { test, expect, describe, beforeEach, mock } from "bun:test";
+import { test, expect, describe, beforeEach, afterEach, mock } from "bun:test";
 import { BsaleOAuthClient, BsaleOAuthError } from "@/bsale/oauth-client";
 
 describe("BsaleOAuthClient", () => {
   let client: BsaleOAuthClient;
+  let originalFetch: typeof globalThis.fetch;
   const mockConfig = {
     appId: "test-app-id",
     integratorToken: "test-integrator-token",
@@ -11,7 +12,12 @@ describe("BsaleOAuthClient", () => {
   };
 
   beforeEach(() => {
+    originalFetch = globalThis.fetch;
     client = new BsaleOAuthClient(mockConfig);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   describe("getAuthorizationUrl", () => {
