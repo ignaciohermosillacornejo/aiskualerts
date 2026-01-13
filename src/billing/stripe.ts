@@ -1,5 +1,11 @@
 import Stripe from "stripe";
 import { z } from "zod";
+import {
+  traceStripeApi,
+  recordDistribution,
+  recordBillingMetrics,
+  incrementCounter,
+} from "@/monitoring/sentry";
 
 // Config schema
 const ConfigSchema = z.object({
@@ -50,34 +56,75 @@ export class StripeClient {
   ): Promise<string> {
     // Validate inputs before making API calls
     const validated = CheckoutInputSchema.parse({ tenantId, email });
+    const startTime = Date.now();
 
-    const session = await this.stripe.checkout.sessions.create({
-      customer_email: validated.email,
-      metadata: { tenant_id: validated.tenantId },
-      line_items: [{ price: this.priceId, quantity: 1 }],
-      mode: "subscription",
-      success_url: `${this.appUrl}/billing/success`,
-      cancel_url: `${this.appUrl}/billing/cancel`,
+    return traceStripeApi("checkout.sessions.create", async () => {
+      try {
+        const session = await this.stripe.checkout.sessions.create({
+          customer_email: validated.email,
+          metadata: { tenant_id: validated.tenantId },
+          line_items: [{ price: this.priceId, quantity: 1 }],
+          mode: "subscription",
+          success_url: `${this.appUrl}/billing/success`,
+          cancel_url: `${this.appUrl}/billing/cancel`,
+        });
+
+        if (!session.url) {
+          throw new Error("Stripe did not return a checkout URL");
+        }
+
+        const duration = Date.now() - startTime;
+        recordDistribution("stripe.api.duration", duration, "millisecond", {
+          operation: "checkout.sessions.create",
+        });
+        incrementCounter("stripe.api.requests", 1, {
+          operation: "checkout.sessions.create",
+          status: "success",
+        });
+
+        return session.url;
+      } catch (error) {
+        incrementCounter("stripe.api.requests", 1, {
+          operation: "checkout.sessions.create",
+          status: "error",
+        });
+        throw error;
+      }
     });
-
-    if (!session.url) {
-      throw new Error("Stripe did not return a checkout URL");
-    }
-
-    return session.url;
   }
 
   async createPortalSession(customerId: string): Promise<string> {
-    const session = await this.stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${this.appUrl}/settings`,
+    const startTime = Date.now();
+
+    return traceStripeApi("billingPortal.sessions.create", async () => {
+      try {
+        const session = await this.stripe.billingPortal.sessions.create({
+          customer: customerId,
+          return_url: `${this.appUrl}/settings`,
+        });
+
+        if (!session.url) {
+          throw new Error("Stripe did not return a portal URL");
+        }
+
+        const duration = Date.now() - startTime;
+        recordDistribution("stripe.api.duration", duration, "millisecond", {
+          operation: "billingPortal.sessions.create",
+        });
+        incrementCounter("stripe.api.requests", 1, {
+          operation: "billingPortal.sessions.create",
+          status: "success",
+        });
+
+        return session.url;
+      } catch (error) {
+        incrementCounter("stripe.api.requests", 1, {
+          operation: "billingPortal.sessions.create",
+          status: "error",
+        });
+        throw error;
+      }
     });
-
-    if (!session.url) {
-      throw new Error("Stripe did not return a portal URL");
-    }
-
-    return session.url;
   }
 
   parseWebhookEvent(payload: string, signature: string): Stripe.Event {
@@ -105,6 +152,12 @@ export class StripeClient {
           throw new Error("Expected customer to be a string ID");
         }
 
+        // Record billing metrics
+        recordBillingMetrics({
+          eventType: "checkout_completed",
+          tenantId: metadata.data.tenant_id,
+        });
+
         return {
           type: "checkout_completed",
           tenantId: metadata.data.tenant_id,
@@ -119,6 +172,11 @@ export class StripeClient {
           throw new Error("Expected customer to be a string ID");
         }
 
+        // Record billing metrics
+        recordBillingMetrics({
+          eventType: "subscription_deleted",
+        });
+
         return {
           type: "subscription_deleted",
           customerId: subscription.customer,
@@ -126,6 +184,7 @@ export class StripeClient {
       }
 
       default:
+        incrementCounter("stripe.webhook.ignored", 1, { event_type: event.type });
         return { type: "ignored", eventType: event.type };
     }
   }

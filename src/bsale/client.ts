@@ -10,6 +10,11 @@ import {
   BsaleServerError,
 } from "@/lib/errors";
 import { logger } from "@/utils/logger";
+import {
+  traceBsaleApi,
+  recordDistribution,
+  incrementCounter,
+} from "@/monitoring/sentry";
 
 type Country = "CL" | "PE" | "MX";
 
@@ -114,48 +119,82 @@ export class BsaleClient {
     path: string,
     retries = 3
   ): Promise<unknown> {
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        const response = await fetch(`${this.baseUrl}${path}`, {
-          headers: { access_token: this.accessToken },
-        });
+    const startTime = Date.now();
 
-        if (!response.ok) {
-          if (response.status === 401) {
-            throw new BsaleAuthError("Token expired or invalid");
-          }
-          if (response.status === 429) {
-            throw new BsaleRateLimitError("Rate limit exceeded");
-          }
-          if (response.status >= 500) {
-            throw new BsaleServerError(
-              `Server error: HTTP ${String(response.status)}`,
-              response.status
+    return traceBsaleApi(path, async () => {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+          const response = await fetch(`${this.baseUrl}${path}`, {
+            headers: { access_token: this.accessToken },
+          });
+
+          // Record response status metrics
+          incrementCounter("bsale.api.requests", 1, {
+            status: String(response.status),
+            endpoint: this.extractEndpoint(path),
+          });
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              incrementCounter("bsale.api.errors", 1, { error_type: "auth" });
+              throw new BsaleAuthError("Token expired or invalid");
+            }
+            if (response.status === 429) {
+              incrementCounter("bsale.api.errors", 1, { error_type: "rate_limit" });
+              throw new BsaleRateLimitError("Rate limit exceeded");
+            }
+            if (response.status >= 500) {
+              incrementCounter("bsale.api.errors", 1, { error_type: "server" });
+              throw new BsaleServerError(
+                `Server error: HTTP ${String(response.status)}`,
+                response.status
+              );
+            }
+            throw new Error(
+              `HTTP ${String(response.status)}: ${response.statusText}`
             );
           }
-          throw new Error(
-            `HTTP ${String(response.status)}: ${response.statusText}`
-          );
-        }
 
-        return await response.json();
-      } catch (error) {
-        if (
-          error instanceof BsaleAuthError ||
-          error instanceof BsaleRateLimitError
-        ) {
-          throw error;
-        }
+          const duration = Date.now() - startTime;
+          recordDistribution("bsale.api.duration", duration, "millisecond", {
+            endpoint: this.extractEndpoint(path),
+          });
 
-        if (attempt === retries) {
-          throw error;
-        }
+          return (await response.json()) as unknown;
+        } catch (error) {
+          if (
+            error instanceof BsaleAuthError ||
+            error instanceof BsaleRateLimitError
+          ) {
+            throw error;
+          }
 
-        await this.delay(attempt * 1000);
+          if (attempt === retries) {
+            incrementCounter("bsale.api.errors", 1, { error_type: "network" });
+            throw error;
+          }
+
+          incrementCounter("bsale.api.retries", 1, {
+            attempt: String(attempt),
+            endpoint: this.extractEndpoint(path),
+          });
+
+          await this.delay(attempt * 1000);
+        }
       }
-    }
 
-    throw new Error("Unexpected error in fetchWithRetry");
+      throw new Error("Unexpected error in fetchWithRetry");
+    });
+  }
+
+  /**
+   * Extract a normalized endpoint name from the path for metrics
+   */
+  private extractEndpoint(path: string): string {
+    // Remove query params and normalize IDs
+    const basePath = path.split("?")[0] ?? path;
+    // Replace numeric IDs with placeholder
+    return basePath.replace(/\/\d+/g, "/:id");
   }
 
   private delay(ms?: number): Promise<void> {
