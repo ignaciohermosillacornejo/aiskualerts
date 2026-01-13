@@ -39,6 +39,7 @@ describe("createSyncJob", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 5000,
+      sentryEnvironment: "test",
     };
 
     const job = createSyncJob(mockDb, config);
@@ -61,6 +62,7 @@ describe("createSyncJob", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 5000,
+      sentryEnvironment: "test",
     };
 
     const job = createSyncJob(mockDb, config);
@@ -110,6 +112,7 @@ describe("Sync job execution", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 5000,
+      sentryEnvironment: "test",
     };
 
     const job = createSyncJob(mockDb, config);
@@ -141,6 +144,7 @@ describe("Sync job execution", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 5000,
+      sentryEnvironment: "test",
     };
 
     const job = createSyncJob(mockDb, config);
@@ -166,6 +170,7 @@ describe("Sync job execution", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 5000,
+      sentryEnvironment: "test",
     };
 
     const job = createSyncJob(mockDb, config);

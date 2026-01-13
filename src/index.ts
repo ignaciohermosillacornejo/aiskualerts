@@ -9,9 +9,22 @@ import { TenantRepository } from "@/db/repositories/tenant";
 import { UserRepository } from "@/db/repositories/user";
 import { SessionRepository } from "@/db/repositories/session";
 import { OAuthStateStore } from "@/utils/oauth-state-store";
+import {
+  initializeSentry,
+  createSentryConfig,
+  setupProcessErrorHandlers,
+  flushSentry,
+} from "@/monitoring/sentry";
 
 function main(): void {
   const config = loadConfig();
+
+  // Initialize Sentry error monitoring
+  const sentryConfig = createSentryConfig(config);
+  const sentryEnabled = initializeSentry(sentryConfig);
+  if (sentryEnabled) {
+    setupProcessErrorHandlers();
+  }
 
   console.info(`Starting AI SKU Alerts in ${config.nodeEnv} mode...`);
 
@@ -83,6 +96,9 @@ function main(): void {
     sessionCleanupScheduler.stop();
     await server.stop(true);
     await db.close();
+
+    // Flush any pending Sentry events
+    await flushSentry();
 
     console.info("Shutdown complete");
     process.exit(0);

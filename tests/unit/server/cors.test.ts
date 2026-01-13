@@ -16,6 +16,7 @@ const testConfig: Config = {
   syncMinute: 0,
   syncBatchSize: 100,
   syncTenantDelay: 5000,
+  sentryEnvironment: "test",
 };
 
 let serverInstance: ReturnType<typeof createServer> | null = null;
