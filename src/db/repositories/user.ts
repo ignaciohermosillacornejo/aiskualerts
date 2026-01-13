@@ -124,4 +124,17 @@ export class UserRepository {
       [tenantId, frequency]
     );
   }
+
+  async getWithDigestEnabledBatch(tenantIds: string[], frequency: DigestFrequency): Promise<User[]> {
+    if (tenantIds.length === 0) return [];
+
+    const placeholders = tenantIds.map((_, i) => `$${String(i + 1)}`).join(", ");
+    return this.db.query<User>(
+      `SELECT * FROM users
+       WHERE tenant_id IN (${placeholders})
+         AND notification_enabled = true
+         AND digest_frequency = $${String(tenantIds.length + 1)}`,
+      [...tenantIds, frequency]
+    );
+  }
 }

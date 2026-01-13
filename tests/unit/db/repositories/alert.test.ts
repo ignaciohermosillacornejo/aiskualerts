@@ -129,6 +129,52 @@ describe("AlertRepository", () => {
     });
   });
 
+  describe("getPendingByTenants", () => {
+    test("returns empty array for empty tenant ids", async () => {
+      const { db, mocks } = createMockDb();
+
+      const repo = new AlertRepository(db);
+      const result = await repo.getPendingByTenants([]);
+
+      expect(result).toEqual([]);
+      expect(mocks.query).not.toHaveBeenCalled();
+    });
+
+    test("returns pending alerts from multiple tenants", async () => {
+      const { db, mocks } = createMockDb();
+      const alert1 = { ...mockAlert, tenant_id: "tenant-1" };
+      const alert2 = { ...mockAlert, id: "alert-456", tenant_id: "tenant-2" };
+      mocks.query.mockResolvedValue([alert1, alert2]);
+
+      const repo = new AlertRepository(db);
+      const result = await repo.getPendingByTenants(["tenant-1", "tenant-2"]);
+
+      expect(result).toEqual([alert1, alert2]);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("handles single tenant in batch", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockAlert]);
+
+      const repo = new AlertRepository(db);
+      const result = await repo.getPendingByTenants(["tenant-123"]);
+
+      expect(result).toEqual([mockAlert]);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("returns empty array when no pending alerts exist", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new AlertRepository(db);
+      const result = await repo.getPendingByTenants(["tenant-1", "tenant-2"]);
+
+      expect(result).toEqual([]);
+    });
+  });
+
   describe("markAsSent", () => {
     test("does nothing for empty array", async () => {
       const { db, mocks } = createMockDb();
