@@ -209,6 +209,23 @@ async function getCurrentUser(): Promise<LoginResponse["user"] | null> {
   }
 }
 
+// Billing
+interface CheckoutResponse {
+  url: string;
+}
+
+interface PortalResponse {
+  url: string;
+}
+
+async function createCheckoutSession(): Promise<CheckoutResponse> {
+  return request<CheckoutResponse>("/billing/checkout", { method: "POST" });
+}
+
+async function createPortalSession(): Promise<PortalResponse> {
+  return request<PortalResponse>("/billing/portal", { method: "POST" });
+}
+
 // Export API client
 export const api = {
   // Dashboard
@@ -236,6 +253,10 @@ export const api = {
   login,
   logout,
   getCurrentUser,
+
+  // Billing
+  createCheckoutSession,
+  createPortalSession,
 };
 
 export { ApiError };
