@@ -223,6 +223,65 @@ describe("UserRepository", () => {
     });
   });
 
+  describe("getWithDigestEnabledBatch", () => {
+    test("returns empty array for empty tenant ids", async () => {
+      const { db, mocks } = createMockDb();
+
+      const repo = new UserRepository(db);
+      const result = await repo.getWithDigestEnabledBatch([], "daily");
+
+      expect(result).toEqual([]);
+      expect(mocks.query).not.toHaveBeenCalled();
+    });
+
+    test("returns users from multiple tenants with daily digest enabled", async () => {
+      const { db, mocks } = createMockDb();
+      const user1 = { ...mockUser, tenant_id: "tenant-1", digest_frequency: "daily" as const };
+      const user2 = { ...mockUser, id: "user-456", tenant_id: "tenant-2", digest_frequency: "daily" as const };
+      mocks.query.mockResolvedValue([user1, user2]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.getWithDigestEnabledBatch(["tenant-1", "tenant-2"], "daily");
+
+      expect(result).toEqual([user1, user2]);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("returns users with weekly digest enabled from batch", async () => {
+      const { db, mocks } = createMockDb();
+      const weeklyUser = { ...mockUser, digest_frequency: "weekly" as const };
+      mocks.query.mockResolvedValue([weeklyUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.getWithDigestEnabledBatch(["tenant-456"], "weekly");
+
+      expect(result).toEqual([weeklyUser]);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("returns empty array when no users have specified digest frequency in batch", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.getWithDigestEnabledBatch(["tenant-1", "tenant-2"], "daily");
+
+      expect(result).toEqual([]);
+    });
+
+    test("handles single tenant in batch", async () => {
+      const { db, mocks } = createMockDb();
+      const dailyUser = { ...mockUser, digest_frequency: "daily" as const };
+      mocks.query.mockResolvedValue([dailyUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.getWithDigestEnabledBatch(["tenant-456"], "daily");
+
+      expect(result).toEqual([dailyUser]);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+  });
+
   describe("update", () => {
     test("updates user name", async () => {
       const { db, mocks } = createMockDb();

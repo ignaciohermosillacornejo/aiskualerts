@@ -395,26 +395,18 @@ describe("runDigestJob", () => {
     let callCount = 0;
     mocks.query.mockImplementation(() => {
       callCount++;
-      // Query order:
+      // Query order (batch pattern):
       // 1. getActiveTenants -> [tenant1, tenant2]
-      // 2. getWithDigestEnabled(tenant1) -> [user1]
-      // 3. getPendingByTenant(tenant1) -> [alert1]
-      // 4. getWithDigestEnabled(tenant2) -> [user2]
-      // 5. getPendingByTenant(tenant2) -> [alert2]
+      // 2. getWithDigestEnabledBatch -> [user1, user2]
+      // 3. getPendingByTenants -> [alert1, alert2]
       if (callCount === 1) {
         return Promise.resolve([mockTenant, tenant2]);
       }
       if (callCount === 2) {
-        return Promise.resolve([mockUser]);
+        return Promise.resolve([mockUser, user2]);
       }
       if (callCount === 3) {
-        return Promise.resolve([mockAlert]);
-      }
-      if (callCount === 4) {
-        return Promise.resolve([user2]);
-      }
-      if (callCount === 5) {
-        return Promise.resolve([alert2]);
+        return Promise.resolve([mockAlert, alert2]);
       }
       return Promise.resolve([]);
     });
@@ -524,25 +516,33 @@ describe("runDigestJob", () => {
   test("handles tenant processing error gracefully", async () => {
     const { db, mocks } = createMockDb();
     const tenant2 = { ...mockTenant, id: "tenant-456", bsale_client_name: "Company 2" };
+    const user2 = { ...mockUser, id: "user-456", tenant_id: "tenant-456" };
+    const alert2 = { ...mockAlert, id: "alert-456", tenant_id: "tenant-456", user_id: "user-456" };
 
     let callCount = 0;
     mocks.query.mockImplementation(() => {
       callCount++;
+      // Batch queries
       if (callCount === 1) {
         return Promise.resolve([mockTenant, tenant2]);
       }
       if (callCount === 2) {
-        // First tenant throws error
-        throw new Error("Database error");
+        return Promise.resolve([mockUser, user2]);
       }
       if (callCount === 3) {
-        // Second tenant works
-        return Promise.resolve([{ ...mockUser, tenant_id: "tenant-456" }]);
-      }
-      if (callCount === 4) {
-        return Promise.resolve([{ ...mockAlert, tenant_id: "tenant-456", user_id: mockUser.id }]);
+        return Promise.resolve([mockAlert, alert2]);
       }
       return Promise.resolve([]);
+    });
+
+    // First call to markAsSent throws error (for tenant-123), second succeeds (for tenant-456)
+    let executeCallCount = 0;
+    mocks.execute.mockImplementation(() => {
+      executeCallCount++;
+      if (executeCallCount === 1) {
+        throw new Error("Database error");
+      }
+      return Promise.resolve();
     });
 
     const config = createMockConfig();
@@ -552,8 +552,8 @@ describe("runDigestJob", () => {
 
     expect(result.errors.length).toBe(1);
     expect(result.errors[0]).toContain("tenant-123");
-    expect(result.tenantsProcessed).toBe(1);
-    expect(result.emailsSent).toBe(1);
+    expect(result.tenantsProcessed).toBe(2);
+    expect(result.emailsSent).toBe(2);
   });
 
   test("runs with weekly frequency", async () => {
