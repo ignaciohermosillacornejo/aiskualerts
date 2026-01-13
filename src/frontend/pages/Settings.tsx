@@ -190,6 +190,23 @@ export function Settings() {
               placeholder="alerts@empresa.cl"
             />
           </div>
+          <div className="form-group">
+            <label className="form-label">Frecuencia de resumen por email</label>
+            <select
+              className="form-input"
+              value={settings.digestFrequency}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setSettings({ ...settings, digestFrequency: e.target.value as TenantSettings["digestFrequency"] })
+              }
+            >
+              <option value="daily">Diario</option>
+              <option value="weekly">Semanal</option>
+              <option value="none">No enviar resumen</option>
+            </select>
+            <p style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.5rem" }}>
+              Recibe un resumen de todas las alertas pendientes con la frecuencia seleccionada.
+            </p>
+          </div>
         </div>
 
         <div className="card" style={{ marginBottom: "1.5rem" }}>

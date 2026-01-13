@@ -37,6 +37,7 @@ const mockUser: User = {
   name: "Test User",
   notification_enabled: true,
   notification_email: null,
+  digest_frequency: "daily",
   created_at: new Date(),
 };
 
