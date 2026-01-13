@@ -66,7 +66,7 @@ describe("Login", () => {
 
     test("does not call login when validation fails", async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const mockLogin = mock((email: string, password: string) => Promise.resolve());
+      const mockLogin = mock((_email: string, _password: string) => Promise.resolve());
       const emailValue = "";
       const passwordValue = "";
 
@@ -81,7 +81,7 @@ describe("Login", () => {
 
     test("calls login with credentials when valid", async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const mockLogin = mock((email: string, password: string) => Promise.resolve());
+      const mockLogin = mock((_email: string, _password: string) => Promise.resolve());
       const emailValue = "user@company.com";
       const passwordValue = "mypassword";
 
