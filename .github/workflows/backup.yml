@@ -9,10 +9,18 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-
       - name: Install 1Password CLI
         uses: 1password/install-cli-action@v2
+
+      - name: Load secrets
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          echo "SSH_HOST=$(op read 'op://Dev/HETZNER_SERVER_IP/credential')" >> $GITHUB_ENV
+          echo "B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')" >> $GITHUB_ENV
+          echo "B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')" >> $GITHUB_ENV
+          echo "B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')" >> $GITHUB_ENV
+          echo "BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')" >> $GITHUB_ENV
 
       - name: Setup SSH
         env:
@@ -21,42 +29,32 @@ jobs:
           mkdir -p ~/.ssh
           op read "op://Dev/HETZNER_SSH_KEY/private key?ssh-format=openssh" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          HETZNER_SERVER_IP=$(op read "op://Dev/HETZNER_SERVER_IP/credential")
-          echo "HETZNER_SERVER_IP=$HETZNER_SERVER_IP" >> $GITHUB_ENV
-          ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
-      - name: Create secrets file
+      - name: Stream backup from server, encrypt, and save
+        run: |
+          # SSH into server, run pg_dump inside docker container
+          # Stream output to runner, compress, encrypt with GPG
+          ssh -i ~/.ssh/deploy_key -C root@"$SSH_HOST" \
+            "docker exec aiskualerts-db pg_dump -U aiskualerts -d aiskualerts --no-owner --no-acl" \
+          | gzip \
+          | gpg --symmetric --cipher-algo AES256 --batch --yes --passphrase "$BACKUP_ENCRYPTION_KEY" \
+          > backup.sql.gz.gpg
+
+          echo "Backup created: $(du -h backup.sql.gz.gpg | cut -f1)"
+
+      - name: Upload to B2
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ env.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.B2_APPLICATION_KEY }}
         run: |
-          cat > /tmp/backup-secrets.env << 'SECRETS_EOF'
-          B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
-          B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
-          B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')
-          BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
-          SECRETS_EOF
-          # Evaluate the op commands and create actual env file
-          B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
-          B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
-          B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')
-          BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
-          cat > /tmp/backup-secrets.env << EOF
-          export B2_KEY_ID='${B2_KEY_ID}'
-          export B2_APPLICATION_KEY='${B2_APPLICATION_KEY}'
-          export B2_BUCKET_NAME='${B2_BUCKET_NAME}'
-          export BACKUP_ENCRYPTION_KEY='${BACKUP_ENCRYPTION_KEY}'
-          EOF
-          chmod 600 /tmp/backup-secrets.env
-
-      - name: Copy files and run backup
-        run: |
-          scp -i ~/.ssh/deploy_key /tmp/backup-secrets.env root@"$HETZNER_SERVER_IP":/tmp/
-          scp -i ~/.ssh/deploy_key scripts/backup-db.sh root@"$HETZNER_SERVER_IP":/tmp/
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "chmod +x /tmp/backup-db.sh && /tmp/backup-db.sh"
+          FILENAME="backup-$(date +%Y-%m-%d).sql.gz.gpg"
+          aws s3 cp backup.sql.gz.gpg "s3://$B2_BUCKET_NAME/daily/$FILENAME" \
+            --endpoint-url https://s3.us-west-002.backblazeb2.com
+          echo "Uploaded: daily/$FILENAME"
 
       - name: Cleanup
         if: always()
         run: |
-          rm -f /tmp/backup-secrets.env
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "rm -f /tmp/backup-db.sh /tmp/backup-secrets.env" 2>/dev/null || true
+          rm -f backup.sql.gz.gpg
           rm -f ~/.ssh/deploy_key
