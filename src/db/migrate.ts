@@ -9,6 +9,7 @@
 
 import { SQL } from "bun";
 import { Glob } from "bun";
+import { logger } from "@/utils/logger";
 
 interface MigrationRecord {
   version: number;
@@ -105,33 +106,29 @@ export async function runMigrations(connectionString?: string): Promise<{
     const migrations = await getMigrationFiles();
 
     if (migrations.length === 0) {
-      console.info("No migration files found.");
+      logger.info("No migration files found.");
       return result;
     }
 
-    console.info(`Found ${String(migrations.length)} migration(s).`);
+    logger.info("Migration files found", { count: migrations.length });
 
     for (const migration of migrations) {
       if (appliedVersions.has(migration.version)) {
-        console.info(
-          `  [SKIP] ${migration.filename} (already applied)`
-        );
+        logger.info("Skipping migration (already applied)", { filename: migration.filename });
         result.skipped.push(migration.version);
         continue;
       }
 
-      console.info(`  [APPLYING] ${migration.filename}...`);
+      logger.info("Applying migration...", { filename: migration.filename });
       await applyMigration(sql, migration);
-      console.info(`  [DONE] ${migration.filename}`);
+      logger.info("Migration applied", { filename: migration.filename });
       result.applied.push(migration.version);
     }
 
     if (result.applied.length === 0) {
-      console.info("Database is up to date. No migrations applied.");
+      logger.info("Database is up to date. No migrations applied.");
     } else {
-      console.info(
-        `Successfully applied ${String(result.applied.length)} migration(s).`
-      );
+      logger.info("Migrations successfully applied", { count: result.applied.length });
     }
 
     return result;
@@ -145,12 +142,12 @@ if (import.meta.main) {
   runMigrations()
     .then((result) => {
       if (result.applied.length > 0) {
-        console.info("\nMigrations complete!");
+        logger.info("Migrations complete!");
       }
       process.exit(0);
     })
     .catch((error: unknown) => {
-      console.error("Migration failed:", error);
+      logger.error("Migration failed", error instanceof Error ? error : new Error(String(error)));
       process.exit(1);
     });
 }

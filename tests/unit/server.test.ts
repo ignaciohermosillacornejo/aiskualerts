@@ -1019,6 +1019,7 @@ describe("createServer with dependencies", () => {
       stockSnapshotRepo: {
         countDistinctProductsByTenant: mock(() => Promise.resolve(100)),
         countLowStockByTenant: mock(() => Promise.resolve(15)),
+        getById: mock(() => Promise.resolve(null)), // Returns null to fall back to mock data
         getLatestByTenant: mock(() =>
           Promise.resolve([
             {

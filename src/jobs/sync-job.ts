@@ -9,6 +9,7 @@ import { generateAlertsForUser } from "@/alerts/alert-generator";
 import type { AlertGeneratorDependencies } from "@/alerts/types";
 import type { SyncProgress } from "@/sync/types";
 import type { AlertGenerationResult } from "@/alerts/types";
+import { logger } from "@/utils/logger";
 
 export interface SyncJobResult {
   syncProgress: SyncProgress;
@@ -27,25 +28,25 @@ export function createSyncJob(
   config: Config
 ): () => Promise<void> {
   return async function syncJob(): Promise<void> {
-    console.info("Starting scheduled sync job...");
+    logger.info("Starting scheduled sync job...");
     const startedAt = new Date();
 
     try {
       const result = await runSyncAndAlerts(db, config);
 
-      console.info(
-        `Sync job completed: ${String(result.syncProgress.successCount)} tenants synced, ` +
-          `${String(result.totalAlertsCreated)} alerts created`
-      );
+      logger.info("Sync job completed", {
+        tenantsSynced: result.syncProgress.successCount,
+        alertsCreated: result.totalAlertsCreated,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`Sync job failed: ${message}`);
+      logger.error("Sync job failed", error instanceof Error ? error : new Error(message));
       throw error;
     }
 
     const completedAt = new Date();
     const duration = completedAt.getTime() - startedAt.getTime();
-    console.info(`Sync job duration: ${String(duration)}ms`);
+    logger.info("Sync job duration", { durationMs: duration });
   };
 }
 
@@ -65,7 +66,7 @@ export async function runSyncAndAlerts(
   const alertRepo = new AlertRepository(db);
 
   // Step 1: Sync all tenants
-  console.info("Phase 1: Syncing tenant inventory data...");
+  logger.info("Phase 1: Syncing tenant inventory data...");
   const syncService = new SyncService(db, {
     batchSize: config.syncBatchSize,
     delayBetweenTenants: config.syncTenantDelay,
@@ -73,7 +74,7 @@ export async function runSyncAndAlerts(
   const syncProgress = await syncService.syncAllTenants();
 
   // Step 2: Generate alerts for all users in all tenants
-  console.info("Phase 2: Generating alerts for users...");
+  logger.info("Phase 2: Generating alerts for users...");
   const alertResults: AlertGenerationResult[] = [];
   let totalAlertsCreated = 0;
 
@@ -102,7 +103,7 @@ export async function runSyncAndAlerts(
       totalAlertsCreated += result.alertsCreated;
 
       if (result.errors.length > 0) {
-        console.warn(`Alert generation errors for user ${user.id}:`, result.errors);
+        logger.warn("Alert generation errors", { userId: user.id, errors: result.errors });
       }
     }
   }
