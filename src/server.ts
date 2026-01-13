@@ -33,18 +33,66 @@ import {
 import { captureException } from "@/monitoring/sentry";
 
 // CORS configuration
-export function getCorsHeaders(): Record<string, string> {
+// Parse allowed origins from environment (comma-separated list)
+function getAllowedOrigins(): string[] {
+  const origins = process.env["ALLOWED_ORIGINS"] ?? process.env["ALLOWED_ORIGIN"] ?? "";
+  if (!origins) {
+    return [];
+  }
+  return origins.split(",").map((o) => o.trim()).filter((o) => o.length > 0);
+}
+
+// Validate request origin against allowed origins
+export function validateOrigin(request: Request | null): string | null {
+  const allowedOrigins = getAllowedOrigins();
+
+  // If no origins configured, reject in production
+  if (allowedOrigins.length === 0) {
+    // eslint-disable-next-line @typescript-eslint/dot-notation -- env var access requires bracket notation
+    if (process.env["NODE_ENV"] === "production") {
+      // Return null to indicate origin should be rejected
+      return null;
+    }
+    // In non-production, allow all origins for development convenience
+    return "*";
+  }
+
+  // Get the request origin
+  const requestOrigin = request?.headers.get("Origin");
+
+  // If request has no origin header (same-origin request or non-browser client),
+  // use the first allowed origin
+  if (!requestOrigin) {
+    return allowedOrigins[0] ?? null;
+  }
+
+  // Check if request origin is in allowed list
+  if (allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+
+  // Origin not allowed - return null to indicate rejection
+  return null;
+}
+
+export function getCorsHeaders(request?: Request | null): Record<string, string> {
+  const origin = validateOrigin(request ?? null);
+
+  // If origin is null, still return headers but with empty origin
+  // The caller should handle rejecting the request
   return {
-    "Access-Control-Allow-Origin": process.env["ALLOWED_ORIGIN"] ?? "*",
+    "Access-Control-Allow-Origin": origin ?? "",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-CSRF-Token",
     "Access-Control-Allow-Credentials": "true",
+    // Add Vary header to ensure proper caching with dynamic origins
+    ...(origin && origin !== "*" ? { "Vary": "Origin" } : {}),
   };
 }
 
 // Helper to create JSON response with CORS headers
-export function jsonWithCors(data: unknown, init?: ResponseInit): Response {
-  const corsHeaders = getCorsHeaders();
+export function jsonWithCors(data: unknown, init?: ResponseInit, request?: Request | null): Response {
+  const corsHeaders = getCorsHeaders(request);
   const headers = new Headers(init?.headers);
   for (const [key, value] of Object.entries(corsHeaders)) {
     headers.set(key, value);
@@ -54,8 +102,8 @@ export function jsonWithCors(data: unknown, init?: ResponseInit): Response {
 }
 
 // Helper to create Response with CORS headers
-export function responseWithCors(body: BodyInit | null, init?: ResponseInit): Response {
-  const corsHeaders = getCorsHeaders();
+export function responseWithCors(body: BodyInit | null, init?: ResponseInit, request?: Request | null): Response {
+  const corsHeaders = getCorsHeaders(request);
   const headers = new Headers(init?.headers);
   for (const [key, value] of Object.entries(corsHeaders)) {
     headers.set(key, value);
@@ -64,10 +112,26 @@ export function responseWithCors(body: BodyInit | null, init?: ResponseInit): Re
 }
 
 // Preflight response for OPTIONS requests
-export function preflightResponse(): Response {
+export function preflightResponse(request?: Request | null): Response {
   return new Response(null, {
     status: 204,
-    headers: getCorsHeaders(),
+    headers: getCorsHeaders(request),
+  });
+}
+
+// Helper to check if a cross-origin request should be rejected
+export function shouldRejectCorsRequest(request: Request): boolean {
+  const origin = validateOrigin(request);
+  // Reject if origin is null (means origin validation failed)
+  // and the request has an Origin header (meaning it's a cross-origin request)
+  return origin === null && request.headers.get("Origin") !== null;
+}
+
+// Create a CORS rejection response
+export function corsRejectionResponse(): Response {
+  return new Response(JSON.stringify({ error: "Origin not allowed" }), {
+    status: 403,
+    headers: { "Content-Type": "application/json" },
   });
 }
 
@@ -101,7 +165,8 @@ export function withErrorBoundary(handler: RouteHandler): RouteHandler {
       // Return generic error response
       return jsonWithCors(
         { error: "Internal server error" },
-        { status: 500 }
+        { status: 500 },
+        req
       );
     }
   };
@@ -320,14 +385,14 @@ export function createServer(
       "/app/thresholds": indexRoute,
       "/app/settings": indexRoute,
 
-      // Health check
+      // Health check (not wrapped with CORS validation for monitoring tools)
       "/health": {
-        GET: () => jsonWithCors(createHealthResponse()),
+        GET: (req) => jsonWithCors(createHealthResponse(), undefined, req),
       },
 
       // API Routes
       "/api/health": {
-        GET: () => jsonWithCors(createHealthResponse()),
+        GET: (req) => jsonWithCors(createHealthResponse(), undefined, req),
       },
 
       "/api/dashboard/stats": {
@@ -363,11 +428,11 @@ export function createServer(
               activeAlerts,
               lowStockProducts,
               configuredThresholds,
-            });
+            }, undefined, req);
           }
 
           // Fallback to mock data
-          return jsonWithCors(mockDashboardStats);
+          return jsonWithCors(mockDashboardStats, undefined, req);
         },
       },
 
@@ -421,7 +486,7 @@ export function createServer(
             return jsonWithCors({
               alerts,
               total: result.total,
-            });
+            }, undefined, req);
           }
 
           // Fallback to mock data
@@ -433,7 +498,7 @@ export function createServer(
           return jsonWithCors({
             alerts: filtered.slice(0, limit),
             total: filtered.length,
-          });
+          }, undefined, req);
         },
       },
 
@@ -448,22 +513,22 @@ export function createServer(
           if (authContext && deps?.alertRepo) {
             const alert = await deps.alertRepo.getById(id);
             if (!alert) {
-              return jsonWithCors({ error: "Alert not found" }, { status: 404 });
+              return jsonWithCors({ error: "Alert not found" }, { status: 404 }, req);
             }
             // Verify user owns this alert
             if (alert.user_id !== authContext.userId) {
-              return jsonWithCors({ error: "Alert not found" }, { status: 404 });
+              return jsonWithCors({ error: "Alert not found" }, { status: 404 }, req);
             }
             await deps.alertRepo.markAsDismissed(id);
-            return jsonWithCors({ success: true });
+            return jsonWithCors({ success: true }, undefined, req);
           }
 
           // Fallback to mock data
           const alert = mockAlerts.find((a) => a.id === id);
           if (!alert) {
-            return jsonWithCors({ error: "Alert not found" }, { status: 404 });
+            return jsonWithCors({ error: "Alert not found" }, { status: 404 }, req);
           }
-          return jsonWithCors({ success: true });
+          return jsonWithCors({ success: true }, undefined, req);
         },
       },
 
@@ -501,14 +566,14 @@ export function createServer(
             return jsonWithCors({
               products,
               total: products.length,
-            });
+            }, undefined, req);
           }
 
           // Fallback to mock data
           return jsonWithCors({
             products: mockProducts,
             total: mockProducts.length,
-          });
+          }, undefined, req);
         },
       },
 
@@ -529,9 +594,9 @@ export function createServer(
           // Fallback to mock data
           const product = mockProducts.find((p) => p.id === productId);
           if (!product) {
-            return jsonWithCors({ error: "Product not found" }, { status: 404 });
+            return jsonWithCors({ error: "Product not found" }, { status: 404 }, req);
           }
-          return jsonWithCors(product);
+          return jsonWithCors(product, undefined, req);
         },
       },
 
@@ -561,14 +626,14 @@ export function createServer(
             return jsonWithCors({
               thresholds: apiThresholds,
               total: apiThresholds.length,
-            });
+            }, undefined, req);
           }
 
           // Fallback to mock data
           return jsonWithCors({
             thresholds: mockThresholds,
             total: mockThresholds.length,
-          });
+          }, undefined, req);
         },
         POST: async (req) => {
           const parseResult = CreateThresholdSchema.safeParse(await req.json());
@@ -602,7 +667,8 @@ export function createServer(
                 createdAt: threshold.created_at.toISOString(),
                 updatedAt: threshold.updated_at.toISOString(),
               },
-              { status: 201 }
+              { status: 201 },
+              req
             );
           }
 
@@ -617,7 +683,7 @@ export function createServer(
             updatedAt: new Date().toISOString(),
           };
           mockThresholds.push(newThreshold);
-          return jsonWithCors(newThreshold, { status: 201 });
+          return jsonWithCors(newThreshold, { status: 201 }, req);
         },
       },
 
@@ -637,11 +703,11 @@ export function createServer(
           if (authContext && deps?.thresholdRepo) {
             const existingThreshold = await deps.thresholdRepo.getById(id);
             if (!existingThreshold) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
             }
             // Verify user owns this threshold
             if (existingThreshold.user_id !== authContext.userId) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
             }
 
             const updated = await deps.thresholdRepo.update(id, {
@@ -659,13 +725,13 @@ export function createServer(
               minQuantity: updated.min_quantity,
               createdAt: updated.created_at.toISOString(),
               updatedAt: updated.updated_at.toISOString(),
-            });
+            }, undefined, req);
           }
 
           // Fallback to mock data
           const idx = mockThresholds.findIndex((t) => t.id === id);
           if (idx === -1) {
-            return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+            return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
           }
           // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
           const existing = mockThresholds[idx];
@@ -678,7 +744,7 @@ export function createServer(
             };
           }
           // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
-          return jsonWithCors(mockThresholds[idx]);
+          return jsonWithCors(mockThresholds[idx], undefined, req);
         },
         DELETE: async (req) => {
           const id = req.params.id;
@@ -690,27 +756,27 @@ export function createServer(
           if (authContext && deps?.thresholdRepo) {
             const existingThreshold = await deps.thresholdRepo.getById(id);
             if (!existingThreshold) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
             }
             // Verify user owns this threshold
             if (existingThreshold.user_id !== authContext.userId) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
             }
 
             const deleted = await deps.thresholdRepo.delete(id);
             if (!deleted) {
-              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
             }
-            return responseWithCors(null, { status: 204 });
+            return responseWithCors(null, { status: 204 }, req);
           }
 
           // Fallback to mock data
           const idx = mockThresholds.findIndex((t) => t.id === id);
           if (idx === -1) {
-            return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+            return jsonWithCors({ error: "Threshold not found" }, { status: 404 }, req);
           }
           mockThresholds.splice(idx, 1);
-          return responseWithCors(null, { status: 204 });
+          return responseWithCors(null, { status: 204 }, req);
         },
       },
 
@@ -727,7 +793,7 @@ export function createServer(
             ]);
 
             if (!user || !tenant) {
-              return jsonWithCors(mockSettings);
+              return jsonWithCors(mockSettings, undefined, req);
             }
 
             return jsonWithCors({
@@ -741,11 +807,11 @@ export function createServer(
               digestFrequency: user.digest_frequency,
               isPaid: tenant.is_paid,
               stripeCustomerId: tenant.stripe_customer_id,
-            });
+            }, undefined, req);
           }
 
           // Fallback to mock data
-          return jsonWithCors(mockSettings);
+          return jsonWithCors(mockSettings, undefined, req);
         },
         PUT: async (req) => {
           const parseResult = UpdateSettingsSchema.safeParse(await req.json());
@@ -796,12 +862,12 @@ export function createServer(
               digestFrequency: updatedUser.digest_frequency,
               isPaid: tenant?.is_paid ?? false,
               stripeCustomerId: tenant?.stripe_customer_id ?? null,
-            });
+            }, undefined, req);
           }
 
           // Fallback to mock data
           Object.assign(mockSettings, body);
-          return jsonWithCors(mockSettings);
+          return jsonWithCors(mockSettings, undefined, req);
         },
       },
 
@@ -841,20 +907,22 @@ export function createServer(
               headers: {
                 "Set-Cookie": cookieParts.join("; "),
               },
-            }
+            },
+            req
           );
         },
       },
 
       "/api/auth/logout": {
-        POST: () =>
+        POST: (req) =>
           jsonWithCors(
             { success: true },
             {
               headers: {
                 "Set-Cookie": "session_token=; HttpOnly; Path=/; Max-Age=0",
               },
-            }
+            },
+            req
           ),
       },
 
@@ -862,7 +930,7 @@ export function createServer(
         GET: (req) => {
           const cookie = req.headers.get("Cookie") ?? "";
           if (!cookie.includes("session_token=")) {
-            return jsonWithCors({ user: null }, { status: 401 });
+            return jsonWithCors({ user: null }, { status: 401 }, req);
           }
           return jsonWithCors({
             user: {
@@ -871,7 +939,7 @@ export function createServer(
               name: "Usuario Demo",
               role: "admin" as const,
             },
-          });
+          }, undefined, req);
         },
       },
     },
@@ -883,7 +951,14 @@ export function createServer(
       try {
         // Handle OPTIONS preflight requests for CORS
         if (request.method === "OPTIONS") {
-          return preflightResponse();
+          return preflightResponse(request);
+        }
+
+        // Validate CORS origin for API requests (except webhooks which use signatures)
+        if (url.pathname.startsWith("/api/") && !url.pathname.startsWith("/api/webhooks/")) {
+          if (shouldRejectCorsRequest(request)) {
+            return corsRejectionResponse();
+          }
         }
 
         // Apply CSRF protection to state-changing requests (POST, PUT, DELETE, PATCH)
@@ -941,7 +1016,7 @@ export function createServer(
 
         // API routes that don't match should return 404
         if (url.pathname.startsWith("/api/")) {
-          return jsonWithCors({ error: "Not Found" }, { status: 404 });
+          return jsonWithCors({ error: "Not Found" }, { status: 404 }, request);
         }
 
         // All other routes not defined in the routes object should return 404
@@ -1022,7 +1097,8 @@ export function createServer(
         // Return generic error response
         return jsonWithCors(
           { error: "Internal server error" },
-          { status: 500 }
+          { status: 500 },
+          request
         );
       }
     },

@@ -33,11 +33,19 @@ NODE_ENV=production
 PORT=3000
 
 # ===========================================
-# CORS Configuration
+# CORS Configuration (REQUIRED for production)
 # ===========================================
-# Allowed origin for CORS requests (defaults to "*" if not set)
-# For production, set to your frontend domain (e.g., https://aiskualerts.com)
-ALLOWED_ORIGIN=https://aiskualerts.com
+# Allowed origins for CORS requests (comma-separated list)
+# SECURITY: In production, this MUST be configured or cross-origin requests will be rejected
+# In development/test, if not set, all origins are allowed for convenience
+#
+# Single origin example:
+#   ALLOWED_ORIGINS=https://aiskualerts.com
+# Multiple origins example:
+#   ALLOWED_ORIGINS=https://aiskualerts.com,https://staging.aiskualerts.com
+#
+# Legacy: ALLOWED_ORIGIN (singular) is also supported for backwards compatibility
+ALLOWED_ORIGINS=https://aiskualerts.com
 
 # ===========================================
 # Bsale API Configuration
