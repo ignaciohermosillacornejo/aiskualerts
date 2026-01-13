@@ -203,18 +203,21 @@ describe("ErrorBoundary Component SSR Rendering", () => {
     test("handleRetry calls setState with reset values", () => {
       const instance = new ErrorBoundary({ children: null });
       let setStateCalled = false;
-      let setStateArg: { hasError: boolean; error: null } | null = null;
+      let capturedHasError: boolean | undefined;
+      let capturedError: null | undefined;
 
       // Mock setState
       instance.setState = (state: { hasError: boolean; error: null }) => {
         setStateCalled = true;
-        setStateArg = state;
+        capturedHasError = state.hasError;
+        capturedError = state.error;
       };
 
       instance.handleRetry();
 
       expect(setStateCalled).toBe(true);
-      expect(setStateArg).toEqual({ hasError: false, error: null });
+      expect(capturedHasError).toBe(false);
+      expect(capturedError).toBeNull();
     });
   });
 
@@ -350,7 +353,11 @@ describe("ErrorBoundary Component SSR Rendering", () => {
       expect(html).toContain("Error details");
       expect(html).toContain("Dev error message");
 
-      process.env.NODE_ENV = originalEnv;
+      if (originalEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalEnv;
+      }
     });
 
     test("shows error stack in development mode", () => {
@@ -369,7 +376,11 @@ describe("ErrorBoundary Component SSR Rendering", () => {
       expect(html).toContain("<pre>");
       expect(html).toContain("Stack error");
 
-      process.env.NODE_ENV = originalEnv;
+      if (originalEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalEnv;
+      }
     });
 
     test("hides error details when NODE_ENV is production", () => {
@@ -385,7 +396,11 @@ describe("ErrorBoundary Component SSR Rendering", () => {
       expect(html).not.toContain("error-boundary-details");
       expect(html).not.toContain("Prod error");
 
-      process.env.NODE_ENV = originalEnv;
+      if (originalEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalEnv;
+      }
     });
 
     test("hides error details when NODE_ENV is test", () => {
@@ -415,7 +430,11 @@ describe("ErrorBoundary Component SSR Rendering", () => {
       expect(html).toContain("error-boundary-details");
       expect(html).toContain("No stack error");
 
-      process.env.NODE_ENV = originalEnv;
+      if (originalEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = originalEnv;
+      }
     });
   });
 
