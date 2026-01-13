@@ -65,28 +65,30 @@ describe("Login", () => {
     });
 
     test("does not call login when validation fails", async () => {
-      const mockLogin = mock(() => Promise.resolve());
-      const email = "";
-      const password = "";
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const mockLogin = mock((email: string, password: string) => Promise.resolve());
+      const emailValue = "";
+      const passwordValue = "";
 
       // Validation: only call login if both fields are non-empty
-      const isValid = email.length > 0 && password.length > 0;
+      const isValid = emailValue.length > 0 && passwordValue.length > 0;
       if (isValid) {
-        await mockLogin(email, password);
+        await mockLogin(emailValue, passwordValue);
       }
 
       expect(mockLogin).not.toHaveBeenCalled();
     });
 
     test("calls login with credentials when valid", async () => {
-      const mockLogin = mock(() => Promise.resolve());
-      const email = "user@company.com";
-      const password = "mypassword";
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const mockLogin = mock((email: string, password: string) => Promise.resolve());
+      const emailValue = "user@company.com";
+      const passwordValue = "mypassword";
 
       // Validation: only call login if both fields are non-empty
-      const isValid = email.length > 0 && password.length > 0;
+      const isValid = emailValue.length > 0 && passwordValue.length > 0;
       if (isValid) {
-        await mockLogin(email, password);
+        await mockLogin(emailValue, passwordValue);
       }
 
       expect(mockLogin).toHaveBeenCalledWith("user@company.com", "mypassword");

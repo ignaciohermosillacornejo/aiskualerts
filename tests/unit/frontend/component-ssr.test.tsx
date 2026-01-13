@@ -10,10 +10,16 @@ const originalFetch = globalThis.fetch;
 const noop = (): void => {};
 const noopAsync = (): Promise<void> => Promise.resolve();
 
+// Helper to create a fetch mock compatible with globalThis.fetch type
+function createFetchMock(handler: () => Promise<Response>) {
+  const mockFn = mock(handler) as unknown as typeof fetch;
+  return mockFn;
+}
+
 describe("Header Component SSR", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    globalThis.fetch = mock(() =>
+    globalThis.fetch = createFetchMock(() =>
       Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ user: null }),
@@ -189,7 +195,7 @@ describe("ProtectedRoute Component SSR", () => {
 describe("Login Component SSR", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    globalThis.fetch = mock(() =>
+    globalThis.fetch = createFetchMock(() =>
       Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ user: null }),

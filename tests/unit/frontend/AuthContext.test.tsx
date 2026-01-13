@@ -4,6 +4,12 @@ import "../../setup";
 // Store original fetch
 const originalFetch = globalThis.fetch;
 
+// Helper to create a fetch mock compatible with globalThis.fetch type
+function createFetchMock(handler: () => Promise<Response>) {
+  const mockFn = mock(handler) as unknown as typeof fetch;
+  return mockFn;
+}
+
 describe("AuthContext", () => {
   beforeEach(() => {
     sessionStorage.clear();
@@ -374,7 +380,7 @@ describe("AuthContext", () => {
   describe("API client integration", () => {
     test("uses api.getCurrentUser for session check", async () => {
       // Mock fetch to return a user
-      globalThis.fetch = mock(() =>
+      globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ user: { id: "1", email: "test@test.com", name: "Test", role: "admin" } }),
@@ -388,7 +394,7 @@ describe("AuthContext", () => {
     });
 
     test("uses api.login for authentication", async () => {
-      globalThis.fetch = mock(() =>
+      globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ user: { id: "1", email: "test@test.com", name: "Test", role: "admin" } }),
@@ -402,7 +408,7 @@ describe("AuthContext", () => {
     });
 
     test("uses api.logout for signing out", async () => {
-      globalThis.fetch = mock(() =>
+      globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
           json: () => Promise.resolve({}),
