@@ -42,6 +42,8 @@ import {
   jsonWithCors,
   responseWithCors,
   preflightResponse,
+  configureCors,
+  resetCorsConfig,
 } from "@/api/routes/utils";
 import { createDashboardRoutes } from "@/api/routes/dashboard";
 import { createAlertRoutes } from "@/api/routes/alerts";
@@ -56,6 +58,8 @@ export {
   jsonWithCors,
   responseWithCors,
   preflightResponse,
+  configureCors,
+  resetCorsConfig,
 };
 
 // Re-export schemas for backward compatibility
@@ -131,9 +135,11 @@ export function withErrorBoundary(handler: RouteHandler): RouteHandler {
       });
 
       // Return generic error response
+      const requestOrigin = req.headers.get("Origin");
       return jsonWithCors(
         { error: "Internal server error" },
-        { status: 500 }
+        { status: 500 },
+        requestOrigin
       );
     }
   };
@@ -201,6 +207,12 @@ export function createServer(
   config: Config,
   deps?: ServerDependencies
 ): Server<undefined> {
+  // Configure CORS with the validated config
+  configureCors({
+    allowedOrigins: config.allowedOrigins ?? [],
+    nodeEnv: config.nodeEnv,
+  });
+
   // Create path-based rate limiters for different API endpoints
   const apiRateLimiter = createPathBasedRateLimiter({
     "/api/auth/": RateLimitPresets.auth,
@@ -341,7 +353,8 @@ export function createServer(
         // Handle OPTIONS preflight requests for CORS
         if (request.method === "OPTIONS") {
           recordRequestMetrics(204);
-          return preflightResponse();
+          const requestOrigin = request.headers.get("Origin");
+          return preflightResponse(requestOrigin);
         }
 
         // Apply CSRF protection to state-changing requests (POST, PUT, DELETE, PATCH)
@@ -429,7 +442,8 @@ export function createServer(
         // API routes that don't match should return 404
         if (url.pathname.startsWith("/api/")) {
           recordRequestMetrics(404);
-          return jsonWithCors({ error: "Not Found" }, { status: 404 });
+          const requestOrigin = request.headers.get("Origin");
+          return jsonWithCors({ error: "Not Found" }, { status: 404 }, requestOrigin);
         }
 
         // All other routes not defined in the routes object should return 404
@@ -516,9 +530,11 @@ export function createServer(
         });
 
         // Return generic error response
+        const requestOrigin = request.headers.get("Origin");
         return jsonWithCors(
           { error: "Internal server error" },
-          { status: 500 }
+          { status: 500 },
+          requestOrigin
         );
       }
     },
