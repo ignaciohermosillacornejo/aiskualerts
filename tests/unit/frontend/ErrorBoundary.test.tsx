@@ -1,12 +1,11 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-condition */
-import { test, expect, describe, spyOn, beforeEach, afterEach } from "bun:test";
+import { test, expect, describe, spyOn, beforeEach, afterEach, type Mock } from "bun:test";
 import React, { type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import "../../setup";
 import { ErrorBoundary } from "../../../src/frontend/components/ErrorBoundary";
 
 describe("ErrorBoundary Component SSR Rendering", () => {
-  let consoleSpy: ReturnType<typeof spyOn>;
+  let consoleSpy: Mock<typeof console.error>;
 
   beforeEach(() => {
     // Suppress console.error during tests
