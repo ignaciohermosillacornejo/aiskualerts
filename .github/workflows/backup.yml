@@ -1,0 +1,62 @@
+name: Database Backup
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # Daily at 4 AM UTC
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@v2
+
+      - name: Setup SSH
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p ~/.ssh
+          op read "op://Dev/HETZNER_SSH_KEY/private key?ssh-format=openssh" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          HETZNER_SERVER_IP=$(op read "op://Dev/HETZNER_SERVER_IP/credential")
+          echo "HETZNER_SERVER_IP=$HETZNER_SERVER_IP" >> $GITHUB_ENV
+          ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
+
+      - name: Create secrets file
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          cat > /tmp/backup-secrets.env << 'SECRETS_EOF'
+          B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
+          B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
+          B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')
+          BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
+          SECRETS_EOF
+          # Evaluate the op commands and create actual env file
+          B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
+          B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
+          B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')
+          BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
+          cat > /tmp/backup-secrets.env << EOF
+          export B2_KEY_ID='${B2_KEY_ID}'
+          export B2_APPLICATION_KEY='${B2_APPLICATION_KEY}'
+          export B2_BUCKET_NAME='${B2_BUCKET_NAME}'
+          export BACKUP_ENCRYPTION_KEY='${BACKUP_ENCRYPTION_KEY}'
+          EOF
+          chmod 600 /tmp/backup-secrets.env
+
+      - name: Copy files and run backup
+        run: |
+          scp -i ~/.ssh/deploy_key /tmp/backup-secrets.env root@"$HETZNER_SERVER_IP":/tmp/
+          scp -i ~/.ssh/deploy_key scripts/backup-db.sh root@"$HETZNER_SERVER_IP":/tmp/
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "chmod +x /tmp/backup-db.sh && /tmp/backup-db.sh"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f /tmp/backup-secrets.env
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "rm -f /tmp/backup-db.sh /tmp/backup-secrets.env" 2>/dev/null || true
+          rm -f ~/.ssh/deploy_key
