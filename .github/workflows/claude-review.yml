@@ -6,8 +6,10 @@ on:
 
 jobs:
   review:
-    # Skip draft PRs
-    if: github.event.pull_request.draft == false
+    # Skip draft PRs and Dependabot PRs (Dependabot doesn't have access to secrets)
+    if: |
+      github.event.pull_request.draft == false &&
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
