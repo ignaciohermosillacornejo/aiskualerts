@@ -16,6 +16,7 @@
     "eslint": "^9.39.2",
     "eslint-plugin-security": "^3.0.1",
     "happy-dom": "^20.1.0",
+    "husky": "^9.1.7",
     "jsdom": "^27.4.0",
     "typescript-eslint": "^8.51.0"
   },
@@ -23,6 +24,7 @@
     "typescript": "^5"
   },
   "scripts": {
+    "prepare": "husky",
     "dev": "bun --hot src/index.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
