@@ -6,31 +6,68 @@ import {
 } from "@/monitoring/sentry";
 
 /**
- * Extract the operation and table from a SQL query for tracing
+ * Extract the operation and table from a SQL query for tracing.
+ * This is a best-effort parser for metrics/tracing purposes only.
+ * It safely handles edge cases and returns sensible defaults.
  */
 function parseQueryForTracing(query: string): { operation: string; table: string } {
-  const trimmed = query.trim().toUpperCase();
-  const words = trimmed.split(/\s+/);
+  // Handle empty or invalid input
+  if (!query || typeof query !== "string") {
+    return { operation: "QUERY", table: "unknown" };
+  }
+
+  const trimmed = query.trim();
+  if (trimmed.length === 0) {
+    return { operation: "QUERY", table: "unknown" };
+  }
+
+  // Limit query length to prevent DoS with huge queries
+  const limited = trimmed.slice(0, 1000).toUpperCase();
+  const words = limited.split(/\s+/).filter((w) => w.length > 0);
+
+  if (words.length === 0) {
+    return { operation: "QUERY", table: "unknown" };
+  }
+
   const operation = words[0] ?? "QUERY";
+
+  // Sanitize and extract table name
+  const sanitizeTableName = (name: string | undefined): string => {
+    if (!name) return "unknown";
+    // Handle schema.table format - take the table part
+    const parts = name.split(".");
+    const tablePart = parts[parts.length - 1] ?? name;
+    // Only allow alphanumeric and underscores, limit length
+    const sanitized = tablePart.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    return sanitized.slice(0, 64) || "unknown";
+  };
 
   // Try to extract table name based on operation
   let table = "unknown";
-  if (operation === "SELECT") {
-    const fromIndex = words.indexOf("FROM");
-    const tableName = fromIndex !== -1 ? words[fromIndex + 1] : undefined;
-    if (tableName) {
-      table = tableName.toLowerCase().replace(/[^a-z_]/g, "");
+
+  if (operation === "SELECT" || operation === "WITH") {
+    // Handle CTEs: WITH ... SELECT ... FROM table
+    // For simplicity, find the last FROM and use the next word
+    const fromIndex = words.lastIndexOf("FROM");
+    if (fromIndex !== -1 && fromIndex + 1 < words.length) {
+      table = sanitizeTableName(words[fromIndex + 1]);
     }
   } else if (operation === "INSERT") {
     const intoIndex = words.indexOf("INTO");
-    const tableName = intoIndex !== -1 ? words[intoIndex + 1] : undefined;
-    if (tableName) {
-      table = tableName.toLowerCase().replace(/[^a-z_]/g, "");
+    if (intoIndex !== -1 && intoIndex + 1 < words.length) {
+      table = sanitizeTableName(words[intoIndex + 1]);
     }
-  } else if (operation === "UPDATE" || operation === "DELETE") {
-    const tableName = words[1];
-    if (tableName) {
-      table = tableName.toLowerCase().replace(/[^a-z_]/g, "");
+  } else if (operation === "UPDATE") {
+    if (words.length > 1) {
+      table = sanitizeTableName(words[1]);
+    }
+  } else if (operation === "DELETE") {
+    const fromIndex = words.indexOf("FROM");
+    if (fromIndex !== -1 && fromIndex + 1 < words.length) {
+      table = sanitizeTableName(words[fromIndex + 1]);
+    } else if (words.length > 1) {
+      // DELETE table_name WHERE ... (non-standard but handle it)
+      table = sanitizeTableName(words[1]);
     }
   }
 

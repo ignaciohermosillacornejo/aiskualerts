@@ -2,7 +2,6 @@ import Stripe from "stripe";
 import { z } from "zod";
 import {
   traceStripeApi,
-  recordDistribution,
   recordBillingMetrics,
   incrementCounter,
 } from "@/monitoring/sentry";
@@ -56,7 +55,6 @@ export class StripeClient {
   ): Promise<string> {
     // Validate inputs before making API calls
     const validated = CheckoutInputSchema.parse({ tenantId, email });
-    const startTime = Date.now();
 
     return traceStripeApi("checkout.sessions.create", async () => {
       try {
@@ -73,10 +71,6 @@ export class StripeClient {
           throw new Error("Stripe did not return a checkout URL");
         }
 
-        const duration = Date.now() - startTime;
-        recordDistribution("stripe.api.duration", duration, "millisecond", {
-          operation: "checkout.sessions.create",
-        });
         incrementCounter("stripe.api.requests", 1, {
           operation: "checkout.sessions.create",
           status: "success",
@@ -94,8 +88,6 @@ export class StripeClient {
   }
 
   async createPortalSession(customerId: string): Promise<string> {
-    const startTime = Date.now();
-
     return traceStripeApi("billingPortal.sessions.create", async () => {
       try {
         const session = await this.stripe.billingPortal.sessions.create({
@@ -107,10 +99,6 @@ export class StripeClient {
           throw new Error("Stripe did not return a portal URL");
         }
 
-        const duration = Date.now() - startTime;
-        recordDistribution("stripe.api.duration", duration, "millisecond", {
-          operation: "billingPortal.sessions.create",
-        });
         incrementCounter("stripe.api.requests", 1, {
           operation: "billingPortal.sessions.create",
           status: "success",
