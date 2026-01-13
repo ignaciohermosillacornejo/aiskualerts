@@ -1,5 +1,4 @@
 import { test, expect, describe, beforeAll, beforeEach, afterEach, afterAll, mock } from "bun:test";
-import React from "react";
 import { renderToString } from "react-dom/server";
 import "../../setup";
 

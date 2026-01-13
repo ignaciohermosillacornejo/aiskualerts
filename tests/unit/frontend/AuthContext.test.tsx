@@ -2,6 +2,7 @@ import { test, expect, describe, beforeAll, beforeEach, afterEach, afterAll, moc
 import React from "react";
 import { renderToString } from "react-dom/server";
 import "../../setup";
+import type { User } from "../../../src/frontend/types";
 
 // Store original fetch
 const originalFetch = globalThis.fetch;
@@ -19,8 +20,18 @@ function clearModuleCache(modulePath: string): void {
   delete require.cache[resolvedPath];
 }
 
+// Auth context value interface (matches AuthContext.tsx)
+interface AuthContextValue {
+  user: User | null;
+  loading: boolean;
+  error: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+}
+
 // Mock user data
-const mockUser = { id: "1", email: "test@test.com", name: "Test User", role: "admin" as const };
+const mockUser: User = { id: "1", email: "test@test.com", name: "Test User", role: "admin" };
 
 // Noop function for mocking
 function noop(): void {
@@ -118,7 +129,7 @@ describe("AuthContext", () => {
 
       expect(contextValue).not.toBeNull();
       // Type assertion needed because TypeScript's control flow doesn't track callback assignments
-      const ctx = contextValue as NonNullable<typeof contextValue>;
+      const ctx = contextValue as unknown as AuthContextValue;
       expect(ctx.loading).toBe(true); // Initial loading state
       expect(ctx.user).toBeNull();
       expect(ctx.error).toBeNull();
@@ -165,7 +176,7 @@ describe("AuthContext", () => {
       renderToString(element);
 
       expect(capturedContext).not.toBeNull();
-      const ctx = capturedContext as NonNullable<typeof capturedContext>;
+      const ctx = capturedContext as unknown as AuthContextValue;
       expect(ctx.login).toBeFunction();
       expect(ctx.logout).toBeFunction();
       expect(ctx.refreshUser).toBeFunction();
@@ -779,18 +790,18 @@ describe("AuthContext", () => {
 
       const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
 
-      let loading: boolean | null = null;
+      let capturedLoading: boolean | null = null;
 
       const Consumer = () => {
         const ctx = useAuth();
-        loading = ctx.loading;
+        capturedLoading = ctx.loading;
         return null;
       };
 
       renderToString(React.createElement(AuthProvider, null, React.createElement(Consumer)));
 
       // Initial render has loading true (before useEffect runs)
-      expect(loading).toBe(true);
+      expect(capturedLoading as unknown as boolean).toBe(true);
     });
 
     test("provider starts with user null", async () => {
@@ -803,18 +814,18 @@ describe("AuthContext", () => {
 
       const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
 
-      let user: typeof mockUser | null = null;
+      let capturedUser: User | null = null;
 
       const Consumer = () => {
         const ctx = useAuth();
-        user = ctx.user;
+        capturedUser = ctx.user;
         return null;
       };
 
       renderToString(React.createElement(AuthProvider, null, React.createElement(Consumer)));
 
       // Initial render has user null (before useEffect completes)
-      expect(user).toBeNull();
+      expect(capturedUser).toBeNull();
     });
 
     test("provider starts with error null", async () => {
@@ -932,8 +943,8 @@ describe("AuthContext", () => {
     });
 
     test("uses fallback for non-Error", () => {
-      const error = "string error";
-      const message = error instanceof Error ? error.message : "Login failed";
+      const caught: unknown = "string error";
+      const message = caught instanceof Error ? caught.message : "Login failed";
       expect(message).toBe("Login failed");
     });
 
@@ -950,14 +961,14 @@ describe("AuthContext", () => {
     });
 
     test("uses fallback for number", () => {
-      const error = 404;
-      const message = error instanceof Error ? error.message : "Login failed";
+      const caught: unknown = 404;
+      const message = caught instanceof Error ? caught.message : "Login failed";
       expect(message).toBe("Login failed");
     });
 
     test("uses fallback for object without message", () => {
-      const error = { code: "ERR_001" };
-      const message = error instanceof Error ? error.message : "Login failed";
+      const caught: unknown = { code: "ERR_001" };
+      const message = caught instanceof Error ? caught.message : "Login failed";
       expect(message).toBe("Login failed");
     });
   });
@@ -1428,7 +1439,12 @@ describe("AuthContext", () => {
 
       const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
 
-      let initialState: { user: typeof mockUser | null; loading: boolean; error: string | null } | null = null;
+      interface CapturedState {
+        user: User | null;
+        loading: boolean;
+        error: string | null;
+      }
+      let initialState: CapturedState | null = null;
 
       const Consumer = () => {
         const ctx = useAuth();
@@ -1439,7 +1455,7 @@ describe("AuthContext", () => {
       renderToString(React.createElement(AuthProvider, null, React.createElement(Consumer)));
 
       expect(initialState).not.toBeNull();
-      const state = initialState as NonNullable<typeof initialState>;
+      const state = initialState as unknown as CapturedState;
       expect(state.user).toBeNull();
       expect(state.loading).toBe(true);
       expect(state.error).toBeNull();
@@ -1502,7 +1518,7 @@ describe("AuthContext", () => {
       expect(loginFn).not.toBeNull();
 
       // Actually call the login function
-      const login = loginFn as NonNullable<typeof loginFn>;
+      const login = loginFn as unknown as (email: string, password: string) => Promise<void>;
       await login("test@test.com", "password123");
 
       // Verify that fetch was called for login
@@ -1535,7 +1551,7 @@ describe("AuthContext", () => {
       expect(logoutFn).not.toBeNull();
 
       // Actually call the logout function
-      const logout = logoutFn as NonNullable<typeof logoutFn>;
+      const logout = logoutFn as unknown as () => Promise<void>;
       await logout();
 
       expect(fetchCallCount).toBeGreaterThan(0);
@@ -1567,7 +1583,7 @@ describe("AuthContext", () => {
       expect(refreshFn).not.toBeNull();
 
       // Actually call the refreshUser function
-      const refresh = refreshFn as NonNullable<typeof refreshFn>;
+      const refresh = refreshFn as unknown as () => Promise<void>;
       await refresh();
 
       expect(fetchCallCount).toBeGreaterThan(0);
@@ -1609,7 +1625,7 @@ describe("AuthContext", () => {
       expect(loginFn).not.toBeNull();
 
       // Login should throw an error
-      const login = loginFn as NonNullable<typeof loginFn>;
+      const login = loginFn as unknown as (email: string, password: string) => Promise<void>;
       let didThrow = false;
       try {
         await login("test@test.com", "wrongpassword");
@@ -1651,7 +1667,7 @@ describe("AuthContext", () => {
       expect(logoutFn).not.toBeNull();
 
       // Logout should not throw (it catches errors internally)
-      const logout = logoutFn as NonNullable<typeof logoutFn>;
+      const logout = logoutFn as unknown as () => Promise<void>;
       await logout();
 
       // But console.error should have been called
@@ -1684,7 +1700,7 @@ describe("AuthContext", () => {
       renderToString(React.createElement(AuthProvider, null, React.createElement(Consumer)));
 
       expect(loginFn).not.toBeNull();
-      const login = loginFn as NonNullable<typeof loginFn>;
+      const login = loginFn as unknown as (email: string, password: string) => Promise<void>;
       try {
         await login("test@test.com", "wrong");
       } catch {
@@ -1922,7 +1938,7 @@ describe("AuthContext", () => {
       clearModuleCache("../../../src/frontend/api/client");
 
       interface State {
-        user: null;
+        user: User | null;
         loading: boolean;
         error: string | null;
       }
