@@ -18,13 +18,14 @@ const mockTenant: Tenant = {
 };
 
 interface MockDeps {
-  updateSyncStatus: Mock<() => Promise<void>>;
+  updateSyncStatus: Mock<(tenantId: string, status: string) => Promise<void>>;
   upsertBatch: Mock<() => Promise<number>>;
   getAllStocks: Mock<() => AsyncGenerator<StockItem>>;
 }
 
 function createMockDeps(): { deps: TenantSyncDependencies; mocks: MockDeps } {
-  const updateSyncStatus = mock(() => Promise.resolve());
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- args captured by mock
+  const updateSyncStatus = mock((_tenantId: string, _status: string) => Promise.resolve());
   const upsertBatch = mock(() => Promise.resolve(0));
 
   // eslint-disable-next-line require-yield
@@ -170,5 +171,107 @@ describe("syncTenant", () => {
     const after = new Date();
     expect(result.startedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
     expect(result.completedAt.getTime()).toBeLessThanOrEqual(after.getTime());
+  });
+
+  describe("temporary database error handling", () => {
+    test("sets status to pending on ECONNREFUSED error", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* errorGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        throw new Error("ECONNREFUSED: Connection refused");
+        yield createMockStock(1); // Unreachable but needed for type
+      }
+      mocks.getAllStocks.mockImplementation(() => errorGenerator());
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("ECONNREFUSED: Connection refused");
+      // First call: 'syncing', second call: 'pending'
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]?.[1]).toBe("pending");
+    });
+
+    test("sets status to pending on connection error", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* errorGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        throw new Error("Database connection lost");
+        yield createMockStock(1); // Unreachable but needed for type
+      }
+      mocks.getAllStocks.mockImplementation(() => errorGenerator());
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Database connection lost");
+      // First call: 'syncing', second call: 'pending'
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]?.[1]).toBe("pending");
+    });
+
+    test("sets status to pending on timeout error", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* errorGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        throw new Error("Query timeout exceeded");
+        yield createMockStock(1); // Unreachable but needed for type
+      }
+      mocks.getAllStocks.mockImplementation(() => errorGenerator());
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Query timeout exceeded");
+      // First call: 'syncing', second call: 'pending'
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]?.[1]).toBe("pending");
+    });
+
+    test("sets status to failed on other Error", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* errorGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        throw new Error("Invalid data format");
+        yield createMockStock(1); // Unreachable but needed for type
+      }
+      mocks.getAllStocks.mockImplementation(() => errorGenerator());
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Invalid data format");
+      // First call: 'syncing', second call: 'failed'
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]?.[1]).toBe("failed");
+    });
+
+    test("sets status to failed on unknown error type", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* errorGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        throw new Error("string error"); // Non-Error object converted to Error
+        yield createMockStock(1); // Unreachable but needed for type
+      }
+      mocks.getAllStocks.mockImplementation(() => errorGenerator());
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("string error");
+      // First call: 'syncing', second call: 'failed'
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]?.[1]).toBe("failed");
+    });
   });
 });
