@@ -60,6 +60,48 @@ describe("ThresholdRepository", () => {
     });
   });
 
+  describe("getByUserPaginated", () => {
+    test("returns paginated thresholds with metadata", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockThreshold]);
+      mocks.queryOne.mockResolvedValue({ count: "25" });
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.getByUserPaginated("user-456", { limit: 10, offset: 0 });
+
+      expect(result.data).toEqual([mockThreshold]);
+      expect(result.pagination.page).toBe(1);
+      expect(result.pagination.limit).toBe(10);
+      expect(result.pagination.total).toBe(25);
+      expect(result.pagination.totalPages).toBe(3);
+    });
+
+    test("calculates correct page from offset", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockThreshold]);
+      mocks.queryOne.mockResolvedValue({ count: "50" });
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.getByUserPaginated("user-456", { limit: 20, offset: 40 });
+
+      expect(result.pagination.page).toBe(3);
+      expect(result.pagination.totalPages).toBe(3);
+    });
+
+    test("handles zero results", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+      mocks.queryOne.mockResolvedValue({ count: "0" });
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.getByUserPaginated("user-456", { limit: 10, offset: 0 });
+
+      expect(result.data).toEqual([]);
+      expect(result.pagination.total).toBe(0);
+      expect(result.pagination.totalPages).toBe(0);
+    });
+  });
+
   describe("getByVariant", () => {
     test("returns thresholds for variant with office", async () => {
       const { db, mocks } = createMockDb();
