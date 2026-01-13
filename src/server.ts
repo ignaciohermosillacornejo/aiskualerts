@@ -15,7 +15,6 @@ import type { StockSnapshotRepository } from "@/db/repositories/stock-snapshot";
 import type { SessionRepository } from "@/db/repositories/session";
 import {
   createAuthMiddleware,
-  AuthenticationError,
   type AuthMiddleware,
   type AuthContext,
 } from "@/api/middleware/auth";
@@ -227,7 +226,7 @@ export function createServer(
 
   // Create auth middleware if repos are available
   const authMiddleware: AuthMiddleware | null =
-    deps?.sessionRepo && deps?.userRepo
+    deps?.sessionRepo && deps.userRepo
       ? createAuthMiddleware(deps.sessionRepo, deps.userRepo)
       : null;
 
@@ -239,14 +238,6 @@ export function createServer(
     } catch {
       return null;
     }
-  }
-
-  // Helper to require authentication - throws if not authenticated
-  async function requireAuth(req: Request): Promise<AuthContext> {
-    if (!authMiddleware) {
-      throw new AuthenticationError("Authentication not configured");
-    }
-    return authMiddleware.authenticate(req);
   }
 
   return Bun.serve({
@@ -280,8 +271,8 @@ export function createServer(
           if (
             authContext &&
             deps?.stockSnapshotRepo &&
-            deps?.alertRepo &&
-            deps?.thresholdRepo
+            deps.alertRepo &&
+            deps.thresholdRepo
           ) {
             const [totalProducts, activeAlerts, configuredThresholds] =
               await Promise.all([
@@ -345,7 +336,7 @@ export function createServer(
               type:
                 alert.alert_type === "low_stock"
                   ? ("threshold_breach" as const)
-                  : (alert.alert_type as "low_velocity" | "out_of_stock"),
+                  : alert.alert_type,
               productId: String(alert.bsale_variant_id),
               productName: alert.product_name ?? `SKU ${alert.sku ?? "Unknown"}`,
               message:
@@ -414,7 +405,7 @@ export function createServer(
           const authContext = await tryAuthenticate(req);
 
           // If stockSnapshotRepo available and authenticated, use real data
-          if (authContext && deps?.stockSnapshotRepo && deps?.thresholdRepo) {
+          if (authContext && deps?.stockSnapshotRepo && deps.thresholdRepo) {
             const [snapshots, thresholds] = await Promise.all([
               deps.stockSnapshotRepo.getLatestByTenant(authContext.tenantId),
               deps.thresholdRepo.getByUser(authContext.userId),
@@ -661,7 +652,7 @@ export function createServer(
           const authContext = await tryAuthenticate(req);
 
           // If userRepo and tenantRepo available and authenticated, use real data
-          if (authContext && deps?.userRepo && deps?.tenantRepo) {
+          if (authContext && deps?.userRepo && deps.tenantRepo) {
             const [user, tenant] = await Promise.all([
               deps.userRepo.getById(authContext.userId),
               deps.tenantRepo.getById(authContext.tenantId),
@@ -696,7 +687,7 @@ export function createServer(
           const authContext = await tryAuthenticate(req);
 
           // If userRepo available and authenticated, use real data
-          if (authContext && deps?.userRepo && deps?.tenantRepo) {
+          if (authContext && deps?.userRepo && deps.tenantRepo) {
             // Update user settings
             const updateInput: Partial<{
               name: string | null;

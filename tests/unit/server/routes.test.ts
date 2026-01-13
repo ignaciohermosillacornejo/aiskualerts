@@ -590,7 +590,7 @@ describe("Server with repository dependencies", () => {
 
     // Create minimal mocks - routes should use mock data when not authenticated
     const mockSessionRepo = {
-      findByToken: async () => null, // User not authenticated
+      findByToken: () => Promise.resolve(null), // User not authenticated
     } as unknown as import("../../../src/server").ServerDependencies["sessionRepo"];
     const mockUserRepo = {} as unknown as import("../../../src/server").ServerDependencies["userRepo"];
 
