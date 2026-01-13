@@ -43,6 +43,7 @@ describe("runSyncAndAlerts function", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 0, // No delay for tests
+      sentryEnvironment: "test",
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
@@ -100,6 +101,7 @@ describe("runSyncAndAlerts function", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 0,
+      sentryEnvironment: "test",
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
@@ -137,6 +139,7 @@ describe("runSyncAndAlerts function", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 0,
+      sentryEnvironment: "test",
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
@@ -162,6 +165,7 @@ describe("runSyncAndAlerts function", () => {
       syncMinute: 0,
       syncBatchSize: 100,
       syncTenantDelay: 0,
+      sentryEnvironment: "test",
     };
 
     const result = await runSyncAndAlerts(mockDb, config);

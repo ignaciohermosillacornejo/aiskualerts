@@ -19,6 +19,7 @@ describe("Authentication Flow Integration", () => {
     syncMinute: 0,
     syncBatchSize: 100,
     syncTenantDelay: 5000,
+    sentryEnvironment: "test",
   };
 
   beforeAll(async () => {

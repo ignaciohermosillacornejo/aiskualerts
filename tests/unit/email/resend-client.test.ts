@@ -13,6 +13,7 @@ function createMockConfig(overrides: Partial<Config> = {}): Config {
     syncTenantDelay: 5000,
     resendApiKey: "re_test_key",
     notificationFromEmail: "test@aiskualerts.com",
+    sentryEnvironment: "test",
     ...overrides,
   };
 }
