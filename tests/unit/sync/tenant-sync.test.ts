@@ -188,8 +188,9 @@ describe("syncTenant", () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe("ECONNREFUSED: Connection refused");
       // First call: 'syncing', second call: 'pending'
-      const lastCall = mocks.updateSyncStatus.mock.calls[1];
-      expect(lastCall?.[1]).toBe("pending");
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]![1]).toBe("pending");
     });
 
     test("sets status to pending on connection error", async () => {
@@ -207,8 +208,9 @@ describe("syncTenant", () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe("Database connection lost");
       // First call: 'syncing', second call: 'pending'
-      const lastCall = mocks.updateSyncStatus.mock.calls[1];
-      expect(lastCall?.[1]).toBe("pending");
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]![1]).toBe("pending");
     });
 
     test("sets status to pending on timeout error", async () => {
@@ -226,8 +228,9 @@ describe("syncTenant", () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe("Query timeout exceeded");
       // First call: 'syncing', second call: 'pending'
-      const lastCall = mocks.updateSyncStatus.mock.calls[1];
-      expect(lastCall?.[1]).toBe("pending");
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]![1]).toBe("pending");
     });
 
     test("sets status to failed on other Error", async () => {
@@ -245,8 +248,9 @@ describe("syncTenant", () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe("Invalid data format");
       // First call: 'syncing', second call: 'failed'
-      const lastCall = mocks.updateSyncStatus.mock.calls[1];
-      expect(lastCall?.[1]).toBe("failed");
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]![1]).toBe("failed");
     });
 
     test("sets status to failed on unknown error type", async () => {
@@ -264,8 +268,9 @@ describe("syncTenant", () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe("string error");
       // First call: 'syncing', second call: 'failed'
-      const lastCall = mocks.updateSyncStatus.mock.calls[1];
-      expect(lastCall?.[1]).toBe("failed");
+      const calls = mocks.updateSyncStatus.mock.calls;
+      expect(calls.length).toBe(2);
+      expect(calls[1]![1]).toBe("failed");
     });
   });
 });

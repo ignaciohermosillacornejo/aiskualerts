@@ -268,7 +268,7 @@ describe.skipIf(shouldSkip)("BsaleClient E2E Integration Tests", () => {
       // Verify each variant has the correct ID and handles nullable/optional fields
       variants.forEach((variant, index) => {
         // eslint-disable-next-line security/detect-object-injection
-        const expectedId = variantIds[index];
+        const expectedId = variantIds[index]!;
         expect(variant.id).toBe(expectedId);
 
         // These fields can be null in real data

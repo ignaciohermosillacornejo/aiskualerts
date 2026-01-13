@@ -46,28 +46,28 @@ describe("CORS Helpers", () => {
     });
 
     test("uses ALLOWED_ORIGIN env variable when set", () => {
-      const originalOrigin = process.env.ALLOWED_ORIGIN;
-      process.env.ALLOWED_ORIGIN = "https://example.com";
+      const originalOrigin = process.env["ALLOWED_ORIGIN"];
+      process.env["ALLOWED_ORIGIN"] = "https://example.com";
 
       const headers = getCorsHeaders();
       expect(headers["Access-Control-Allow-Origin"]).toBe("https://example.com");
 
       if (originalOrigin !== undefined) {
-        process.env.ALLOWED_ORIGIN = originalOrigin;
+        process.env["ALLOWED_ORIGIN"] = originalOrigin;
       } else {
-        delete process.env.ALLOWED_ORIGIN;
+        delete process.env["ALLOWED_ORIGIN"];
       }
     });
 
     test("uses wildcard when ALLOWED_ORIGIN not set", () => {
-      const originalOrigin = process.env.ALLOWED_ORIGIN;
-      delete process.env.ALLOWED_ORIGIN;
+      const originalOrigin = process.env["ALLOWED_ORIGIN"];
+      delete process.env["ALLOWED_ORIGIN"];
 
       const headers = getCorsHeaders();
       expect(headers["Access-Control-Allow-Origin"]).toBe("*");
 
       if (originalOrigin !== undefined) {
-        process.env.ALLOWED_ORIGIN = originalOrigin;
+        process.env["ALLOWED_ORIGIN"] = originalOrigin;
       }
     });
   });
@@ -870,7 +870,7 @@ describe("createServer with dependencies", () => {
     };
   }
 
-  function createMockDeps(): ServerDependencies {
+  function createMockDeps() {
     const mockSession = createMockSession();
     const mockUser = createMockUser();
     const mockTenant = createMockTenant();
@@ -1005,7 +1005,7 @@ describe("createServer with dependencies", () => {
           ])
         ),
       } as unknown as ServerDependencies["stockSnapshotRepo"],
-    };
+    } as ServerDependencies;
   }
 
   afterEach(async () => {
@@ -1105,7 +1105,7 @@ describe("createServer with dependencies", () => {
 
     test("POST /api/alerts/:id/dismiss returns 404 for other user's alert", async () => {
       const deps = createMockDeps();
-      (deps.alertRepo?.getById as Mock<() => Promise<{ user_id: string }>>).mockResolvedValue({
+      (deps.alertRepo?.getById as Mock).mockResolvedValue({
         id: "alert-other",
         user_id: "other-user",
         bsale_variant_id: 1001,
@@ -1235,7 +1235,7 @@ describe("createServer with dependencies", () => {
 
     test("PUT /api/thresholds/:id returns 404 for other user's threshold", async () => {
       const deps = createMockDeps();
-      (deps.thresholdRepo?.getById as Mock<() => Promise<{ user_id: string }>>).mockResolvedValue({
+      (deps.thresholdRepo?.getById as Mock).mockResolvedValue({
         id: "threshold-other",
         tenant_id: "tenant-123",
         user_id: "other-user",
@@ -1294,7 +1294,7 @@ describe("createServer with dependencies", () => {
 
     test("DELETE /api/thresholds/:id returns 404 for other user's threshold", async () => {
       const deps = createMockDeps();
-      (deps.thresholdRepo?.getById as Mock<() => Promise<{ user_id: string }>>).mockResolvedValue({
+      (deps.thresholdRepo?.getById as Mock).mockResolvedValue({
         id: "threshold-other",
         tenant_id: "tenant-123",
         user_id: "other-user",
