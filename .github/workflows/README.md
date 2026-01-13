@@ -214,10 +214,116 @@ The same 1Password approach extends to production deployments:
 
 ---
 
+---
+
+### 🔒 CodeQL Security Analysis (`codeql.yml`)
+
+**Triggers:**
+- Push to main/master branches
+- Pull requests to main/master branches
+- Scheduled weekly on Monday at 3 AM UTC
+- Manual dispatch
+
+**Jobs:**
+1. **Analyze**
+   - Initializes CodeQL for JavaScript/TypeScript
+   - Runs security-extended and security-and-quality queries
+   - Uploads results to GitHub Security tab
+
+**Duration:** ~3-5 minutes
+
+**Requirements:** None (uses GitHub's built-in CodeQL)
+
+---
+
+### 🚀 Release Automation (`release.yml`)
+
+**Triggers:**
+- Manual dispatch with release type selection (patch/minor/major)
+- Optional dry-run mode for testing
+
+**Jobs:**
+1. **Create Release**
+   - Runs full check suite (lint, typecheck, tests)
+   - Generates changelog from conventional commits
+   - Creates GitHub release with release notes
+   - Tags the release with semantic version
+
+2. **Changelog PR**
+   - Updates CHANGELOG.md with release notes
+   - Creates summary of changes
+
+**Duration:** ~3-5 minutes
+
+**Requirements:**
+- `GITHUB_TOKEN` (automatically provided by GitHub Actions)
+- Conventional commit messages (enforced by commitlint)
+
+**Usage:**
+```bash
+# Dry run (test without releasing)
+bun run release:dry
+
+# Create releases
+bun run release:patch  # 1.0.0 -> 1.0.1
+bun run release:minor  # 1.0.0 -> 1.1.0
+bun run release:major  # 1.0.0 -> 2.0.0
+```
+
+---
+
+## Dependabot Configuration
+
+Located at `.github/dependabot.yml`, Dependabot is configured to:
+
+- **npm dependencies**: Weekly updates on Mondays at 9 AM (America/Santiago)
+- **GitHub Actions**: Weekly updates grouped together
+- **Docker**: Weekly updates for container images
+
+**Features:**
+- Groups minor/patch updates to reduce PR noise
+- Separate groups for production and dev dependencies
+- Ignores major React updates (requires manual review)
+- Conventional commit prefixes (`chore(deps)`, `ci(deps)`)
+
+---
+
+## Commit Message Convention
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) enforced by commitlint.
+
+**Format:**
+```
+<type>(<scope>): <subject>
+
+[optional body]
+
+[optional footer]
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes
+- `refactor`: Code refactoring
+- `perf`: Performance improvements
+- `test`: Adding/updating tests
+- `build`: Build system changes
+- `ci`: CI/CD changes
+- `chore`: Maintenance tasks
+- `revert`: Reverting commits
+
+**Examples:**
+```bash
+git commit -m "feat: add user authentication"
+git commit -m "fix(api): handle null response"
+git commit -m "docs: update README with setup instructions"
+```
+
+---
+
 ## Future Improvements
 
 - [ ] Add performance benchmarking
-- [ ] Add security scanning (Dependabot, CodeQL)
 - [ ] Add deployment workflows with 1Password integration
-- [ ] Add release automation
-- [ ] Add changelog generation

@@ -4,7 +4,10 @@
   "type": "module",
   "private": true,
   "devDependencies": {
+    "@commitlint/cli": "^20.3.1",
+    "@commitlint/config-conventional": "^20.3.1",
     "@eslint/js": "^9.39.2",
+    "@release-it/conventional-changelog": "^10.0.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.1",
     "@types/bun": "latest",
@@ -18,6 +21,7 @@
     "happy-dom": "^20.1.0",
     "husky": "^9.1.7",
     "jsdom": "^27.4.0",
+    "release-it": "^19.2.3",
     "typescript-eslint": "^8.51.0"
   },
   "peerDependencies": {
@@ -45,7 +49,12 @@
     "db:clean": "docker compose -f docker-compose.test.yml down -v",
     "db:migrate": "bun src/db/migrate.ts",
     "check": "bun run lint && bun run typecheck && bun run test",
-    "check:frontend": "bun run typecheck && bun run verify:frontend"
+    "check:frontend": "bun run typecheck && bun run verify:frontend",
+    "release": "release-it",
+    "release:dry": "release-it --dry-run",
+    "release:patch": "release-it patch",
+    "release:minor": "release-it minor",
+    "release:major": "release-it major"
   },
   "dependencies": {
     "@sentry/bun": "^10.33.0",
