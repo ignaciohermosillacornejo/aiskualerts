@@ -15,6 +15,8 @@ import {
   setupProcessErrorHandlers,
   flushSentry,
 } from "@/monitoring/sentry";
+import { StripeClient } from "@/billing/stripe";
+import { createAuthMiddleware } from "@/api/middleware/auth";
 
 function main(): void {
   const config = loadConfig();
@@ -41,15 +43,24 @@ function main(): void {
     minute: config.syncMinute,
   });
 
-  // Initialize session cleanup scheduler (runs every hour)
+  // Initialize repositories (shared across features)
   const sessionRepo = new SessionRepository(db);
+  const tenantRepo = new TenantRepository(db);
+  const userRepo = new UserRepository(db);
+
+  // Initialize session cleanup scheduler (runs every hour)
   const sessionCleanupScheduler = createSessionCleanupScheduler(sessionRepo, {
     intervalMs: 60 * 60 * 1000, // 1 hour
     runOnStart: true,
   });
 
-  // Initialize OAuth dependencies (if configured)
+  // Create auth middleware for protected routes
+  const authMiddleware = createAuthMiddleware(sessionRepo, userRepo);
+
+  // Initialize server dependencies
   const serverDeps: ServerDependencies = {};
+
+  // OAuth dependencies (if configured)
   if (
     config.bsaleAppId &&
     config.bsaleIntegratorToken &&
@@ -62,9 +73,6 @@ function main(): void {
       ...(config.bsaleOAuthBaseUrl && { oauthBaseUrl: config.bsaleOAuthBaseUrl }),
     };
     const oauthClient = new BsaleOAuthClient(oauthConfig);
-
-    const tenantRepo = new TenantRepository(db);
-    const userRepo = new UserRepository(db);
     const stateStore = new OAuthStateStore(10); // 10 minute TTL
 
     serverDeps.oauthDeps = {
@@ -79,6 +87,38 @@ function main(): void {
   } else {
     console.info("OAuth endpoints disabled (missing configuration)");
   }
+
+  // Billing dependencies (if Stripe is configured)
+  const stripeSecretKey = process.env["STRIPE_SECRET_KEY"];
+  const stripePriceId = process.env["STRIPE_PRICE_ID"];
+  if (stripeSecretKey && stripePriceId) {
+    const stripeClient = new StripeClient({
+      secretKey: stripeSecretKey,
+      priceId: stripePriceId,
+      webhookSecret: process.env["STRIPE_WEBHOOK_SECRET"],
+      appUrl: process.env["APP_URL"] ?? `http://localhost:${String(config.port)}`,
+    });
+
+    serverDeps.billingDeps = {
+      stripeClient,
+      authMiddleware,
+      tenantRepo,
+      userRepo,
+    };
+
+    console.info("Billing endpoints enabled");
+  } else {
+    console.info("Billing endpoints disabled (missing Stripe configuration)");
+  }
+
+  // Sync dependencies (always enabled when auth is available)
+  serverDeps.syncDeps = {
+    authMiddleware,
+    db,
+    config,
+    tenantRepo,
+  };
+  console.info("Sync endpoints enabled");
 
   // Start the HTTP server
   const server = createServer(config, serverDeps);
