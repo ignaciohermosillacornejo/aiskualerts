@@ -242,12 +242,6 @@ const mockProducts = [
   { id: "p5", bsaleId: 1005, sku: "SKU005", name: "Producto E", currentStock: 200, threshold: null, lastSyncAt: new Date().toISOString() },
 ];
 
-const mockThresholds = [
-  { id: "t1", productId: "p1", productName: "Producto A - SKU001", minQuantity: 10, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "t2", productId: "p2", productName: "Producto B - SKU002", minQuantity: 20, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "t3", productId: "p3", productName: "Producto C - SKU003", minQuantity: 5, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-];
-
 const mockSettings = {
   companyName: "Mi Empresa SpA",
   email: "admin@miempresa.cl",
@@ -270,6 +264,13 @@ export function createServer(
     ? createBillingRoutes(deps.billingDeps)
     : null;
   const syncRoutes = deps?.syncDeps ? createSyncRoutes(deps.syncDeps) : null;
+
+  // Per-instance mock data to avoid test isolation issues
+  const mockThresholds = [
+    { id: "t1", productId: "p1", productName: "Producto A - SKU001", minQuantity: 10, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: "t2", productId: "p2", productName: "Producto B - SKU002", minQuantity: 20, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: "t3", productId: "p3", productName: "Producto C - SKU003", minQuantity: 5, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  ];
 
   // Create auth middleware if repos are available
   const authMiddleware: AuthMiddleware | null =
