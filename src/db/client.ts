@@ -1,4 +1,41 @@
 import { SQL } from "bun";
+import {
+  traceDbQuery,
+  traceDbTransaction,
+  recordDistribution,
+} from "@/monitoring/sentry";
+
+/**
+ * Extract the operation and table from a SQL query for tracing
+ */
+function parseQueryForTracing(query: string): { operation: string; table: string } {
+  const trimmed = query.trim().toUpperCase();
+  const words = trimmed.split(/\s+/);
+  const operation = words[0] ?? "QUERY";
+
+  // Try to extract table name based on operation
+  let table = "unknown";
+  if (operation === "SELECT") {
+    const fromIndex = words.indexOf("FROM");
+    const tableName = fromIndex !== -1 ? words[fromIndex + 1] : undefined;
+    if (tableName) {
+      table = tableName.toLowerCase().replace(/[^a-z_]/g, "");
+    }
+  } else if (operation === "INSERT") {
+    const intoIndex = words.indexOf("INTO");
+    const tableName = intoIndex !== -1 ? words[intoIndex + 1] : undefined;
+    if (tableName) {
+      table = tableName.toLowerCase().replace(/[^a-z_]/g, "");
+    }
+  } else if (operation === "UPDATE" || operation === "DELETE") {
+    const tableName = words[1];
+    if (tableName) {
+      table = tableName.toLowerCase().replace(/[^a-z_]/g, "");
+    }
+  }
+
+  return { operation, table };
+}
 
 export class DatabaseClient {
   private sql: SQL;
@@ -11,8 +48,21 @@ export class DatabaseClient {
     query: string,
     params: unknown[] = []
   ): Promise<T[]> {
-    const result: unknown = await this.sql.unsafe(query, params);
-    return result as T[];
+    const { operation, table } = parseQueryForTracing(query);
+    const startTime = Date.now();
+
+    try {
+      return await traceDbQuery(operation, table, async () => {
+        const result: unknown = await this.sql.unsafe(query, params);
+        return result as T[];
+      });
+    } finally {
+      const duration = Date.now() - startTime;
+      recordDistribution("db.query.duration", duration, "millisecond", {
+        operation,
+        table,
+      });
+    }
   }
 
   async queryOne<T = unknown>(
@@ -24,17 +74,39 @@ export class DatabaseClient {
   }
 
   async execute(query: string, params: unknown[] = []): Promise<void> {
-    await this.sql.unsafe(query, params);
+    const { operation, table } = parseQueryForTracing(query);
+    const startTime = Date.now();
+
+    try {
+      await traceDbQuery(operation, table, async () => {
+        await this.sql.unsafe(query, params);
+      });
+    } finally {
+      const duration = Date.now() - startTime;
+      recordDistribution("db.query.duration", duration, "millisecond", {
+        operation,
+        table,
+      });
+    }
   }
 
   async transaction<T>(
     callback: (client: DatabaseClient) => Promise<T>
   ): Promise<T> {
-    return await this.sql.begin(async (tx) => {
-      const txClient = new DatabaseClient("");
-      txClient.sql = tx;
-      return callback(txClient);
-    });
+    const startTime = Date.now();
+
+    try {
+      return await traceDbTransaction("db_transaction", async () => {
+        return await this.sql.begin(async (tx) => {
+          const txClient = new DatabaseClient("");
+          txClient.sql = tx;
+          return callback(txClient);
+        });
+      });
+    } finally {
+      const duration = Date.now() - startTime;
+      recordDistribution("db.transaction.duration", duration, "millisecond");
+    }
   }
 
   async close(): Promise<void> {
