@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach, afterEach, mock } from "bun:test";
+import { test, expect, describe, beforeAll, beforeEach, afterEach, afterAll, mock } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import "../../setup";
@@ -9,6 +9,37 @@ const originalFetch = globalThis.fetch;
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const noop = (): void => {};
 const noopAsync = (): Promise<void> => Promise.resolve();
+
+// Helper to clear module cache safely
+function clearModuleCache(modulePath: string): void {
+  try {
+    const resolvedPath = require.resolve(modulePath);
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+    delete require.cache[resolvedPath];
+  } catch {
+    // Module not in cache, ignore
+  }
+}
+
+// Clean up module cache before all tests to ensure mocks work correctly
+beforeAll(() => {
+  clearModuleCache("../../../src/frontend/contexts/AuthContext");
+  clearModuleCache("../../../src/frontend/api/client");
+  clearModuleCache("../../../src/frontend/components/Header");
+  clearModuleCache("../../../src/frontend/components/ProtectedRoute");
+  clearModuleCache("../../../src/frontend/pages/Login");
+  clearModuleCache("wouter");
+});
+
+// Clean up module cache after all tests so other test files can use the real modules
+afterAll(() => {
+  clearModuleCache("../../../src/frontend/contexts/AuthContext");
+  clearModuleCache("../../../src/frontend/api/client");
+  clearModuleCache("../../../src/frontend/components/Header");
+  clearModuleCache("../../../src/frontend/components/ProtectedRoute");
+  clearModuleCache("../../../src/frontend/pages/Login");
+  clearModuleCache("wouter");
+});
 
 // Helper to create a fetch mock compatible with globalThis.fetch type
 function createFetchMock(handler: () => Promise<Response>) {
@@ -295,28 +326,5 @@ describe("Login Component SSR", () => {
   });
 });
 
-describe("AuthContext SSR", () => {
-  beforeEach(() => {
-    sessionStorage.clear();
-  });
-
-  test("AuthContext module exports exist", async () => {
-    const authModule = await import("../../../src/frontend/contexts/AuthContext");
-    expect(authModule.AuthProvider).toBeFunction();
-    expect(authModule.useAuth).toBeFunction();
-  });
-
-  test("useAuth throws when used outside provider", async () => {
-    // Mock the module to test the throw behavior
-    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
-      useAuth: () => {
-        throw new Error("useAuth must be used within AuthProvider");
-      },
-      AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    }));
-
-    const authModule = await import("../../../src/frontend/contexts/AuthContext");
-
-    expect(() => authModule.useAuth()).toThrow("useAuth must be used within AuthProvider");
-  });
-});
+// Note: AuthContext SSR tests (module exports, useAuth throwing) are covered
+// in AuthContext.test.tsx to avoid mock.module conflicts with this file's mocks

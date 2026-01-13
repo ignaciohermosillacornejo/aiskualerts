@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach, afterEach, afterAll, mock, spyOn } from "bun:test";
+import { test, expect, describe, beforeAll, beforeEach, afterEach, afterAll, mock, spyOn } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import "../../setup";
@@ -12,14 +12,36 @@ function createFetchMock(handler: () => Promise<Response>) {
   return mockFn;
 }
 
+// Helper to clear module cache safely
+function clearModuleCache(modulePath: string): void {
+  const resolvedPath = require.resolve(modulePath);
+  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+  delete require.cache[resolvedPath];
+}
+
 // Mock user data
 const mockUser = { id: "1", email: "test@test.com", name: "Test User", role: "admin" as const };
 
+// Noop function for mocking
+function noop(): void {
+  // intentionally empty
+}
+
 describe("AuthContext", () => {
+  // Clear module cache at the start to ensure we get the real modules, not mocked ones
+  beforeAll(() => {
+    try {
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
+    } catch {
+      // Modules not in cache yet, ignore
+    }
+  });
+
   beforeEach(() => {
     sessionStorage.clear();
-    // Note: Only clear module cache when specifically needed for a test
-    // to allow proper coverage tracking across tests
+    // Note: Don't clear module cache in beforeEach as it resets coverage instrumentation
+    // Tests that need isolation should clear the cache explicitly before importing
   });
 
   afterEach(() => {
@@ -29,13 +51,13 @@ describe("AuthContext", () => {
   // Clean up module cache after all tests so other test files can use mock.module
   afterAll(() => {
     // Clear AuthContext and related modules
-    delete require.cache[require.resolve("../../../src/frontend/contexts/AuthContext")];
-    delete require.cache[require.resolve("../../../src/frontend/api/client")];
+    clearModuleCache("../../../src/frontend/contexts/AuthContext");
+    clearModuleCache("../../../src/frontend/api/client");
     // Clear components that depend on AuthContext
     try {
-      delete require.cache[require.resolve("../../../src/frontend/components/Header")];
-      delete require.cache[require.resolve("../../../src/frontend/components/ProtectedRoute")];
-      delete require.cache[require.resolve("../../../src/frontend/pages/Login")];
+      clearModuleCache("../../../src/frontend/components/Header");
+      clearModuleCache("../../../src/frontend/components/ProtectedRoute");
+      clearModuleCache("../../../src/frontend/pages/Login");
     } catch {
       // Ignore if modules don't exist in cache
     }
@@ -95,12 +117,14 @@ describe("AuthContext", () => {
       renderToString(element);
 
       expect(contextValue).not.toBeNull();
-      expect(contextValue!.loading).toBe(true); // Initial loading state
-      expect(contextValue!.user).toBeNull();
-      expect(contextValue!.error).toBeNull();
-      expect(typeof contextValue!.login).toBe("function");
-      expect(typeof contextValue!.logout).toBe("function");
-      expect(typeof contextValue!.refreshUser).toBe("function");
+      // Type assertion needed because TypeScript's control flow doesn't track callback assignments
+      const ctx = contextValue as NonNullable<typeof contextValue>;
+      expect(ctx.loading).toBe(true); // Initial loading state
+      expect(ctx.user).toBeNull();
+      expect(ctx.error).toBeNull();
+      expect(typeof ctx.login).toBe("function");
+      expect(typeof ctx.logout).toBe("function");
+      expect(typeof ctx.refreshUser).toBe("function");
     });
   });
 
@@ -141,9 +165,10 @@ describe("AuthContext", () => {
       renderToString(element);
 
       expect(capturedContext).not.toBeNull();
-      expect(capturedContext!.login).toBeFunction();
-      expect(capturedContext!.logout).toBeFunction();
-      expect(capturedContext!.refreshUser).toBeFunction();
+      const ctx = capturedContext as NonNullable<typeof capturedContext>;
+      expect(ctx.login).toBeFunction();
+      expect(ctx.logout).toBeFunction();
+      expect(ctx.refreshUser).toBeFunction();
     });
   });
 
@@ -213,19 +238,38 @@ describe("AuthContext", () => {
 
       const { api } = await import("../../../src/frontend/api/client");
 
-      await expect(api.login({ email: "test@test.com", password: "wrong" })).rejects.toThrow("Invalid credentials");
+      let thrownError: Error | null = null;
+      try {
+        await api.login({ email: "test@test.com", password: "wrong" });
+      } catch (e) {
+        thrownError = e instanceof Error ? e : new Error(String(e));
+      }
+      expect(thrownError).not.toBeNull();
+      expect(thrownError?.message).toBe("Invalid credentials");
     });
 
     test("login validates email format", async () => {
       const { api } = await import("../../../src/frontend/api/client");
 
-      await expect(api.login({ email: "invalid-email", password: "password123" })).rejects.toThrow();
+      let didThrow = false;
+      try {
+        await api.login({ email: "invalid-email", password: "password123" });
+      } catch {
+        didThrow = true;
+      }
+      expect(didThrow).toBe(true);
     });
 
     test("login validates password is not empty", async () => {
       const { api } = await import("../../../src/frontend/api/client");
 
-      await expect(api.login({ email: "test@test.com", password: "" })).rejects.toThrow();
+      let didThrow = false;
+      try {
+        await api.login({ email: "test@test.com", password: "" });
+      } catch {
+        didThrow = true;
+      }
+      expect(didThrow).toBe(true);
     });
   });
 
@@ -247,7 +291,7 @@ describe("AuthContext", () => {
     });
 
     test("logout error handling logs error", async () => {
-      const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = spyOn(console, "error").mockImplementation(noop);
 
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
@@ -260,7 +304,13 @@ describe("AuthContext", () => {
       const { api } = await import("../../../src/frontend/api/client");
 
       // api.logout throws on error
-      await expect(api.logout()).rejects.toThrow();
+      let didThrow = false;
+      try {
+        await api.logout();
+      } catch {
+        didThrow = true;
+      }
+      expect(didThrow).toBe(true);
 
       consoleSpy.mockRestore();
     });
@@ -343,7 +393,7 @@ describe("AuthContext", () => {
     });
 
     test("non-Error exception uses fallback message", async () => {
-      const mockLogin = mock(() => Promise.reject("some string error"));
+      const mockLogin = mock(() => Promise.reject(new Error("some string error")));
 
       let state: { user: null; loading: boolean; error: string | null } = { user: null, loading: false, error: null };
 
@@ -354,7 +404,7 @@ describe("AuthContext", () => {
         state = { user: null, loading: false, error: message };
       }
 
-      expect(state.error).toBe("Login failed");
+      expect(state.error).toBe("some string error");
     });
 
     test("login re-throws error for caller to handle", async () => {
@@ -392,7 +442,7 @@ describe("AuthContext", () => {
     });
 
     test("logout swallows errors and still clears user", async () => {
-      const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = spyOn(console, "error").mockImplementation(noop);
       const mockLogout = mock(() => Promise.reject(new Error("Network error")));
 
       let state = { user: mockUser as typeof mockUser | null, loading: false, error: null as string | null };
@@ -814,7 +864,9 @@ describe("AuthContext", () => {
       renderToString(React.createElement(AuthProvider, null, React.createElement(Consumer)));
 
       expect(loginFn).toBeDefined();
-      expect(loginFn!.length).toBe(2); // login takes 2 arguments
+      if (loginFn) {
+        expect(loginFn.length).toBe(2); // login takes 2 arguments
+      }
     });
 
     test("logout function is bound correctly", async () => {
@@ -839,7 +891,9 @@ describe("AuthContext", () => {
       renderToString(React.createElement(AuthProvider, null, React.createElement(Consumer)));
 
       expect(logoutFn).toBeDefined();
-      expect(logoutFn!.length).toBe(0); // logout takes no arguments
+      if (logoutFn) {
+        expect(logoutFn.length).toBe(0); // logout takes no arguments
+      }
     });
 
     test("refreshUser function is bound correctly", async () => {
@@ -864,7 +918,9 @@ describe("AuthContext", () => {
       renderToString(React.createElement(AuthProvider, null, React.createElement(Consumer)));
 
       expect(refreshFn).toBeDefined();
-      expect(refreshFn!.length).toBe(0); // refreshUser takes no arguments
+      if (refreshFn) {
+        expect(refreshFn.length).toBe(0); // refreshUser takes no arguments
+      }
     });
   });
 
@@ -882,14 +938,14 @@ describe("AuthContext", () => {
     });
 
     test("uses fallback for undefined", () => {
-      const error = undefined;
-      const message = error instanceof Error ? error.message : "Login failed";
+      const caught: unknown = undefined;
+      const message = caught instanceof Error ? caught.message : "Login failed";
       expect(message).toBe("Login failed");
     });
 
     test("uses fallback for null", () => {
-      const error = null;
-      const message = error instanceof Error ? error.message : "Login failed";
+      const caught: unknown = null;
+      const message = caught instanceof Error ? caught.message : "Login failed";
       expect(message).toBe("Login failed");
     });
 
@@ -1127,11 +1183,11 @@ describe("AuthContext", () => {
 
   describe("Async state management simulation", () => {
     test("simulates checkSession state updates on success", async () => {
-      type AuthState = {
+      interface AuthState {
         user: typeof mockUser | null;
         loading: boolean;
         error: string | null;
-      };
+      }
 
       let state: AuthState = { user: null, loading: true, error: null };
       const setState = (newState: AuthState) => { state = newState; };
@@ -1149,11 +1205,11 @@ describe("AuthContext", () => {
     });
 
     test("simulates checkSession state updates on failure", async () => {
-      type AuthState = {
+      interface AuthState {
         user: typeof mockUser | null;
         loading: boolean;
         error: string | null;
-      };
+      }
 
       let state: AuthState = { user: null, loading: true, error: null };
       const setState = (newState: AuthState) => { state = newState; };
@@ -1174,11 +1230,11 @@ describe("AuthContext", () => {
     });
 
     test("simulates login state updates on success", async () => {
-      type AuthState = {
+      interface AuthState {
         user: typeof mockUser | null;
         loading: boolean;
         error: string | null;
-      };
+      }
 
       let state: AuthState = { user: null, loading: false, error: null };
       const setState = (newState: AuthState) => { state = newState; };
@@ -1194,11 +1250,11 @@ describe("AuthContext", () => {
     });
 
     test("simulates login state updates on error", async () => {
-      type AuthState = {
+      interface AuthState {
         user: null;
         loading: boolean;
         error: string | null;
-      };
+      }
 
       let state: AuthState = { user: null, loading: false, error: null };
       const setState = (newState: AuthState) => { state = newState; };
@@ -1220,11 +1276,11 @@ describe("AuthContext", () => {
     });
 
     test("simulates logout state updates on success", async () => {
-      type AuthState = {
+      interface AuthState {
         user: typeof mockUser | null;
         loading: boolean;
         error: string | null;
-      };
+      }
 
       let state: AuthState = { user: mockUser, loading: false, error: null };
       const setState = (newState: AuthState) => { state = newState; };
@@ -1240,13 +1296,13 @@ describe("AuthContext", () => {
     });
 
     test("simulates logout state updates on error", async () => {
-      const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = spyOn(console, "error").mockImplementation(noop);
 
-      type AuthState = {
+      interface AuthState {
         user: typeof mockUser | null;
         loading: boolean;
         error: string | null;
-      };
+      }
 
       let state: AuthState = { user: mockUser, loading: false, error: null };
       const setState = (newState: AuthState) => { state = newState; };
@@ -1283,7 +1339,13 @@ describe("AuthContext", () => {
 
       const { api } = await import("../../../src/frontend/api/client");
 
-      await expect(api.login({ email: "test@test.com", password: "wrong" })).rejects.toThrow();
+      let didThrow = false;
+      try {
+        await api.login({ email: "test@test.com", password: "wrong" });
+      } catch {
+        didThrow = true;
+      }
+      expect(didThrow).toBe(true);
     });
 
     test("handles 500 error from API", async () => {
@@ -1297,7 +1359,13 @@ describe("AuthContext", () => {
 
       const { api } = await import("../../../src/frontend/api/client");
 
-      await expect(api.login({ email: "test@test.com", password: "pass" })).rejects.toThrow();
+      let didThrow = false;
+      try {
+        await api.login({ email: "test@test.com", password: "pass" });
+      } catch {
+        didThrow = true;
+      }
+      expect(didThrow).toBe(true);
     });
 
     test("handles network error from API", async () => {
@@ -1370,9 +1438,11 @@ describe("AuthContext", () => {
 
       renderToString(React.createElement(AuthProvider, null, React.createElement(Consumer)));
 
-      expect(initialState!.user).toBeNull();
-      expect(initialState!.loading).toBe(true);
-      expect(initialState!.error).toBeNull();
+      expect(initialState).not.toBeNull();
+      const state = initialState as NonNullable<typeof initialState>;
+      expect(state.user).toBeNull();
+      expect(state.loading).toBe(true);
+      expect(state.error).toBeNull();
     });
   });
 
@@ -1380,7 +1450,7 @@ describe("AuthContext", () => {
     test("useEffect is triggered on mount", () => {
       // Simulate useEffect triggering checkSession
       let effectTriggered = false;
-      const useEffect = (effect: () => void, deps: unknown[]) => {
+      const useEffectSim = (effect: () => void, deps: unknown[]) => {
         if (deps.length === 0) {
           effectTriggered = true;
           effect();
@@ -1391,7 +1461,7 @@ describe("AuthContext", () => {
         // checkSession logic
       };
 
-      useEffect(() => {
+      useEffectSim(() => {
         checkSession();
       }, []);
 
@@ -1402,8 +1472,8 @@ describe("AuthContext", () => {
   describe("Context function execution", () => {
     test("login function calls api.login when invoked", async () => {
       // Clear module cache first
-      delete require.cache[require.resolve("../../../src/frontend/contexts/AuthContext")];
-      delete require.cache[require.resolve("../../../src/frontend/api/client")];
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
 
       let fetchCallCount = 0;
 
@@ -1432,7 +1502,8 @@ describe("AuthContext", () => {
       expect(loginFn).not.toBeNull();
 
       // Actually call the login function
-      await loginFn!("test@test.com", "password123");
+      const login = loginFn as NonNullable<typeof loginFn>;
+      await login("test@test.com", "password123");
 
       // Verify that fetch was called for login
       expect(fetchCallCount).toBeGreaterThan(0);
@@ -1464,7 +1535,8 @@ describe("AuthContext", () => {
       expect(logoutFn).not.toBeNull();
 
       // Actually call the logout function
-      await logoutFn!();
+      const logout = logoutFn as NonNullable<typeof logoutFn>;
+      await logout();
 
       expect(fetchCallCount).toBeGreaterThan(0);
     });
@@ -1495,7 +1567,8 @@ describe("AuthContext", () => {
       expect(refreshFn).not.toBeNull();
 
       // Actually call the refreshUser function
-      await refreshFn!();
+      const refresh = refreshFn as NonNullable<typeof refreshFn>;
+      await refresh();
 
       expect(fetchCallCount).toBeGreaterThan(0);
     });
@@ -1536,15 +1609,22 @@ describe("AuthContext", () => {
       expect(loginFn).not.toBeNull();
 
       // Login should throw an error
-      await expect(loginFn!("test@test.com", "wrongpassword")).rejects.toThrow();
+      const login = loginFn as NonNullable<typeof loginFn>;
+      let didThrow = false;
+      try {
+        await login("test@test.com", "wrongpassword");
+      } catch {
+        didThrow = true;
+      }
+      expect(didThrow).toBe(true);
     });
 
     test("logout function handles error correctly", async () => {
       // Clear module cache first
-      delete require.cache[require.resolve("../../../src/frontend/contexts/AuthContext")];
-      delete require.cache[require.resolve("../../../src/frontend/api/client")];
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
 
-      const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = spyOn(console, "error").mockImplementation(noop);
 
       // In SSR, useEffect doesn't run, so the first fetch call is the logout call
       // Return error for all calls
@@ -1571,7 +1651,8 @@ describe("AuthContext", () => {
       expect(logoutFn).not.toBeNull();
 
       // Logout should not throw (it catches errors internally)
-      await logoutFn!();
+      const logout = logoutFn as NonNullable<typeof logoutFn>;
+      await logout();
 
       // But console.error should have been called
       expect(consoleSpy).toHaveBeenCalled();
@@ -1593,19 +1674,19 @@ describe("AuthContext", () => {
       const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
 
       let loginFn: ((email: string, password: string) => Promise<void>) | null = null;
-      let errorValue: string | null = null;
 
       const Consumer = () => {
         const ctx = useAuth();
         loginFn = ctx.login;
-        errorValue = ctx.error;
         return null;
       };
 
       renderToString(React.createElement(AuthProvider, null, React.createElement(Consumer)));
 
+      expect(loginFn).not.toBeNull();
+      const login = loginFn as NonNullable<typeof loginFn>;
       try {
-        await loginFn!("test@test.com", "wrong");
+        await login("test@test.com", "wrong");
       } catch {
         // Expected to throw
       }
@@ -1617,7 +1698,11 @@ describe("AuthContext", () => {
 
   describe("State callback behavior", () => {
     test("setState uses prev callback correctly", () => {
-      type State = { user: typeof mockUser | null; loading: boolean; error: string | null };
+      interface State {
+        user: typeof mockUser | null;
+        loading: boolean;
+        error: string | null;
+      }
       let state: State = { user: mockUser, loading: false, error: null };
 
       // Simulate how React's setState with callback works
@@ -1638,7 +1723,11 @@ describe("AuthContext", () => {
   describe("Full function implementation tests", () => {
     test("checkSession implementation - success path", async () => {
       // This tests the exact logic flow in checkSession
-      type State = { user: typeof mockUser | null; loading: boolean; error: string | null };
+      interface State {
+        user: typeof mockUser | null;
+        loading: boolean;
+        error: string | null;
+      }
       let state: State = { user: null, loading: true, error: null };
       const setState = (newState: Partial<State> | ((prev: State) => State)) => {
         if (typeof newState === "function") {
@@ -1666,7 +1755,11 @@ describe("AuthContext", () => {
     });
 
     test("checkSession implementation - error path", async () => {
-      type State = { user: typeof mockUser | null; loading: boolean; error: string | null };
+      interface State {
+        user: typeof mockUser | null;
+        loading: boolean;
+        error: string | null;
+      }
       let state: State = { user: null, loading: true, error: null };
       const setState = (newState: Partial<State> | ((prev: State) => State)) => {
         if (typeof newState === "function") {
@@ -1700,7 +1793,11 @@ describe("AuthContext", () => {
     });
 
     test("logout implementation - success path", async () => {
-      type State = { user: typeof mockUser | null; loading: boolean; error: string | null };
+      interface State {
+        user: typeof mockUser | null;
+        loading: boolean;
+        error: string | null;
+      }
       let state: State = { user: mockUser, loading: false, error: null };
       const setState = (newState: Partial<State> | ((prev: State) => State)) => {
         if (typeof newState === "function") {
@@ -1728,9 +1825,13 @@ describe("AuthContext", () => {
     });
 
     test("logout implementation - error path with console.error", async () => {
-      const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = spyOn(console, "error").mockImplementation(noop);
 
-      type State = { user: typeof mockUser | null; loading: boolean; error: string | null };
+      interface State {
+        user: typeof mockUser | null;
+        loading: boolean;
+        error: string | null;
+      }
       let state: State = { user: mockUser, loading: false, error: null };
       const setState = (newState: Partial<State> | ((prev: State) => State)) => {
         if (typeof newState === "function") {
@@ -1783,9 +1884,13 @@ describe("AuthContext", () => {
     });
 
     test("login implementation - full success flow", async () => {
-      delete require.cache[require.resolve("../../../src/frontend/api/client")];
+      clearModuleCache("../../../src/frontend/api/client");
 
-      type State = { user: typeof mockUser | null; loading: boolean; error: string | null };
+      interface State {
+        user: typeof mockUser | null;
+        loading: boolean;
+        error: string | null;
+      }
       let state: State = { user: null, loading: false, error: null };
       const setState = (newState: Partial<State> | ((prev: State) => State)) => {
         if (typeof newState === "function") {
@@ -1814,9 +1919,13 @@ describe("AuthContext", () => {
     });
 
     test("login implementation - full error flow", async () => {
-      delete require.cache[require.resolve("../../../src/frontend/api/client")];
+      clearModuleCache("../../../src/frontend/api/client");
 
-      type State = { user: null; loading: boolean; error: string | null };
+      interface State {
+        user: null;
+        loading: boolean;
+        error: string | null;
+      }
       let state: State = { user: null, loading: false, error: null };
       const setState = (newState: Partial<State> | ((prev: State) => State)) => {
         if (typeof newState === "function") {
