@@ -24,6 +24,9 @@ BACKUP_DIR="/tmp/db-backups"
 echo "Starting encrypted backup: ${FILENAME}"
 mkdir -p "${BACKUP_DIR}"
 
+# Clean up any existing backup file from failed runs
+rm -f "${BACKUP_DIR}/${FILENAME}"
+
 # pg_dump → gzip → GPG encrypt
 docker exec "${POSTGRES_CONTAINER}" pg_dump \
   -U "${POSTGRES_USER}" \
