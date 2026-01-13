@@ -565,20 +565,13 @@ describe("Server with repository dependencies", () => {
     config.port = 0;
 
     // Create minimal mocks that satisfy the types
-    const mockAlertRepo = {} as unknown as import("../../../src/server").ServerDependencies["alertRepo"];
-    const mockThresholdRepo = {} as unknown as import("../../../src/server").ServerDependencies["thresholdRepo"];
-    const mockUserRepo = {} as unknown as import("../../../src/server").ServerDependencies["userRepo"];
-    const mockTenantRepo = {} as unknown as import("../../../src/server").ServerDependencies["tenantRepo"];
-    const mockStockSnapshotRepo = {} as unknown as import("../../../src/server").ServerDependencies["stockSnapshotRepo"];
-    const mockSessionRepo = {} as unknown as import("../../../src/server").ServerDependencies["sessionRepo"];
-
     const server = createServer(config, {
-      alertRepo: mockAlertRepo,
-      thresholdRepo: mockThresholdRepo,
-      userRepo: mockUserRepo,
-      tenantRepo: mockTenantRepo,
-      stockSnapshotRepo: mockStockSnapshotRepo,
-      sessionRepo: mockSessionRepo,
+      alertRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["alertRepo"]>,
+      thresholdRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["thresholdRepo"]>,
+      userRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["userRepo"]>,
+      tenantRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["tenantRepo"]>,
+      stockSnapshotRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["stockSnapshotRepo"]>,
+      sessionRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["sessionRepo"]>,
     });
     expect(server).toBeDefined();
     await server.stop();
@@ -589,14 +582,11 @@ describe("Server with repository dependencies", () => {
     config.port = 0;
 
     // Create minimal mocks - routes should use mock data when not authenticated
-    const mockSessionRepo = {
-      findByToken: () => Promise.resolve(null), // User not authenticated
-    } as unknown as import("../../../src/server").ServerDependencies["sessionRepo"];
-    const mockUserRepo = {} as unknown as import("../../../src/server").ServerDependencies["userRepo"];
-
     const server = createServer(config, {
-      sessionRepo: mockSessionRepo,
-      userRepo: mockUserRepo,
+      sessionRepo: {
+        findByToken: () => Promise.resolve(null), // User not authenticated
+      } as unknown as NonNullable<import("../../../src/server").ServerDependencies["sessionRepo"]>,
+      userRepo: {} as unknown as NonNullable<import("../../../src/server").ServerDependencies["userRepo"]>,
     });
     const baseUrl = `http://localhost:${String(server.port)}`;
 
