@@ -44,6 +44,7 @@ export interface TenantSettings {
   emailNotifications: boolean;
   notificationEmail: string;
   syncFrequency: "hourly" | "daily" | "weekly";
+  digestFrequency: "daily" | "weekly" | "none";
   // Billing
   isPaid: boolean;
   stripeCustomerId: string | null;

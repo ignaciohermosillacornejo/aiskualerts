@@ -11,6 +11,7 @@ const mockUser: User = {
   name: "Test User",
   notification_enabled: true,
   notification_email: null,
+  digest_frequency: "daily",
   created_at: new Date("2024-01-01"),
 };
 
@@ -183,6 +184,174 @@ describe("UserRepository", () => {
       const result = await repo.getWithNotificationsEnabled("tenant-456");
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("getWithDigestEnabled", () => {
+    test("returns users with daily digest enabled", async () => {
+      const { db, mocks } = createMockDb();
+      const dailyUser = { ...mockUser, digest_frequency: "daily" as const };
+      mocks.query.mockResolvedValue([dailyUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.getWithDigestEnabled("tenant-456", "daily");
+
+      expect(result).toEqual([dailyUser]);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("returns users with weekly digest enabled", async () => {
+      const { db, mocks } = createMockDb();
+      const weeklyUser = { ...mockUser, digest_frequency: "weekly" as const };
+      mocks.query.mockResolvedValue([weeklyUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.getWithDigestEnabled("tenant-456", "weekly");
+
+      expect(result).toEqual([weeklyUser]);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("returns empty array when no users have specified digest frequency", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.getWithDigestEnabled("tenant-456", "daily");
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("update", () => {
+    test("updates user name", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedUser = { ...mockUser, name: "Updated Name" };
+      mocks.query.mockResolvedValue([updatedUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.update("user-123", { name: "Updated Name" });
+
+      expect(result.name).toBe("Updated Name");
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("updates notification_enabled", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedUser = { ...mockUser, notification_enabled: false };
+      mocks.query.mockResolvedValue([updatedUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.update("user-123", { notification_enabled: false });
+
+      expect(result.notification_enabled).toBe(false);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("updates notification_email", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedUser = { ...mockUser, notification_email: "new@example.com" };
+      mocks.query.mockResolvedValue([updatedUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.update("user-123", { notification_email: "new@example.com" });
+
+      expect(result.notification_email).toBe("new@example.com");
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("updates digest_frequency", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedUser = { ...mockUser, digest_frequency: "weekly" as const };
+      mocks.query.mockResolvedValue([updatedUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.update("user-123", { digest_frequency: "weekly" });
+
+      expect(result.digest_frequency).toBe("weekly");
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("updates multiple fields at once", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedUser = {
+        ...mockUser,
+        notification_enabled: false,
+        digest_frequency: "none" as const,
+      };
+      mocks.query.mockResolvedValue([updatedUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.update("user-123", {
+        notification_enabled: false,
+        digest_frequency: "none",
+      });
+
+      expect(result.notification_enabled).toBe(false);
+      expect(result.digest_frequency).toBe("none");
+    });
+
+    test("returns existing user when no updates provided", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(mockUser);
+
+      const repo = new UserRepository(db);
+      const result = await repo.update("user-123", {});
+
+      expect(result).toEqual(mockUser);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+
+    test("throws error when user not found with no updates", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new UserRepository(db);
+
+      await expect(repo.update("non-existent", {})).rejects.toThrow("User non-existent not found");
+    });
+
+    test("throws error when user not found during update", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new UserRepository(db);
+
+      await expect(repo.update("non-existent", { name: "Test" })).rejects.toThrow(
+        "User non-existent not found"
+      );
+    });
+  });
+
+  describe("create with digest_frequency", () => {
+    test("creates user with custom digest_frequency", async () => {
+      const { db, mocks } = createMockDb();
+      const weeklyUser = { ...mockUser, digest_frequency: "weekly" as const };
+      mocks.query.mockResolvedValue([weeklyUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.create({
+        tenant_id: "tenant-456",
+        email: "test@example.com",
+        digest_frequency: "weekly",
+      });
+
+      expect(result.digest_frequency).toBe("weekly");
+    });
+
+    test("creates user with none digest_frequency", async () => {
+      const { db, mocks } = createMockDb();
+      const noneUser = { ...mockUser, digest_frequency: "none" as const };
+      mocks.query.mockResolvedValue([noneUser]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.create({
+        tenant_id: "tenant-456",
+        email: "test@example.com",
+        digest_frequency: "none",
+      });
+
+      expect(result.digest_frequency).toBe("none");
     });
   });
 });

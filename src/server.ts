@@ -76,6 +76,7 @@ export const UpdateSettingsSchema = z.object({
   emailNotifications: z.boolean().optional(),
   notificationEmail: z.string().email("Invalid notification email format").optional(),
   syncFrequency: z.enum(["hourly", "daily", "weekly"]).optional(),
+  digestFrequency: z.enum(["daily", "weekly", "none"]).optional(),
 });
 
 export const LoginSchema = z.object({
@@ -213,6 +214,7 @@ const mockSettings = {
   emailNotifications: true,
   notificationEmail: "alertas@miempresa.cl",
   syncFrequency: "daily" as const,
+  digestFrequency: "daily" as const,
   isPaid: false,
   stripeCustomerId: null as string | null,
 };
@@ -672,6 +674,7 @@ export function createServer(
               emailNotifications: user.notification_enabled,
               notificationEmail: user.notification_email,
               syncFrequency: "daily" as const, // Default, could be stored in a settings table
+              digestFrequency: user.digest_frequency,
               isPaid: tenant.is_paid,
               stripeCustomerId: tenant.stripe_customer_id,
             });
@@ -697,6 +700,7 @@ export function createServer(
               name: string | null;
               notification_enabled: boolean;
               notification_email: string | null;
+              digest_frequency: "daily" | "weekly" | "none";
             }> = {};
 
             if (body.emailNotifications !== undefined) {
@@ -704,6 +708,9 @@ export function createServer(
             }
             if (body.notificationEmail !== undefined) {
               updateInput.notification_email = body.notificationEmail ?? null;
+            }
+            if (body.digestFrequency !== undefined) {
+              updateInput.digest_frequency = body.digestFrequency;
             }
 
             const updatedUser = await deps.userRepo.update(
@@ -722,6 +729,7 @@ export function createServer(
               emailNotifications: updatedUser.notification_enabled,
               notificationEmail: updatedUser.notification_email,
               syncFrequency: body.syncFrequency ?? "daily",
+              digestFrequency: updatedUser.digest_frequency,
               isPaid: tenant?.is_paid ?? false,
               stripeCustomerId: tenant?.stripe_customer_id ?? null,
             });
