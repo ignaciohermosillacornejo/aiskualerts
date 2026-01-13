@@ -67,6 +67,48 @@ export class BsaleClient {
     return VariantSchema.parse(response);
   }
 
+  /**
+   * Fetch multiple variants by their IDs in batch.
+   * Returns a Map where keys are variant IDs and values are Variant objects.
+   * Missing or failed variants are not included in the result map.
+   */
+  async getVariantsBatch(variantIds: number[]): Promise<Map<number, Variant>> {
+    const results = new Map<number, Variant>();
+    const uniqueIds = [...new Set(variantIds)];
+
+    // Process in chunks to avoid overwhelming the API
+    const chunkSize = 10;
+    for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+      const chunk = uniqueIds.slice(i, i + chunkSize);
+
+      const promises = chunk.map(async (id) => {
+        try {
+          const variant = await this.getVariant(id);
+          return { id, variant };
+        } catch (error) {
+          // Log but don't fail the entire batch for individual variant failures
+          console.warn(`Failed to fetch variant ${String(id)}: ${error instanceof Error ? error.message : "Unknown error"}`);
+          return { id, variant: null };
+        }
+      });
+
+      const chunkResults = await Promise.all(promises);
+
+      for (const result of chunkResults) {
+        if (result.variant !== null) {
+          results.set(result.id, result.variant);
+        }
+      }
+
+      // Add delay between chunks to respect rate limits
+      if (i + chunkSize < uniqueIds.length) {
+        await this.delay();
+      }
+    }
+
+    return results;
+  }
+
   private async fetchWithRetry(
     path: string,
     retries = 3

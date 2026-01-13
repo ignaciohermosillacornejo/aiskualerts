@@ -335,3 +335,137 @@ test("BsaleClient handles null variant fields", async () => {
   expect(variant.description).toBeNull();
   expect(variant.product).toBeNull();
 });
+
+const variantIdPattern = /variants\/(\d+)/;
+
+function extractVariantId(url: string): number {
+  return parseInt(variantIdPattern.exec(url)?.[1] ?? "0", 10);
+}
+
+test("BsaleClient getVariantsBatch returns map of variants", async () => {
+  const variants = [
+    { id: 1, code: "SKU-001", barCode: "111", description: "Product 1", product: { name: "Product 1" } },
+    { id: 2, code: "SKU-002", barCode: "222", description: "Product 2", product: { name: "Product 2" } },
+    { id: 3, code: "SKU-003", barCode: "333", description: "Product 3", product: { name: "Product 3" } },
+  ];
+
+  globalThis.fetch = mock((url: string) => {
+    const id = extractVariantId(url);
+    const variant = variants.find((v) => v.id === id);
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(variant),
+    });
+  }) as unknown as typeof globalThis.fetch;
+
+  const client = new BsaleClient("test-token", { requestDelay: 0 });
+  const result = await client.getVariantsBatch([1, 2, 3]);
+
+  expect(result.size).toBe(3);
+  expect(result.get(1)?.code).toBe("SKU-001");
+  expect(result.get(2)?.code).toBe("SKU-002");
+  expect(result.get(3)?.code).toBe("SKU-003");
+});
+
+test("BsaleClient getVariantsBatch deduplicates variant IDs", async () => {
+  let callCount = 0;
+  globalThis.fetch = mock(() => {
+    callCount++;
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(mockVariantResponse),
+    });
+  }) as unknown as typeof globalThis.fetch;
+
+  const client = new BsaleClient("test-token", { requestDelay: 0 });
+  await client.getVariantsBatch([456, 456, 456]);
+
+  expect(callCount).toBe(1);
+});
+
+test("BsaleClient getVariantsBatch handles partial failures gracefully", async () => {
+  globalThis.fetch = mock((url: string) => {
+    const id = extractVariantId(url);
+    if (id === 2) {
+      return Promise.resolve({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      });
+    }
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ ...mockVariantResponse, id }),
+    });
+  }) as unknown as typeof globalThis.fetch;
+
+  const client = new BsaleClient("test-token", { requestDelay: 0 });
+  const result = await client.getVariantsBatch([1, 2, 3]);
+
+  expect(result.size).toBe(2);
+  expect(result.has(1)).toBe(true);
+  expect(result.has(2)).toBe(false);
+  expect(result.has(3)).toBe(true);
+});
+
+test("BsaleClient getVariantsBatch returns empty map for empty input", async () => {
+  globalThis.fetch = mock(() =>
+    Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(mockVariantResponse),
+    })
+  ) as unknown as typeof globalThis.fetch;
+
+  const client = new BsaleClient("test-token", { requestDelay: 0 });
+  const result = await client.getVariantsBatch([]);
+
+  expect(result.size).toBe(0);
+});
+
+test("BsaleClient getVariantsBatch processes in chunks", async () => {
+  let maxConcurrent = 0;
+  let currentConcurrent = 0;
+
+  globalThis.fetch = mock(async (url: string) => {
+    currentConcurrent++;
+    maxConcurrent = Math.max(maxConcurrent, currentConcurrent);
+    const id = extractVariantId(url);
+    await new Promise((r) => setTimeout(r, 10));
+    currentConcurrent--;
+    return {
+      ok: true,
+      json: () => Promise.resolve({ ...mockVariantResponse, id }),
+    };
+  }) as unknown as typeof globalThis.fetch;
+
+  const client = new BsaleClient("test-token", { requestDelay: 0 });
+  // Request 15 variants to test chunking (chunk size is 10)
+  const ids = Array.from({ length: 15 }, (_, i) => i + 1);
+  const result = await client.getVariantsBatch(ids);
+
+  expect(result.size).toBe(15);
+  // Max concurrent should be at most 10 (chunk size)
+  expect(maxConcurrent).toBeLessThanOrEqual(10);
+});
+
+test("BsaleClient getVariantsBatch handles network errors gracefully", async () => {
+  globalThis.fetch = mock((url: string) => {
+    const id = extractVariantId(url);
+    if (id === 2) {
+      throw new Error("Network error");
+    }
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ ...mockVariantResponse, id }),
+    });
+  }) as unknown as typeof globalThis.fetch;
+
+  const client = new BsaleClient("test-token", { requestDelay: 0 });
+  const result = await client.getVariantsBatch([1, 2, 3]);
+
+  // Should still return the successful variants
+  expect(result.size).toBe(2);
+  expect(result.has(1)).toBe(true);
+  expect(result.has(2)).toBe(false);
+  expect(result.has(3)).toBe(true);
+});
