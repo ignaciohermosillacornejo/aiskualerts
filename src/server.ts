@@ -213,6 +213,8 @@ const mockSettings = {
   emailNotifications: true,
   notificationEmail: "alertas@miempresa.cl",
   syncFrequency: "daily" as const,
+  isPaid: false,
+  stripeCustomerId: null as string | null,
 };
 
 export function createServer(
@@ -670,6 +672,8 @@ export function createServer(
               emailNotifications: user.notification_enabled,
               notificationEmail: user.notification_email,
               syncFrequency: "daily" as const, // Default, could be stored in a settings table
+              isPaid: tenant.is_paid,
+              stripeCustomerId: tenant.stripe_customer_id,
             });
           }
 
@@ -718,6 +722,8 @@ export function createServer(
               emailNotifications: updatedUser.notification_enabled,
               notificationEmail: updatedUser.notification_email,
               syncFrequency: body.syncFrequency ?? "daily",
+              isPaid: tenant?.is_paid ?? false,
+              stripeCustomerId: tenant?.stripe_customer_id ?? null,
             });
           }
 

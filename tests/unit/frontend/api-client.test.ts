@@ -542,4 +542,110 @@ describe("API Client", () => {
       expect(headers.get("Content-Type")).toBe("application/json");
     });
   });
+
+  describe("createCheckoutSession", () => {
+    test("sends POST request to checkout endpoint", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ url: "https://checkout.stripe.com/session123" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      const result = await api.createCheckoutSession();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/billing/checkout",
+        expect.objectContaining({ method: "POST" })
+      );
+      expect(result.url).toBe("https://checkout.stripe.com/session123");
+    });
+
+    test("throws ApiError on failure", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "Already subscribed" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await expect(api.createCheckoutSession()).rejects.toThrow(ApiError);
+    });
+
+    test("throws ApiError when unauthorized", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      try {
+        await api.createCheckoutSession();
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).status).toBe(401);
+      }
+    });
+  });
+
+  describe("createPortalSession", () => {
+    test("sends POST request to portal endpoint", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ url: "https://billing.stripe.com/portal123" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      const result = await api.createPortalSession();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/billing/portal",
+        expect.objectContaining({ method: "POST" })
+      );
+      expect(result.url).toBe("https://billing.stripe.com/portal123");
+    });
+
+    test("throws ApiError when no subscription", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "No active subscription" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      try {
+        await api.createPortalSession();
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).message).toBe("No active subscription");
+      }
+    });
+
+    test("throws ApiError when unauthorized", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await expect(api.createPortalSession()).rejects.toThrow(ApiError);
+    });
+  });
 });
