@@ -34,6 +34,7 @@ const mockConfig: Config = {
   bsaleRedirectUri: "http://localhost:3000/callback",
   resendApiKey: "re_123",
   notificationFromEmail: "test@example.com",
+  sentryEnvironment: "test",
 };
 
 interface MockTenantRepo {
@@ -99,7 +100,7 @@ describe("createSyncRoutes", () => {
     );
 
     // Mock the module
-    mock.module("@/jobs/sync-job", () => ({
+    void mock.module("@/jobs/sync-job", () => ({
       runSyncAndAlerts: runSyncAndAlertsMock,
     }));
   });
