@@ -16,8 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.inputs.confirm == 'RESTORE' }}
     steps:
-      - uses: actions/checkout@v6
-
       - name: Validate backup_file input
         run: |
           BACKUP_FILE="${{ github.event.inputs.backup_file }}"
@@ -31,6 +29,16 @@ jobs:
       - name: Install 1Password CLI
         uses: 1password/install-cli-action@v2
 
+      - name: Load secrets
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          echo "SSH_HOST=$(op read 'op://Dev/HETZNER_SERVER_IP/credential')" >> $GITHUB_ENV
+          echo "B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')" >> $GITHUB_ENV
+          echo "B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')" >> $GITHUB_ENV
+          echo "B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')" >> $GITHUB_ENV
+          echo "BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')" >> $GITHUB_ENV
+
       - name: Setup SSH
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -38,36 +46,48 @@ jobs:
           mkdir -p ~/.ssh
           op read "op://Dev/HETZNER_SSH_KEY/private key?ssh-format=openssh" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          HETZNER_SERVER_IP=$(op read "op://Dev/HETZNER_SERVER_IP/credential")
-          echo "HETZNER_SERVER_IP=$HETZNER_SERVER_IP" >> $GITHUB_ENV
-          ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
-      - name: Create secrets file
+      - name: Find latest backup if needed
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ env.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.B2_APPLICATION_KEY }}
         run: |
-          B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
-          B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
-          B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')
-          BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
-          cat > /tmp/restore-secrets.env << EOF
-          export B2_KEY_ID='${B2_KEY_ID}'
-          export B2_APPLICATION_KEY='${B2_APPLICATION_KEY}'
-          export B2_BUCKET_NAME='${B2_BUCKET_NAME}'
-          export BACKUP_ENCRYPTION_KEY='${BACKUP_ENCRYPTION_KEY}'
-          export BACKUP_FILE='${BACKUP_FILE}'
-          EOF
-          chmod 600 /tmp/restore-secrets.env
+          if [ "$BACKUP_FILE" = "latest" ]; then
+            echo "Finding latest backup..."
+            BACKUP_FILE=$(aws s3 ls "s3://$B2_BUCKET_NAME/daily/" \
+              --endpoint-url https://s3.us-west-002.backblazeb2.com \
+              | sort -r | head -1 | awk '{print $4}')
+            if [[ -z "$BACKUP_FILE" ]]; then
+              echo "Error: No backup files found in B2 bucket"
+              exit 1
+            fi
+            echo "Found: $BACKUP_FILE"
+            echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_ENV
+          fi
 
-      - name: Copy files and run restore
+      - name: Download backup from B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ env.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.B2_APPLICATION_KEY }}
         run: |
-          scp -i ~/.ssh/deploy_key /tmp/restore-secrets.env root@"$HETZNER_SERVER_IP":/tmp/
-          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@"$HETZNER_SERVER_IP":/tmp/
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "chmod +x /tmp/restore-db.sh && /tmp/restore-db.sh"
+          echo "Downloading: daily/$BACKUP_FILE"
+          aws s3 cp "s3://$B2_BUCKET_NAME/daily/$BACKUP_FILE" backup.sql.gz.gpg \
+            --endpoint-url https://s3.us-west-002.backblazeb2.com
+
+      - name: Decrypt and stream to server
+        run: |
+          echo "Decrypting and restoring to database..."
+          # Decrypt locally, decompress, stream to server via SSH, pipe to psql
+          gpg --decrypt --batch --passphrase "$BACKUP_ENCRYPTION_KEY" backup.sql.gz.gpg \
+          | gunzip \
+          | ssh -i ~/.ssh/deploy_key root@"$SSH_HOST" \
+              "docker exec -i aiskualerts-db psql -U aiskualerts -d aiskualerts"
+
+          echo "Restore completed successfully!"
 
       - name: Cleanup
         if: always()
         run: |
-          rm -f /tmp/restore-secrets.env
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "rm -f /tmp/restore-db.sh /tmp/restore-secrets.env" 2>/dev/null || true
+          rm -f backup.sql.gz.gpg
           rm -f ~/.ssh/deploy_key
