@@ -226,6 +226,19 @@ async function createPortalSession(): Promise<PortalResponse> {
   return request<PortalResponse>("/billing/portal", { method: "POST" });
 }
 
+// Sync
+interface SyncTriggerResponse {
+  success: boolean;
+  productsUpdated: number;
+  alertsGenerated: number;
+  duration: number;
+  error?: string;
+}
+
+async function triggerSync(): Promise<SyncTriggerResponse> {
+  return request<SyncTriggerResponse>("/sync/trigger", { method: "POST" });
+}
+
 // Export API client
 export const api = {
   // Dashboard
@@ -257,6 +270,9 @@ export const api = {
   // Billing
   createCheckoutSession,
   createPortalSession,
+
+  // Sync
+  triggerSync,
 };
 
 export { ApiError };

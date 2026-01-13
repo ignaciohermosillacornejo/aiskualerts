@@ -7,6 +7,10 @@ import {
   createBillingRoutes,
   type BillingHandlerDeps,
 } from "@/api/handlers/billing";
+import {
+  createSyncRoutes,
+  type SyncHandlerDeps,
+} from "@/api/handlers/sync";
 import type { AlertRepository, AlertFilter } from "@/db/repositories/alert";
 import type { ThresholdRepository } from "@/db/repositories/threshold";
 import type { UserRepository } from "@/db/repositories/user";
@@ -175,6 +179,7 @@ export interface HealthResponse {
 export interface ServerDependencies {
   oauthDeps?: OAuthHandlerDeps;
   billingDeps?: BillingHandlerDeps;
+  syncDeps?: SyncHandlerDeps;
   // Repository dependencies for database-backed routes
   alertRepo?: AlertRepository;
   thresholdRepo?: ThresholdRepository;
@@ -264,6 +269,7 @@ export function createServer(
   const billingRoutes = deps?.billingDeps
     ? createBillingRoutes(deps.billingDeps)
     : null;
+  const syncRoutes = deps?.syncDeps ? createSyncRoutes(deps.syncDeps) : null;
 
   // Create auth middleware if repos are available
   const authMiddleware: AuthMiddleware | null =
@@ -889,12 +895,19 @@ export function createServer(
           }
         }
 
+        // Sync routes (if configured)
+        if (syncRoutes) {
+          if (url.pathname === "/api/sync/trigger" && request.method === "POST") {
+            return await syncRoutes.trigger(request);
+          }
+        }
+
         // API routes that don't match should return 404
         if (url.pathname.startsWith("/api/")) {
           return jsonWithCors({ error: "Not Found" }, { status: 404 });
         }
 
-      // All other routes not defined in the routes object should return 404
+        // All other routes not defined in the routes object should return 404
       return new Response(
         `<!DOCTYPE html>
 <html>

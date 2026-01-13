@@ -1,32 +1,70 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "../api/client";
 import { sanitizeText } from "../utils/sanitize";
 import type { DashboardStats, Alert } from "../types";
+
+interface SyncResult {
+  success: boolean;
+  productsUpdated: number;
+  alertsGenerated: number;
+  duration: number;
+  error?: string;
+}
 
 export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentAlerts, setRecentAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+
+  const loadDashboard = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [statsData, alertsData, settingsData] = await Promise.all([
+        api.getDashboardStats(),
+        api.getAlerts({ limit: 5 }),
+        api.getSettings(),
+      ]);
+      setStats(statsData);
+      setRecentAlerts(alertsData.alerts);
+      setLastSyncAt(settingsData.lastSyncAt ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar datos");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function loadDashboard() {
-      try {
-        setLoading(true);
-        const [statsData, alertsData] = await Promise.all([
-          api.getDashboardStats(),
-          api.getAlerts({ limit: 5 }),
-        ]);
-        setStats(statsData);
-        setRecentAlerts(alertsData.alerts);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al cargar datos");
-      } finally {
-        setLoading(false);
-      }
-    }
     loadDashboard();
-  }, []);
+  }, [loadDashboard]);
+
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const result = await api.triggerSync();
+      setSyncResult(result);
+      if (result.success) {
+        setLastSyncAt(new Date().toISOString());
+        // Reload dashboard data after successful sync
+        await loadDashboard();
+      }
+    } catch (err) {
+      setSyncResult({
+        success: false,
+        productsUpdated: 0,
+        alertsGenerated: 0,
+        duration: 0,
+        error: err instanceof Error ? err.message : "Error al sincronizar",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadDashboard]);
 
   if (loading) {
     return (
@@ -70,6 +108,13 @@ export function Dashboard() {
         />
       </div>
 
+      <SyncCard
+        syncing={syncing}
+        syncResult={syncResult}
+        lastSyncAt={lastSyncAt}
+        onSync={handleSync}
+      />
+
       <div className="card">
         <div className="card-header">
           <h2 className="card-title">Alertas Recientes</h2>
@@ -89,6 +134,72 @@ export function Dashboard() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+interface SyncCardProps {
+  syncing: boolean;
+  syncResult: SyncResult | null;
+  lastSyncAt: string | null;
+  onSync: () => void;
+}
+
+function SyncCard({ syncing, syncResult, lastSyncAt, onSync }: SyncCardProps) {
+  return (
+    <div className="card" style={{ marginBottom: "1.5rem" }}>
+      <div className="card-header">
+        <div>
+          <h2 className="card-title">Sincronizacion</h2>
+          {lastSyncAt && (
+            <p style={{ color: "#64748b", fontSize: "0.875rem", margin: "0.25rem 0 0 0" }}>
+              Ultima sincronizacion: {formatRelativeTime(lastSyncAt)}
+            </p>
+          )}
+        </div>
+        <button
+          className="btn btn-primary"
+          onClick={onSync}
+          disabled={syncing}
+          style={{ minWidth: "120px" }}
+        >
+          {syncing ? (
+            <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span className="spinner" style={{ width: "16px", height: "16px" }} />
+              Sincronizando...
+            </span>
+          ) : (
+            "Sincronizar Ahora"
+          )}
+        </button>
+      </div>
+      {syncResult && (
+        <div
+          style={{
+            padding: "1rem",
+            backgroundColor: syncResult.success ? "#f0fdf4" : "#fef2f2",
+            borderRadius: "0.5rem",
+            marginTop: "1rem",
+          }}
+        >
+          {syncResult.success ? (
+            <div style={{ color: "#166534" }}>
+              <strong>Sincronizacion exitosa</strong>
+              <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.875rem" }}>
+                {syncResult.productsUpdated} productos actualizados, {syncResult.alertsGenerated} alertas generadas
+                ({Math.round(syncResult.duration / 1000)}s)
+              </p>
+            </div>
+          ) : (
+            <div style={{ color: "#991b1b" }}>
+              <strong>Error en sincronizacion</strong>
+              <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.875rem" }}>
+                {syncResult.error ?? "Error desconocido"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

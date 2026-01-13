@@ -648,4 +648,87 @@ describe("API Client", () => {
       await expect(api.createPortalSession()).rejects.toThrow(ApiError);
     });
   });
+
+  describe("triggerSync", () => {
+    test("sends POST request to sync trigger endpoint", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: true,
+              productsUpdated: 50,
+              alertsGenerated: 5,
+              duration: 1234,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      );
+
+      const result = await api.triggerSync();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/sync/trigger",
+        expect.objectContaining({ method: "POST" })
+      );
+      expect(result.success).toBe(true);
+      expect(result.productsUpdated).toBe(50);
+      expect(result.alertsGenerated).toBe(5);
+      expect(result.duration).toBe(1234);
+    });
+
+    test("returns error details on sync failure", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: false,
+              productsUpdated: 0,
+              alertsGenerated: 0,
+              duration: 500,
+              error: "Bsale API unavailable",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      );
+
+      const result = await api.triggerSync();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Bsale API unavailable");
+    });
+
+    test("throws ApiError when unauthorized", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      try {
+        await api.triggerSync();
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).status).toBe(401);
+      }
+    });
+
+    test("throws ApiError on server error", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "Internal server error" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await expect(api.triggerSync()).rejects.toThrow(ApiError);
+    });
+  });
 });
