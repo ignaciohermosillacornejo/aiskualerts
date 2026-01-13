@@ -16,6 +16,9 @@ const testConfig: Config = {
   syncMinute: 0,
   syncBatchSize: 100,
   syncTenantDelay: 5000,
+  digestEnabled: false,
+  digestHour: 8,
+  digestMinute: 0,
   sentryEnvironment: "test",
 };
 
