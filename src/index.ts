@@ -17,6 +17,7 @@ import {
 } from "@/monitoring/sentry";
 import { StripeClient } from "@/billing/stripe";
 import { createAuthMiddleware } from "@/api/middleware/auth";
+import { logger } from "@/utils/logger";
 
 function main(): void {
   const config = loadConfig();
@@ -28,7 +29,7 @@ function main(): void {
     setupProcessErrorHandlers();
   }
 
-  console.info(`Starting AI SKU Alerts in ${config.nodeEnv} mode...`);
+  logger.info("Starting AI SKU Alerts", { nodeEnv: config.nodeEnv });
 
   // Initialize database
   const db = getDb();
@@ -83,9 +84,9 @@ function main(): void {
       stateStore,
     };
 
-    console.info("OAuth endpoints enabled");
+    logger.info("OAuth endpoints enabled");
   } else {
-    console.info("OAuth endpoints disabled (missing configuration)");
+    logger.info("OAuth endpoints disabled (missing configuration)");
   }
 
   // Billing dependencies (if Stripe is configured)
@@ -106,9 +107,9 @@ function main(): void {
       userRepo,
     };
 
-    console.info("Billing endpoints enabled");
+    logger.info("Billing endpoints enabled");
   } else {
-    console.info("Billing endpoints disabled (missing Stripe configuration)");
+    logger.info("Billing endpoints disabled (missing Stripe configuration)");
   }
 
   // Sync dependencies (always enabled when auth is available)
@@ -118,11 +119,11 @@ function main(): void {
     config,
     tenantRepo,
   };
-  console.info("Sync endpoints enabled");
+  logger.info("Sync endpoints enabled");
 
   // Start the HTTP server
   const server = createServer(config, serverDeps);
-  console.info(`HTTP server listening on port ${String(server.port)}`);
+  logger.info("HTTP server listening", { port: server.port });
 
   // Start the schedulers
   scheduler.start();
@@ -130,7 +131,7 @@ function main(): void {
 
   // Handle graceful shutdown
   const shutdown = async (): Promise<void> => {
-    console.info("Shutting down...");
+    logger.info("Shutting down...");
 
     scheduler.stop();
     sessionCleanupScheduler.stop();
@@ -140,7 +141,7 @@ function main(): void {
     // Flush any pending Sentry events
     await flushSentry();
 
-    console.info("Shutdown complete");
+    logger.info("Shutdown complete");
     process.exit(0);
   };
 

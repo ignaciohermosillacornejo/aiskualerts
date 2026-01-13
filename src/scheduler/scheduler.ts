@@ -1,5 +1,6 @@
 import type { SchedulerConfig, JobFunction } from "./types";
 import { DEFAULT_SCHEDULER_CONFIG } from "./types";
+import { logger } from "@/utils/logger";
 
 export class Scheduler {
   private config: SchedulerConfig;
@@ -14,19 +15,19 @@ export class Scheduler {
 
   start(): void {
     if (!this.config.enabled) {
-      console.info("Scheduler is disabled");
+      logger.info("Scheduler is disabled");
       return;
     }
 
     if (this.running) {
-      console.info("Scheduler is already running");
+      logger.info("Scheduler is already running");
       return;
     }
 
     this.running = true;
-    console.info(
-      `Scheduler started. Next run at ${String(this.config.hour).padStart(2, "0")}:${String(this.config.minute).padStart(2, "0")} UTC`
-    );
+    logger.info("Scheduler started", {
+      nextRunTime: `${String(this.config.hour).padStart(2, "0")}:${String(this.config.minute).padStart(2, "0")} UTC`,
+    });
     this.scheduleNextRun();
   }
 
@@ -36,7 +37,7 @@ export class Scheduler {
       this.timerId = null;
     }
     this.running = false;
-    console.info("Scheduler stopped");
+    logger.info("Scheduler stopped");
   }
 
   isRunning(): boolean {
@@ -68,9 +69,10 @@ export class Scheduler {
     const next = this.calculateNextRunTime();
     const delay = next.getTime() - Date.now();
 
-    console.info(
-      `Next job scheduled for ${next.toISOString()} (in ${String(Math.round(delay / 1000 / 60))} minutes)`
-    );
+    logger.info("Next job scheduled", {
+      scheduledFor: next.toISOString(),
+      delayMinutes: Math.round(delay / 1000 / 60),
+    });
 
     this.timerId = setTimeout(() => {
       void this.executeJob();
@@ -78,16 +80,16 @@ export class Scheduler {
   }
 
   private async executeJob(): Promise<void> {
-    console.info("Executing scheduled job...");
+    logger.info("Executing scheduled job...");
     const startTime = Date.now();
 
     try {
       await this.job();
       const duration = Date.now() - startTime;
-      console.info(`Job completed in ${String(duration)}ms`);
+      logger.info("Job completed", { durationMs: duration });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`Job failed: ${message}`);
+      logger.error("Job failed", error instanceof Error ? error : new Error(message));
     }
 
     // Schedule next run

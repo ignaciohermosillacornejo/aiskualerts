@@ -5,6 +5,7 @@ import type { DatabaseClient } from "@/db/client";
 import { syncTenant, type TenantSyncDependencies } from "./tenant-sync";
 import type { SyncProgress, SyncOptions } from "./types";
 import { DEFAULT_SYNC_OPTIONS } from "./types";
+import { logger } from "@/utils/logger";
 
 export class SyncService {
   private tenantRepo: TenantRepository;
@@ -29,11 +30,11 @@ export class SyncService {
     };
 
     if (tenants.length === 0) {
-      console.info("No tenants to sync");
+      logger.info("No tenants to sync");
       return progress;
     }
 
-    console.info(`Starting sync for ${String(tenants.length)} tenants`);
+    logger.info("Starting sync for tenants", { tenantCount: tenants.length });
 
     const deps: TenantSyncDependencies = {
       tenantRepo: this.tenantRepo,
@@ -42,7 +43,7 @@ export class SyncService {
     };
 
     for (const tenant of tenants) {
-      console.info(`Syncing tenant ${tenant.bsale_client_code}`);
+      logger.info("Syncing tenant", { clientCode: tenant.bsale_client_code });
 
       const result = await syncTenant(tenant, deps, this.options);
       progress.results.push(result);
@@ -50,14 +51,10 @@ export class SyncService {
 
       if (result.success) {
         progress.successCount++;
-        console.info(
-          `Tenant ${tenant.bsale_client_code} synced: ${String(result.itemsSynced)} items`
-        );
+        logger.info("Tenant synced", { clientCode: tenant.bsale_client_code, itemsSynced: result.itemsSynced });
       } else {
         progress.failureCount++;
-        console.error(
-          `Tenant ${tenant.bsale_client_code} failed: ${result.error ?? "Unknown error"}`
-        );
+        logger.error("Tenant sync failed", undefined, { clientCode: tenant.bsale_client_code, error: result.error ?? "Unknown error" });
       }
 
       // Delay between tenants to avoid overwhelming the API
@@ -66,9 +63,7 @@ export class SyncService {
       }
     }
 
-    console.info(
-      `Sync complete: ${String(progress.successCount)} succeeded, ${String(progress.failureCount)} failed`
-    );
+    logger.info("Sync complete", { successCount: progress.successCount, failureCount: progress.failureCount });
 
     return progress;
   }

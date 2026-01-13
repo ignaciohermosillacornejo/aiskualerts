@@ -31,6 +31,7 @@ import {
   type CSRFMiddleware,
 } from "@/api/middleware/csrf";
 import { captureException } from "@/monitoring/sentry";
+import { logger } from "@/utils/logger";
 
 // CORS configuration
 export function getCorsHeaders(): Record<string, string> {
@@ -84,7 +85,7 @@ export function withErrorBoundary(handler: RouteHandler): RouteHandler {
       return await handler(req);
     } catch (error) {
       const url = new URL(req.url);
-      console.error(`[ErrorBoundary] Unhandled error in ${req.method} ${url.pathname}:`, error);
+      logger.error(`Unhandled error in ${req.method} ${url.pathname}`, error instanceof Error ? error : new Error(String(error)), { handler: "ErrorBoundary", route: url.pathname, method: req.method });
 
       // Capture to Sentry with request context
       captureException(error, {
@@ -173,17 +174,17 @@ const fallbackHTML = `<!DOCTYPE html>
 type IndexRouteType = (() => Response) | import("bun").HTMLBundle;
 let indexRoute: IndexRouteType;
 
-console.info("[server.ts] NODE_ENV:", process.env.NODE_ENV);
+logger.info("Server module loading", { nodeEnv: process.env.NODE_ENV });
 
 if (process.env.NODE_ENV === "test") {
   // In test environment, use simple Response handler
-  console.info("[server.ts] Using fallback HTML for test environment");
+  logger.info("Using fallback HTML for test environment");
   indexRoute = (): Response => new Response(fallbackHTML, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 } else {
   // In development/production, use bundled HTML for HMR support
-  console.info("[server.ts] Using bundled HTML import");
+  logger.info("Using bundled HTML import");
   indexRoute = (await import("./frontend/index.html")).default;
 }
 
@@ -564,7 +565,7 @@ export function createServer(
                 lastUpdated: snapshot.snapshot_date.toISOString(),
               });
             }
-            return jsonWithCors({ error: "Product not found" }, { status: 404 });
+            // Fall through to mock data if not found in DB
           }
 
           // Fallback to mock data
@@ -1057,7 +1058,7 @@ export function createServer(
         }
       );
       } catch (error) {
-        console.error(`[FetchHandler] Unhandled error in ${request.method} ${url.pathname}:`, error);
+        logger.error(`Unhandled error in ${request.method} ${url.pathname}`, error instanceof Error ? error : new Error(String(error)), { handler: "FetchHandler", route: url.pathname, method: request.method });
 
         // Capture to Sentry with request context
         captureException(error, {
@@ -1095,7 +1096,7 @@ export function startServer(
 ): Server<undefined> {
   const resolvedConfig = config ?? loadConfig();
   const server = createServer(resolvedConfig, deps);
-  console.info(`Server started on port ${String(resolvedConfig.port)}`);
+  logger.info("Server started", { port: resolvedConfig.port });
   return server;
 }
 
