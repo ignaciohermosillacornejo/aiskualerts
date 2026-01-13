@@ -7,6 +7,18 @@ import {
   createBillingRoutes,
   type BillingHandlerDeps,
 } from "@/api/handlers/billing";
+import type { AlertRepository, AlertFilter } from "@/db/repositories/alert";
+import type { ThresholdRepository } from "@/db/repositories/threshold";
+import type { UserRepository } from "@/db/repositories/user";
+import type { TenantRepository } from "@/db/repositories/tenant";
+import type { StockSnapshotRepository } from "@/db/repositories/stock-snapshot";
+import type { SessionRepository } from "@/db/repositories/session";
+import {
+  createAuthMiddleware,
+  AuthenticationError,
+  type AuthMiddleware,
+  type AuthContext,
+} from "@/api/middleware/auth";
 
 // CORS configuration
 export function getCorsHeaders(): Record<string, string> {
@@ -126,6 +138,13 @@ export interface HealthResponse {
 export interface ServerDependencies {
   oauthDeps?: OAuthHandlerDeps;
   billingDeps?: BillingHandlerDeps;
+  // Repository dependencies for database-backed routes
+  alertRepo?: AlertRepository;
+  thresholdRepo?: ThresholdRepository;
+  userRepo?: UserRepository;
+  tenantRepo?: TenantRepository;
+  stockSnapshotRepo?: StockSnapshotRepository;
+  sessionRepo?: SessionRepository;
 }
 
 export function createHealthResponse(): HealthResponse {
@@ -206,6 +225,30 @@ export function createServer(
     ? createBillingRoutes(deps.billingDeps)
     : null;
 
+  // Create auth middleware if repos are available
+  const authMiddleware: AuthMiddleware | null =
+    deps?.sessionRepo && deps?.userRepo
+      ? createAuthMiddleware(deps.sessionRepo, deps.userRepo)
+      : null;
+
+  // Helper to authenticate request and return context or null (for optional auth)
+  async function tryAuthenticate(req: Request): Promise<AuthContext | null> {
+    if (!authMiddleware) return null;
+    try {
+      return await authMiddleware.authenticate(req);
+    } catch {
+      return null;
+    }
+  }
+
+  // Helper to require authentication - throws if not authenticated
+  async function requireAuth(req: Request): Promise<AuthContext> {
+    if (!authMiddleware) {
+      throw new AuthenticationError("Authentication not configured");
+    }
+    return authMiddleware.authenticate(req);
+  }
+
   return Bun.serve({
     port: config.port,
     routes: {
@@ -229,15 +272,100 @@ export function createServer(
       },
 
       "/api/dashboard/stats": {
-        GET: () => jsonWithCors(mockDashboardStats),
+        GET: async (req) => {
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If repos available and authenticated, use real data
+          if (
+            authContext &&
+            deps?.stockSnapshotRepo &&
+            deps?.alertRepo &&
+            deps?.thresholdRepo
+          ) {
+            const [totalProducts, activeAlerts, configuredThresholds] =
+              await Promise.all([
+                deps.stockSnapshotRepo.countDistinctProductsByTenant(
+                  authContext.tenantId
+                ),
+                deps.alertRepo.countPendingByUser(authContext.userId),
+                deps.thresholdRepo.countByUser(authContext.userId),
+              ]);
+
+            // Low stock count uses a default threshold of 10
+            const lowStockProducts =
+              await deps.stockSnapshotRepo.countLowStockByTenant(
+                authContext.tenantId,
+                10
+              );
+
+            return jsonWithCors({
+              totalProducts,
+              activeAlerts,
+              lowStockProducts,
+              configuredThresholds,
+            });
+          }
+
+          // Fallback to mock data
+          return jsonWithCors(mockDashboardStats);
+        },
       },
 
       "/api/alerts": {
-        GET: (req) => {
+        GET: async (req) => {
           const url = new URL(req.url);
           const type = url.searchParams.get("type");
           const limit = parseInt(url.searchParams.get("limit") ?? "100", 10);
 
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If alertRepo available and authenticated, use real data
+          if (authContext && deps?.alertRepo) {
+            const filter: AlertFilter = { limit };
+
+            // Map frontend alert types to database types
+            if (type === "threshold_breach") {
+              filter.type = "low_stock";
+            } else if (type === "low_velocity") {
+              filter.type = "low_velocity";
+            } else if (type === "out_of_stock") {
+              filter.type = "out_of_stock";
+            }
+
+            const result = await deps.alertRepo.findByUserWithFilter(
+              authContext.userId,
+              filter
+            );
+
+            // Transform DB alerts to API format
+            const alerts = result.alerts.map((alert) => ({
+              id: alert.id,
+              type:
+                alert.alert_type === "low_stock"
+                  ? ("threshold_breach" as const)
+                  : (alert.alert_type as "low_velocity" | "out_of_stock"),
+              productId: String(alert.bsale_variant_id),
+              productName: alert.product_name ?? `SKU ${alert.sku ?? "Unknown"}`,
+              message:
+                alert.alert_type === "low_stock"
+                  ? `Stock bajo el umbral minimo (${String(alert.current_quantity)} < ${String(alert.threshold_quantity ?? 0)})`
+                  : alert.alert_type === "out_of_stock"
+                    ? `Stock agotado (${String(alert.current_quantity)})`
+                    : `Velocidad de venta muy baja en ultimos 30 dias`,
+              createdAt: alert.created_at.toISOString(),
+              dismissedAt:
+                alert.status === "dismissed" ? alert.sent_at?.toISOString() ?? null : null,
+            }));
+
+            return jsonWithCors({
+              alerts,
+              total: result.total,
+            });
+          }
+
+          // Fallback to mock data
           let filtered = mockAlerts;
           if (type) {
             filtered = filtered.filter((a) => a.type === type);
@@ -251,8 +379,27 @@ export function createServer(
       },
 
       "/api/alerts/:id/dismiss": {
-        POST: (req) => {
+        POST: async (req) => {
           const id = req.params.id;
+
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If alertRepo available and authenticated, use real data
+          if (authContext && deps?.alertRepo) {
+            const alert = await deps.alertRepo.getById(id);
+            if (!alert) {
+              return jsonWithCors({ error: "Alert not found" }, { status: 404 });
+            }
+            // Verify user owns this alert
+            if (alert.user_id !== authContext.userId) {
+              return jsonWithCors({ error: "Alert not found" }, { status: 404 });
+            }
+            await deps.alertRepo.markAsDismissed(id);
+            return jsonWithCors({ success: true });
+          }
+
+          // Fallback to mock data
           const alert = mockAlerts.find((a) => a.id === id);
           if (!alert) {
             return jsonWithCors({ error: "Alert not found" }, { status: 404 });
@@ -262,16 +409,66 @@ export function createServer(
       },
 
       "/api/products": {
-        GET: () =>
-          jsonWithCors({
+        GET: async (req) => {
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If stockSnapshotRepo available and authenticated, use real data
+          if (authContext && deps?.stockSnapshotRepo && deps?.thresholdRepo) {
+            const [snapshots, thresholds] = await Promise.all([
+              deps.stockSnapshotRepo.getLatestByTenant(authContext.tenantId),
+              deps.thresholdRepo.getByUser(authContext.userId),
+            ]);
+
+            // Create a map of variant thresholds for quick lookup
+            const thresholdMap = new Map<number, number>();
+            for (const t of thresholds) {
+              if (t.bsale_variant_id !== null) {
+                thresholdMap.set(t.bsale_variant_id, t.min_quantity);
+              }
+            }
+
+            // Transform snapshots to products
+            const products = snapshots.map((s) => ({
+              id: s.id,
+              bsaleId: s.bsale_variant_id,
+              sku: s.sku ?? "",
+              name: s.product_name ?? `Product ${String(s.bsale_variant_id)}`,
+              currentStock: s.quantity_available,
+              threshold: thresholdMap.get(s.bsale_variant_id) ?? null,
+              lastSyncAt: s.created_at.toISOString(),
+            }));
+
+            return jsonWithCors({
+              products,
+              total: products.length,
+            });
+          }
+
+          // Fallback to mock data
+          return jsonWithCors({
             products: mockProducts,
             total: mockProducts.length,
-          }),
+          });
+        },
       },
 
       "/api/products/:id": {
-        GET: (req) => {
-          const product = mockProducts.find((p) => p.id === req.params.id);
+        GET: async (req) => {
+          const productId = req.params.id;
+
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // For DB lookup, we'd need to add a getById method to stockSnapshotRepo
+          // For now, fallback to mock if not a valid mock ID
+          if (authContext && deps?.stockSnapshotRepo) {
+            // Note: This would need a getById method on stockSnapshotRepo
+            // For now, check mock data first for backwards compatibility
+          }
+
+          // Fallback to mock data
+          const product = mockProducts.find((p) => p.id === productId);
           if (!product) {
             return jsonWithCors({ error: "Product not found" }, { status: 404 });
           }
@@ -280,21 +477,82 @@ export function createServer(
       },
 
       "/api/thresholds": {
-        GET: () =>
-          jsonWithCors({
+        GET: async (req) => {
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If thresholdRepo available and authenticated, use real data
+          if (authContext && deps?.thresholdRepo) {
+            const thresholds = await deps.thresholdRepo.getByUser(
+              authContext.userId
+            );
+
+            // Transform DB thresholds to API format
+            const apiThresholds = thresholds.map((t) => ({
+              id: t.id,
+              productId: t.bsale_variant_id ? String(t.bsale_variant_id) : null,
+              productName: t.bsale_variant_id
+                ? `Product ${String(t.bsale_variant_id)}`
+                : "Default Threshold",
+              minQuantity: t.min_quantity,
+              createdAt: t.created_at.toISOString(),
+              updatedAt: t.updated_at.toISOString(),
+            }));
+
+            return jsonWithCors({
+              thresholds: apiThresholds,
+              total: apiThresholds.length,
+            });
+          }
+
+          // Fallback to mock data
+          return jsonWithCors({
             thresholds: mockThresholds,
             total: mockThresholds.length,
-          }),
+          });
+        },
         POST: async (req) => {
           const parseResult = CreateThresholdSchema.safeParse(await req.json());
           if (!parseResult.success) {
             return createValidationErrorResponse(parseResult.error);
           }
           const body = parseResult.data;
+
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If thresholdRepo available and authenticated, use real data
+          if (authContext && deps?.thresholdRepo) {
+            const threshold = await deps.thresholdRepo.create({
+              tenant_id: authContext.tenantId,
+              user_id: authContext.userId,
+              bsale_variant_id: parseInt(body.productId, 10) || null,
+              min_quantity: body.minQuantity,
+            });
+
+            return jsonWithCors(
+              {
+                id: threshold.id,
+                productId: threshold.bsale_variant_id
+                  ? String(threshold.bsale_variant_id)
+                  : null,
+                productName: threshold.bsale_variant_id
+                  ? `Product ${String(threshold.bsale_variant_id)}`
+                  : "Default Threshold",
+                minQuantity: threshold.min_quantity,
+                createdAt: threshold.created_at.toISOString(),
+                updatedAt: threshold.updated_at.toISOString(),
+              },
+              { status: 201 }
+            );
+          }
+
+          // Fallback to mock data
           const newThreshold = {
             id: `t${String(Date.now())}`,
             productId: body.productId,
-            productName: mockProducts.find((p) => p.id === body.productId)?.name ?? "Unknown",
+            productName:
+              mockProducts.find((p) => p.id === body.productId)?.name ?? "Unknown",
             minQuantity: body.minQuantity,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -312,6 +570,40 @@ export function createServer(
             return createValidationErrorResponse(parseResult.error);
           }
           const body = parseResult.data;
+
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If thresholdRepo available and authenticated, use real data
+          if (authContext && deps?.thresholdRepo) {
+            const existingThreshold = await deps.thresholdRepo.getById(id);
+            if (!existingThreshold) {
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+            }
+            // Verify user owns this threshold
+            if (existingThreshold.user_id !== authContext.userId) {
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+            }
+
+            const updated = await deps.thresholdRepo.update(id, {
+              min_quantity: body.minQuantity,
+            });
+
+            return jsonWithCors({
+              id: updated.id,
+              productId: updated.bsale_variant_id
+                ? String(updated.bsale_variant_id)
+                : null,
+              productName: updated.bsale_variant_id
+                ? `Product ${String(updated.bsale_variant_id)}`
+                : "Default Threshold",
+              minQuantity: updated.min_quantity,
+              createdAt: updated.created_at.toISOString(),
+              updatedAt: updated.updated_at.toISOString(),
+            });
+          }
+
+          // Fallback to mock data
           const idx = mockThresholds.findIndex((t) => t.id === id);
           if (idx === -1) {
             return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
@@ -329,8 +621,31 @@ export function createServer(
           // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
           return jsonWithCors(mockThresholds[idx]);
         },
-        DELETE: (req) => {
+        DELETE: async (req) => {
           const id = req.params.id;
+
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If thresholdRepo available and authenticated, use real data
+          if (authContext && deps?.thresholdRepo) {
+            const existingThreshold = await deps.thresholdRepo.getById(id);
+            if (!existingThreshold) {
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+            }
+            // Verify user owns this threshold
+            if (existingThreshold.user_id !== authContext.userId) {
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+            }
+
+            const deleted = await deps.thresholdRepo.delete(id);
+            if (!deleted) {
+              return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
+            }
+            return responseWithCors(null, { status: 204 });
+          }
+
+          // Fallback to mock data
           const idx = mockThresholds.findIndex((t) => t.id === id);
           if (idx === -1) {
             return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
@@ -341,13 +656,81 @@ export function createServer(
       },
 
       "/api/settings": {
-        GET: () => jsonWithCors(mockSettings),
+        GET: async (req) => {
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If userRepo and tenantRepo available and authenticated, use real data
+          if (authContext && deps?.userRepo && deps?.tenantRepo) {
+            const [user, tenant] = await Promise.all([
+              deps.userRepo.getById(authContext.userId),
+              deps.tenantRepo.getById(authContext.tenantId),
+            ]);
+
+            if (!user || !tenant) {
+              return jsonWithCors(mockSettings);
+            }
+
+            return jsonWithCors({
+              companyName: tenant.bsale_client_name,
+              email: user.email,
+              bsaleConnected: tenant.sync_status === "success",
+              lastSyncAt: tenant.last_sync_at?.toISOString() ?? null,
+              emailNotifications: user.notification_enabled,
+              notificationEmail: user.notification_email,
+              syncFrequency: "daily" as const, // Default, could be stored in a settings table
+            });
+          }
+
+          // Fallback to mock data
+          return jsonWithCors(mockSettings);
+        },
         PUT: async (req) => {
           const parseResult = UpdateSettingsSchema.safeParse(await req.json());
           if (!parseResult.success) {
             return createValidationErrorResponse(parseResult.error);
           }
           const body = parseResult.data;
+
+          // Try to get authenticated user context
+          const authContext = await tryAuthenticate(req);
+
+          // If userRepo available and authenticated, use real data
+          if (authContext && deps?.userRepo && deps?.tenantRepo) {
+            // Update user settings
+            const updateInput: Partial<{
+              name: string | null;
+              notification_enabled: boolean;
+              notification_email: string | null;
+            }> = {};
+
+            if (body.emailNotifications !== undefined) {
+              updateInput.notification_enabled = body.emailNotifications;
+            }
+            if (body.notificationEmail !== undefined) {
+              updateInput.notification_email = body.notificationEmail ?? null;
+            }
+
+            const updatedUser = await deps.userRepo.update(
+              authContext.userId,
+              updateInput
+            );
+
+            // Get tenant for complete response
+            const tenant = await deps.tenantRepo.getById(authContext.tenantId);
+
+            return jsonWithCors({
+              companyName: body.companyName ?? tenant?.bsale_client_name ?? "",
+              email: body.email ?? updatedUser.email,
+              bsaleConnected: tenant?.sync_status === "success",
+              lastSyncAt: tenant?.last_sync_at?.toISOString() ?? null,
+              emailNotifications: updatedUser.notification_enabled,
+              notificationEmail: updatedUser.notification_email,
+              syncFrequency: body.syncFrequency ?? "daily",
+            });
+          }
+
+          // Fallback to mock data
           Object.assign(mockSettings, body);
           return jsonWithCors(mockSettings);
         },
