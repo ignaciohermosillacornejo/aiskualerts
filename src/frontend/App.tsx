@@ -11,6 +11,8 @@ import { Thresholds } from "./pages/Thresholds";
 import { Settings } from "./pages/Settings";
 import { Login } from "./pages/Login";
 import { NotFound } from "./pages/NotFound";
+import { BillingSuccess } from "./pages/BillingSuccess";
+import { BillingCancel } from "./pages/BillingCancel";
 
 export function App() {
   return (
@@ -52,6 +54,20 @@ export function App() {
               <ProtectedRoute>
                 <Layout>
                   <Settings />
+                </Layout>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/billing/success">
+              <ProtectedRoute>
+                <Layout>
+                  <BillingSuccess />
+                </Layout>
+              </ProtectedRoute>
+            </Route>
+            <Route path="/billing/cancel">
+              <ProtectedRoute>
+                <Layout>
+                  <BillingCancel />
                 </Layout>
               </ProtectedRoute>
             </Route>
