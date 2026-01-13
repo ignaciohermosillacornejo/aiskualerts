@@ -19,6 +19,9 @@ const configSchema = z.object({
   notificationFromEmail: z.string().email().optional(),
   sentryDsn: z.string().optional(),
   sentryEnvironment: z.string().default("development"),
+  // Security configuration
+  tokenEncryptionKey: z.string().min(32).optional(),
+  csrfTokenSecret: z.string().min(32).optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -40,5 +43,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     notificationFromEmail: env["NOTIFICATION_FROM_EMAIL"],
     sentryDsn: env["SENTRY_DSN"],
     sentryEnvironment: env["SENTRY_ENVIRONMENT"],
+    // Security configuration
+    tokenEncryptionKey: env["TOKEN_ENCRYPTION_KEY"],
+    csrfTokenSecret: env["CSRF_TOKEN_SECRET"],
   });
 }

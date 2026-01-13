@@ -22,6 +22,14 @@ import {
   type AuthMiddleware,
   type AuthContext,
 } from "@/api/middleware/auth";
+import {
+  createRateLimitMiddleware,
+  RateLimitPresets,
+} from "@/api/middleware/rate-limit";
+import {
+  createCSRFMiddleware,
+  type CSRFMiddleware,
+} from "@/api/middleware/csrf";
 import { captureException } from "@/monitoring/sentry";
 
 // CORS configuration
@@ -29,7 +37,7 @@ export function getCorsHeaders(): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": process.env["ALLOWED_ORIGIN"] ?? "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-CSRF-Token",
     "Access-Control-Allow-Credentials": "true",
   };
 }
@@ -259,7 +267,19 @@ export function createServer(
   config: Config,
   deps?: ServerDependencies
 ): Server<undefined> {
-  const oauthRoutes = deps?.oauthDeps ? createOAuthRoutes(deps.oauthDeps) : null;
+  // Create security middleware
+  const authRateLimiter = createRateLimitMiddleware(RateLimitPresets.auth);
+
+  const csrfMiddleware: CSRFMiddleware | null = config.csrfTokenSecret
+    ? createCSRFMiddleware({
+        secret: config.csrfTokenSecret,
+        excludePaths: ["/api/webhooks/", "/api/auth/bsale/"],
+      })
+    : null;
+
+  const oauthRoutes = deps?.oauthDeps
+    ? createOAuthRoutes(deps.oauthDeps, csrfMiddleware ? { csrfMiddleware } : {})
+    : null;
   const billingRoutes = deps?.billingDeps
     ? createBillingRoutes(deps.billingDeps)
     : null;
@@ -866,8 +886,24 @@ export function createServer(
           return preflightResponse();
         }
 
+        // Apply CSRF protection to state-changing requests (POST, PUT, DELETE, PATCH)
+        if (csrfMiddleware && url.pathname.startsWith("/api/")) {
+          const csrfError = csrfMiddleware.validate(request);
+          if (csrfError) {
+            return csrfError;
+          }
+        }
+
         // OAuth routes (if configured)
         if (oauthRoutes) {
+          // Apply rate limiting to auth endpoints
+          if (url.pathname.startsWith("/api/auth/bsale/")) {
+            const rateLimitResponse = authRateLimiter.check(request);
+            if (rateLimitResponse) {
+              return rateLimitResponse;
+            }
+          }
+
           if (url.pathname === "/api/auth/bsale/start" && request.method === "GET") {
             return oauthRoutes.start(request);
           }

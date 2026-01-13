@@ -43,7 +43,7 @@ describe("CORS Helpers", () => {
       const headers = getCorsHeaders();
       expect(headers["Access-Control-Allow-Origin"]).toBeDefined();
       expect(headers["Access-Control-Allow-Methods"]).toBe("GET, POST, PUT, DELETE, OPTIONS");
-      expect(headers["Access-Control-Allow-Headers"]).toBe("Content-Type, Authorization");
+      expect(headers["Access-Control-Allow-Headers"]).toBe("Content-Type, Authorization, X-CSRF-Token");
       expect(headers["Access-Control-Allow-Credentials"]).toBe("true");
     });
 
