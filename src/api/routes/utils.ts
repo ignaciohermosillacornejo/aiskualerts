@@ -1,28 +1,45 @@
 import { ZodError } from "zod";
 
-// Cached allowed origins list (parsed on first access)
-let cachedAllowedOrigins: string[] | null = null;
+// Module-level CORS configuration (set via configureCors)
+let corsConfig: {
+  allowedOrigins: string[];
+  nodeEnv: string;
+} | null = null;
 
 /**
- * Get the list of allowed origins from environment configuration.
- * Origins are cached after first access for performance.
+ * Configure CORS settings for the application.
+ * Must be called during server startup with config values.
+ * @param config - CORS configuration from loadConfig()
  */
-function getAllowedOrigins(): string[] {
-  if (cachedAllowedOrigins === null) {
-    const originsEnv = process.env["ALLOWED_ORIGINS"] ?? "";
-    cachedAllowedOrigins = originsEnv
-      .split(",")
-      .map((origin) => origin.trim())
-      .filter(Boolean);
-  }
-  return cachedAllowedOrigins;
+export function configureCors(config: { allowedOrigins: string[]; nodeEnv: string }): void {
+  corsConfig = config;
 }
 
 /**
- * Reset the cached allowed origins (useful for testing)
+ * Reset CORS configuration (useful for testing)
  */
-export function resetCorsCache(): void {
-  cachedAllowedOrigins = null;
+export function resetCorsConfig(): void {
+  corsConfig = null;
+}
+
+/**
+ * Get the current CORS configuration.
+ * Falls back to parsing env vars if not configured (for backward compatibility).
+ */
+function getCorsConfig(): { allowedOrigins: string[]; nodeEnv: string } {
+  if (corsConfig !== null) {
+    return corsConfig;
+  }
+
+  // Fallback for when configureCors hasn't been called (e.g., direct test imports)
+  const originsEnv = process.env["ALLOWED_ORIGINS"] ?? "";
+  const allowedOrigins = originsEnv
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const nodeEnv = process.env["NODE_ENV"] ?? "development";
+
+  return { allowedOrigins, nodeEnv };
 }
 
 /**
@@ -33,11 +50,10 @@ export function resetCorsCache(): void {
  * @returns The validated origin or null if not allowed
  */
 export function validateOrigin(requestOrigin: string | null): string | null {
-  const allowedOrigins = getAllowedOrigins();
+  const { allowedOrigins, nodeEnv } = getCorsConfig();
 
   // In test/development mode without configured origins, allow all
   if (allowedOrigins.length === 0) {
-    const nodeEnv = process.env["NODE_ENV"] ?? "development";
     if (nodeEnv === "test" || nodeEnv === "development") {
       return requestOrigin ?? "*";
     }
@@ -118,7 +134,10 @@ export function preflightResponse(requestOrigin?: string | null): Response {
 }
 
 // Helper function to create validation error response with CORS
-export function createValidationErrorResponse(error: ZodError): Response {
+export function createValidationErrorResponse(
+  error: ZodError,
+  requestOrigin?: string | null
+): Response {
   return jsonWithCors(
     {
       error: "Validation failed",
@@ -127,7 +146,8 @@ export function createValidationErrorResponse(error: ZodError): Response {
         message: e.message,
       })),
     },
-    { status: 400 }
+    { status: 400 },
+    requestOrigin
   );
 }
 

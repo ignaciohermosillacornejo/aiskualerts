@@ -134,4 +134,115 @@ describe("loadConfig", () => {
     expect(config.sentryDsn).toBeUndefined();
     expect(config.sentryEnvironment).toBe("staging");
   });
+
+  describe("ALLOWED_ORIGINS", () => {
+    test("returns empty array when not set", () => {
+      const config = loadConfig({});
+
+      expect(config.allowedOrigins).toEqual([]);
+    });
+
+    test("parses single origin", () => {
+      const config = loadConfig({
+        ALLOWED_ORIGINS: "https://example.com",
+      });
+
+      expect(config.allowedOrigins).toEqual(["https://example.com"]);
+    });
+
+    test("parses multiple comma-separated origins", () => {
+      const config = loadConfig({
+        ALLOWED_ORIGINS: "https://example.com,https://app.example.com,https://api.example.com",
+      });
+
+      expect(config.allowedOrigins).toEqual([
+        "https://example.com",
+        "https://app.example.com",
+        "https://api.example.com",
+      ]);
+    });
+
+    test("trims whitespace from origins", () => {
+      const config = loadConfig({
+        ALLOWED_ORIGINS: " https://example.com , https://app.example.com ",
+      });
+
+      expect(config.allowedOrigins).toEqual([
+        "https://example.com",
+        "https://app.example.com",
+      ]);
+    });
+
+    test("filters out empty origins", () => {
+      const config = loadConfig({
+        ALLOWED_ORIGINS: "https://example.com,,https://app.example.com,",
+      });
+
+      expect(config.allowedOrigins).toEqual([
+        "https://example.com",
+        "https://app.example.com",
+      ]);
+    });
+
+    test("handles empty string as empty array", () => {
+      const config = loadConfig({
+        ALLOWED_ORIGINS: "",
+      });
+
+      expect(config.allowedOrigins).toEqual([]);
+    });
+
+    test("handles whitespace-only string as empty array", () => {
+      const config = loadConfig({
+        ALLOWED_ORIGINS: "   ",
+      });
+
+      expect(config.allowedOrigins).toEqual([]);
+    });
+
+    test("throws in production mode without ALLOWED_ORIGINS", () => {
+      expect(() =>
+        loadConfig({
+          NODE_ENV: "production",
+        })
+      ).toThrow("ALLOWED_ORIGINS environment variable must be configured in production");
+    });
+
+    test("throws in production mode with empty ALLOWED_ORIGINS", () => {
+      expect(() =>
+        loadConfig({
+          NODE_ENV: "production",
+          ALLOWED_ORIGINS: "",
+        })
+      ).toThrow("ALLOWED_ORIGINS environment variable must be configured in production");
+    });
+
+    test("does not throw in production mode with ALLOWED_ORIGINS set", () => {
+      const config = loadConfig({
+        NODE_ENV: "production",
+        ALLOWED_ORIGINS: "https://example.com",
+      });
+
+      expect(config.nodeEnv).toBe("production");
+      expect(config.allowedOrigins).toEqual(["https://example.com"]);
+    });
+
+    test("does not throw in development mode without ALLOWED_ORIGINS", () => {
+      const config = loadConfig({
+        NODE_ENV: "development",
+      });
+
+      expect(config.nodeEnv).toBe("development");
+      expect(config.allowedOrigins).toEqual([]);
+    });
+
+    test("does not throw in test mode without ALLOWED_ORIGINS", () => {
+      const config = loadConfig({
+        NODE_ENV: "test",
+      });
+
+      expect(config.nodeEnv).toBe("test");
+      expect(config.allowedOrigins).toEqual([]);
+    });
+  });
 });

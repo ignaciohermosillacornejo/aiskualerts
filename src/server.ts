@@ -42,6 +42,8 @@ import {
   jsonWithCors,
   responseWithCors,
   preflightResponse,
+  configureCors,
+  resetCorsConfig,
 } from "@/api/routes/utils";
 import { createDashboardRoutes } from "@/api/routes/dashboard";
 import { createAlertRoutes } from "@/api/routes/alerts";
@@ -56,6 +58,8 @@ export {
   jsonWithCors,
   responseWithCors,
   preflightResponse,
+  configureCors,
+  resetCorsConfig,
 };
 
 // Re-export schemas for backward compatibility
@@ -203,6 +207,12 @@ export function createServer(
   config: Config,
   deps?: ServerDependencies
 ): Server<undefined> {
+  // Configure CORS with the validated config
+  configureCors({
+    allowedOrigins: config.allowedOrigins ?? [],
+    nodeEnv: config.nodeEnv,
+  });
+
   // Create path-based rate limiters for different API endpoints
   const apiRateLimiter = createPathBasedRateLimiter({
     "/api/auth/": RateLimitPresets.auth,

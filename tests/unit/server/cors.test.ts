@@ -5,12 +5,16 @@ import {
   jsonWithCors,
   responseWithCors,
   preflightResponse,
+  configureCors,
+  resetCorsConfig,
 } from "@/server";
+import { validateOrigin } from "@/api/routes/utils";
 import type { Config } from "@/config";
 
 const testConfig: Config = {
   port: 0,
   nodeEnv: "test",
+  allowedOrigins: [],
   syncEnabled: false,
   syncHour: 2,
   syncMinute: 0,
@@ -29,43 +33,143 @@ afterEach(async () => {
     await serverInstance.stop(true);
     serverInstance = null;
   }
+  // Reset CORS config after each test
+  resetCorsConfig();
+});
+
+describe("validateOrigin", () => {
+  beforeEach(() => {
+    resetCorsConfig();
+  });
+
+  describe("in development/test mode without configured origins", () => {
+    test("returns the request origin when provided", () => {
+      configureCors({ allowedOrigins: [], nodeEnv: "test" });
+      expect(validateOrigin("https://example.com")).toBe("https://example.com");
+    });
+
+    test("returns * when no origin is provided", () => {
+      configureCors({ allowedOrigins: [], nodeEnv: "test" });
+      expect(validateOrigin(null)).toBe("*");
+    });
+
+    test("returns * for development mode", () => {
+      configureCors({ allowedOrigins: [], nodeEnv: "development" });
+      expect(validateOrigin(null)).toBe("*");
+    });
+  });
+
+  describe("in production mode without configured origins", () => {
+    test("returns null (rejects) when no origins configured", () => {
+      configureCors({ allowedOrigins: [], nodeEnv: "production" });
+      expect(validateOrigin("https://example.com")).toBe(null);
+    });
+
+    test("returns null for null origin", () => {
+      configureCors({ allowedOrigins: [], nodeEnv: "production" });
+      expect(validateOrigin(null)).toBe(null);
+    });
+  });
+
+  describe("with configured allowed origins", () => {
+    beforeEach(() => {
+      configureCors({
+        allowedOrigins: ["https://allowed.com", "https://also-allowed.com"],
+        nodeEnv: "production",
+      });
+    });
+
+    test("returns the origin if it is in the allowed list", () => {
+      expect(validateOrigin("https://allowed.com")).toBe("https://allowed.com");
+      expect(validateOrigin("https://also-allowed.com")).toBe("https://also-allowed.com");
+    });
+
+    test("returns null for origins not in the allowed list", () => {
+      expect(validateOrigin("https://not-allowed.com")).toBe(null);
+      expect(validateOrigin("https://evil.com")).toBe(null);
+    });
+
+    test("returns first allowed origin for null (same-origin) requests", () => {
+      expect(validateOrigin(null)).toBe("https://allowed.com");
+    });
+  });
+
+  describe("edge cases", () => {
+    test("handles empty string origin", () => {
+      configureCors({
+        allowedOrigins: ["https://allowed.com"],
+        nodeEnv: "production",
+      });
+      // Empty string is not in the list, so it should be rejected
+      expect(validateOrigin("")).toBe(null);
+    });
+
+    test("handles case-sensitive origin matching", () => {
+      configureCors({
+        allowedOrigins: ["https://Allowed.com"],
+        nodeEnv: "production",
+      });
+      // Origins should be case-sensitive per spec
+      expect(validateOrigin("https://Allowed.com")).toBe("https://Allowed.com");
+      expect(validateOrigin("https://allowed.com")).toBe(null);
+    });
+  });
 });
 
 describe("getCorsHeaders", () => {
-  const originalEnv = process.env["ALLOWED_ORIGIN"];
-
   beforeEach(() => {
-    delete process.env["ALLOWED_ORIGIN"];
+    resetCorsConfig();
   });
 
-  afterEach(() => {
-    if (originalEnv !== undefined) {
-      process.env["ALLOWED_ORIGIN"] = originalEnv;
-    } else {
-      delete process.env["ALLOWED_ORIGIN"];
-    }
-  });
-
-  test("returns default * origin when ALLOWED_ORIGIN is not set", () => {
+  test("returns * origin in test mode when no origins configured", () => {
+    configureCors({ allowedOrigins: [], nodeEnv: "test" });
     const headers = getCorsHeaders();
     expect(headers["Access-Control-Allow-Origin"]).toBe("*");
   });
 
-  test("returns configured origin from ALLOWED_ORIGIN env var", () => {
-    process.env["ALLOWED_ORIGIN"] = "https://example.com";
-    const headers = getCorsHeaders();
+  test("returns configured origin from allowed origins", () => {
+    configureCors({
+      allowedOrigins: ["https://example.com"],
+      nodeEnv: "production",
+    });
+    const headers = getCorsHeaders("https://example.com");
     expect(headers["Access-Control-Allow-Origin"]).toBe("https://example.com");
   });
 
-  test("includes all required CORS headers", () => {
+  test("omits Access-Control-Allow-Origin for rejected origins in production", () => {
+    configureCors({
+      allowedOrigins: ["https://allowed.com"],
+      nodeEnv: "production",
+    });
+    const headers = getCorsHeaders("https://not-allowed.com");
+    expect(headers["Access-Control-Allow-Origin"]).toBeUndefined();
+  });
+
+  test("includes all required CORS headers for valid origins", () => {
+    configureCors({ allowedOrigins: [], nodeEnv: "test" });
     const headers = getCorsHeaders();
     expect(headers["Access-Control-Allow-Methods"]).toBe("GET, POST, PUT, DELETE, OPTIONS");
     expect(headers["Access-Control-Allow-Headers"]).toBe("Content-Type, Authorization, X-CSRF-Token");
     expect(headers["Access-Control-Allow-Credentials"]).toBe("true");
   });
+
+  test("includes method and header info even for rejected origins", () => {
+    configureCors({
+      allowedOrigins: ["https://allowed.com"],
+      nodeEnv: "production",
+    });
+    const headers = getCorsHeaders("https://not-allowed.com");
+    expect(headers["Access-Control-Allow-Methods"]).toBe("GET, POST, PUT, DELETE, OPTIONS");
+    expect(headers["Access-Control-Allow-Headers"]).toBe("Content-Type, Authorization, X-CSRF-Token");
+  });
 });
 
 describe("jsonWithCors", () => {
+  beforeEach(() => {
+    resetCorsConfig();
+    configureCors({ allowedOrigins: [], nodeEnv: "test" });
+  });
+
   test("creates JSON response with CORS headers", () => {
     const response = jsonWithCors({ foo: "bar" });
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
@@ -93,9 +197,23 @@ describe("jsonWithCors", () => {
     const body = await response.json() as { message: string };
     expect(body).toEqual(data);
   });
+
+  test("uses request origin when provided", () => {
+    configureCors({
+      allowedOrigins: ["https://my-app.com"],
+      nodeEnv: "production",
+    });
+    const response = jsonWithCors({ data: "test" }, undefined, "https://my-app.com");
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://my-app.com");
+  });
 });
 
 describe("responseWithCors", () => {
+  beforeEach(() => {
+    resetCorsConfig();
+    configureCors({ allowedOrigins: [], nodeEnv: "test" });
+  });
+
   test("creates response with CORS headers", () => {
     const response = responseWithCors(null, { status: 204 });
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
@@ -112,6 +230,11 @@ describe("responseWithCors", () => {
 });
 
 describe("preflightResponse", () => {
+  beforeEach(() => {
+    resetCorsConfig();
+    configureCors({ allowedOrigins: [], nodeEnv: "test" });
+  });
+
   test("returns 204 status", () => {
     const response = preflightResponse();
     expect(response.status).toBe(204);
@@ -129,6 +252,15 @@ describe("preflightResponse", () => {
     const response = preflightResponse();
     const body = await response.text();
     expect(body).toBe("");
+  });
+
+  test("uses request origin when provided", () => {
+    configureCors({
+      allowedOrigins: ["https://my-app.com"],
+      nodeEnv: "production",
+    });
+    const response = preflightResponse("https://my-app.com");
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://my-app.com");
   });
 });
 
@@ -212,5 +344,47 @@ describe("CORS integration with server", () => {
       expect(response.status).toBe(204);
       expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
     }
+  });
+
+  test("server with configured origins validates request origin", async () => {
+    const configWithOrigins: Config = {
+      ...testConfig,
+      allowedOrigins: ["https://allowed.com"],
+      nodeEnv: "production",
+    };
+    serverInstance = createServer(configWithOrigins);
+
+    // Request with allowed origin
+    const allowedResponse = await fetch(`http://localhost:${String(serverInstance.port)}/api/health`, {
+      headers: { "Origin": "https://allowed.com" },
+    });
+    expect(allowedResponse.headers.get("Access-Control-Allow-Origin")).toBe("https://allowed.com");
+
+    // Request with disallowed origin
+    const disallowedResponse = await fetch(`http://localhost:${String(serverInstance.port)}/api/health`, {
+      headers: { "Origin": "https://evil.com" },
+    });
+    // No Access-Control-Allow-Origin header means browser will block
+    expect(disallowedResponse.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+});
+
+describe("resetCorsConfig", () => {
+  test("clears configured CORS settings", () => {
+    configureCors({
+      allowedOrigins: ["https://example.com"],
+      nodeEnv: "production",
+    });
+
+    // Verify config is set
+    const headersBefore = getCorsHeaders("https://example.com");
+    expect(headersBefore["Access-Control-Allow-Origin"]).toBe("https://example.com");
+
+    // Reset
+    resetCorsConfig();
+
+    // After reset, should fall back to env var parsing (which defaults to test mode behavior)
+    const headersAfter = getCorsHeaders("https://example.com");
+    expect(headersAfter["Access-Control-Allow-Origin"]).toBe("https://example.com");
   });
 });
