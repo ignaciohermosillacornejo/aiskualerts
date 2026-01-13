@@ -6,20 +6,20 @@ const ConfigSchema = z.object({
   secretKey: z.string().min(1),
   priceId: z.string().min(1),
   webhookSecret: z.string().min(1).optional(),
-  appUrl: z.string().url(),
+  appUrl: z.url(),
 });
 
 export type StripeConfig = z.infer<typeof ConfigSchema>;
 
 // Input validation schemas
 const CheckoutInputSchema = z.object({
-  tenantId: z.string().uuid(),
-  email: z.string().email(),
+  tenantId: z.uuid(),
+  email: z.email(),
 });
 
 // Checkout session metadata
 const CheckoutMetadataSchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: z.uuid(),
 });
 
 export type CheckoutMetadata = z.infer<typeof CheckoutMetadataSchema>;
