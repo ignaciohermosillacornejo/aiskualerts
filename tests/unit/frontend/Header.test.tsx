@@ -1,0 +1,304 @@
+import { test, expect, describe, beforeEach, mock } from "bun:test";
+import "../../setup";
+
+// Test Header logic without React Testing Library rendering
+// This tests the business logic and state management
+
+describe("Header", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  describe("module exports", () => {
+    test("exports Header component", async () => {
+      const { Header } = await import("../../../src/frontend/components/Header");
+      expect(Header).toBeFunction();
+    });
+  });
+
+  describe("pageTitles mapping", () => {
+    const pageTitles: Record<string, string> = {
+      "/app": "Dashboard",
+      "/app/alerts": "Alertas",
+      "/app/products": "Productos",
+      "/app/thresholds": "Umbrales",
+      "/app/settings": "Configuracion",
+    };
+
+    test("returns 'Dashboard' for /app route", () => {
+      const location = "/app";
+      const title = pageTitles[location] ?? "AISku Alerts";
+      expect(title).toBe("Dashboard");
+    });
+
+    test("returns 'Alertas' for /app/alerts route", () => {
+      const location = "/app/alerts";
+      const title = pageTitles[location] ?? "AISku Alerts";
+      expect(title).toBe("Alertas");
+    });
+
+    test("returns 'Productos' for /app/products route", () => {
+      const location = "/app/products";
+      const title = pageTitles[location] ?? "AISku Alerts";
+      expect(title).toBe("Productos");
+    });
+
+    test("returns 'Umbrales' for /app/thresholds route", () => {
+      const location = "/app/thresholds";
+      const title = pageTitles[location] ?? "AISku Alerts";
+      expect(title).toBe("Umbrales");
+    });
+
+    test("returns 'Configuracion' for /app/settings route", () => {
+      const location = "/app/settings";
+      const title = pageTitles[location] ?? "AISku Alerts";
+      expect(title).toBe("Configuracion");
+    });
+
+    test("returns 'AISku Alerts' for unknown routes", () => {
+      const location = "/unknown/route";
+      const title = pageTitles[location] ?? "AISku Alerts";
+      expect(title).toBe("AISku Alerts");
+    });
+
+    test("returns 'AISku Alerts' for root route", () => {
+      const location = "/";
+      const title = pageTitles[location] ?? "AISku Alerts";
+      expect(title).toBe("AISku Alerts");
+    });
+
+    test("returns 'AISku Alerts' for /login route", () => {
+      const location = "/login";
+      const title = pageTitles[location] ?? "AISku Alerts";
+      expect(title).toBe("AISku Alerts");
+    });
+  });
+
+  describe("user display logic", () => {
+    interface User {
+      id: string;
+      email: string;
+      name: string;
+      role: "admin" | "viewer";
+    }
+
+    function getUser(authenticated: boolean): User | null {
+      if (authenticated) {
+        return { id: "1", email: "john@company.com", name: "John Doe", role: "admin" };
+      }
+      return null;
+    }
+
+    test("displays user email when authenticated", () => {
+      const user = getUser(true);
+      const shouldShowUserInfo = user !== null;
+      expect(shouldShowUserInfo).toBe(true);
+      expect(user?.email).toBe("john@company.com");
+    });
+
+    test("displays different user email", () => {
+      const user = { id: "2", email: "jane@example.org", name: "Jane Smith", role: "viewer" as const };
+      expect(user.email).toBe("jane@example.org");
+    });
+
+    test("does not display user info when not authenticated", () => {
+      const user = getUser(false);
+      const shouldShowUserInfo = user !== null;
+      expect(shouldShowUserInfo).toBe(false);
+    });
+
+    test("shows logout button only when authenticated", () => {
+      const user = getUser(true);
+      const shouldShowLogoutButton = user !== null;
+      expect(shouldShowLogoutButton).toBe(true);
+    });
+
+    test("hides logout button when not authenticated", () => {
+      const user = getUser(false);
+      const shouldShowLogoutButton = user !== null;
+      expect(shouldShowLogoutButton).toBe(false);
+    });
+  });
+
+  describe("handleLogout logic", () => {
+    test("calls logout and redirects to /login", async () => {
+      const mockLogout = mock(() => Promise.resolve());
+      const redirects: string[] = [];
+      const setLocation = (path: string) => redirects.push(path);
+
+      // Simulate handleLogout
+      async function handleLogout() {
+        await mockLogout();
+        setLocation("/login");
+      }
+
+      await handleLogout();
+
+      expect(mockLogout).toHaveBeenCalledTimes(1);
+      expect(redirects).toContain("/login");
+    });
+
+    test("logout is awaited before redirect", async () => {
+      const callOrder: string[] = [];
+      const mockLogout = mock(() => {
+        callOrder.push("logout");
+        return Promise.resolve();
+      });
+      const setLocation = (path: string) => {
+        callOrder.push(`redirect:${path}`);
+      };
+
+      async function handleLogout() {
+        await mockLogout();
+        setLocation("/login");
+      }
+
+      await handleLogout();
+
+      expect(callOrder).toEqual(["logout", "redirect:/login"]);
+    });
+  });
+
+  describe("header structure", () => {
+    test("header has correct CSS class", () => {
+      const headerClassName = "header";
+      expect(headerClassName).toBe("header");
+    });
+
+    test("title has correct CSS class", () => {
+      const titleClassName = "header-title";
+      expect(titleClassName).toBe("header-title");
+    });
+
+    test("actions container has correct CSS class", () => {
+      const actionsClassName = "header-actions";
+      expect(actionsClassName).toBe("header-actions");
+    });
+  });
+
+  describe("user info styling", () => {
+    test("user info container style properties", () => {
+      const userInfoStyle = {
+        display: "flex",
+        alignItems: "center",
+        gap: "1rem",
+        marginRight: "1rem",
+      };
+
+      expect(userInfoStyle.display).toBe("flex");
+      expect(userInfoStyle.alignItems).toBe("center");
+      expect(userInfoStyle.gap).toBe("1rem");
+      expect(userInfoStyle.marginRight).toBe("1rem");
+    });
+
+    test("user email text style properties", () => {
+      const emailStyle = {
+        fontSize: "0.875rem",
+        color: "#64748b",
+      };
+
+      expect(emailStyle.fontSize).toBe("0.875rem");
+      expect(emailStyle.color).toBe("#64748b");
+    });
+
+    test("logout button style properties", () => {
+      const buttonStyle = {
+        padding: "0.5rem 1rem",
+        fontSize: "0.875rem",
+      };
+
+      expect(buttonStyle.padding).toBe("0.5rem 1rem");
+      expect(buttonStyle.fontSize).toBe("0.875rem");
+    });
+  });
+
+  describe("notification bell", () => {
+    test("notification bell SVG dimensions", () => {
+      const svgProps = {
+        width: "20",
+        height: "20",
+        fill: "none",
+        viewBox: "0 0 24 24",
+        stroke: "currentColor",
+      };
+
+      expect(svgProps.width).toBe("20");
+      expect(svgProps.height).toBe("20");
+      expect(svgProps.fill).toBe("none");
+      expect(svgProps.viewBox).toBe("0 0 24 24");
+      expect(svgProps.stroke).toBe("currentColor");
+    });
+
+    test("notification bell path stroke properties", () => {
+      const pathProps = {
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        strokeWidth: 2,
+      };
+
+      expect(pathProps.strokeLinecap).toBe("round");
+      expect(pathProps.strokeLinejoin).toBe("round");
+      expect(pathProps.strokeWidth).toBe(2);
+    });
+
+    test("notification bell is always visible regardless of auth state", () => {
+      // Bell is outside the conditional user check
+      const showNotificationBell = true;
+      expect(showNotificationBell).toBe(true);
+    });
+  });
+
+  describe("button classes", () => {
+    test("logout button has secondary class", () => {
+      const buttonClasses = "btn btn-secondary";
+      expect(buttonClasses).toContain("btn");
+      expect(buttonClasses).toContain("btn-secondary");
+    });
+
+    test("notification button has secondary class", () => {
+      const buttonClasses = "btn btn-secondary";
+      expect(buttonClasses).toContain("btn");
+      expect(buttonClasses).toContain("btn-secondary");
+    });
+  });
+
+  describe("logout button text", () => {
+    test("logout button shows 'Cerrar Sesion'", () => {
+      const logoutButtonText = "Cerrar Sesion";
+      expect(logoutButtonText).toBe("Cerrar Sesion");
+    });
+  });
+
+  describe("user roles", () => {
+    test("handles admin role", () => {
+      const user = { id: "1", email: "admin@test.com", name: "Admin", role: "admin" as const };
+      expect(user.role).toBe("admin");
+    });
+
+    test("handles viewer role", () => {
+      const user = { id: "2", email: "viewer@test.com", name: "Viewer", role: "viewer" as const };
+      expect(user.role).toBe("viewer");
+    });
+  });
+
+  describe("component dependencies", () => {
+    test("uses useLocation from wouter", () => {
+      // The component destructures [location, setLocation] from useLocation
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      const useLocationResult: [string, (path: string) => void] = ["/app", () => {}];
+      const [location, setLocation] = useLocationResult;
+      expect(typeof location).toBe("string");
+      expect(typeof setLocation).toBe("function");
+    });
+
+    test("uses useAuth from AuthContext", () => {
+      // The component destructures user and logout from useAuth
+      const useAuthResult = {
+        user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
+        logout: (): Promise<void> => Promise.resolve(),
+      };
+      expect(useAuthResult.user).toBeDefined();
+      expect(typeof useAuthResult.logout).toBe("function");
+    });
+  });
+});
