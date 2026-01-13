@@ -57,7 +57,7 @@ describe("getCorsHeaders", () => {
   test("includes all required CORS headers", () => {
     const headers = getCorsHeaders();
     expect(headers["Access-Control-Allow-Methods"]).toBe("GET, POST, PUT, DELETE, OPTIONS");
-    expect(headers["Access-Control-Allow-Headers"]).toBe("Content-Type, Authorization");
+    expect(headers["Access-Control-Allow-Headers"]).toBe("Content-Type, Authorization, X-CSRF-Token");
     expect(headers["Access-Control-Allow-Credentials"]).toBe("true");
   });
 });
@@ -118,7 +118,7 @@ describe("preflightResponse", () => {
     const response = preflightResponse();
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
     expect(response.headers.get("Access-Control-Allow-Methods")).toBe("GET, POST, PUT, DELETE, OPTIONS");
-    expect(response.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, Authorization");
+    expect(response.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, Authorization, X-CSRF-Token");
     expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
   });
 

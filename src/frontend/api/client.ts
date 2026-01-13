@@ -37,6 +37,28 @@ class ApiError extends Error {
   }
 }
 
+const CSRF_COOKIE_NAME = "csrf_token";
+const CSRF_HEADER_NAME = "X-CSRF-Token";
+
+/**
+ * Extract CSRF token from cookies
+ */
+function getCSRFToken(): string | null {
+  const cookies = document.cookie.split(";");
+  for (const cookie of cookies) {
+    const [name, ...valueParts] = cookie.trim().split("=");
+    if (name === CSRF_COOKIE_NAME) {
+      return valueParts.join("=") || null;
+    }
+  }
+  return null;
+}
+
+/**
+ * HTTP methods that require CSRF token
+ */
+const STATE_CHANGING_METHODS = ["POST", "PUT", "DELETE", "PATCH"];
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -45,6 +67,15 @@ async function request<T>(
   const headers = new Headers({
     "Content-Type": "application/json",
   });
+
+  // Add CSRF token for state-changing requests
+  const method = options.method?.toUpperCase() ?? "GET";
+  if (STATE_CHANGING_METHODS.includes(method)) {
+    const csrfToken = getCSRFToken();
+    if (csrfToken) {
+      headers.set(CSRF_HEADER_NAME, csrfToken);
+    }
+  }
 
   // Merge in any additional headers from options
   if (options.headers) {
