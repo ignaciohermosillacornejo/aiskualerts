@@ -6,6 +6,7 @@ import { UserRepository } from "@/db/repositories/user";
 import { AlertRepository } from "@/db/repositories/alert";
 import { renderDailyDigestEmail, type AlertSummary } from "@/email/templates/daily-digest";
 import type { Alert, DigestFrequency, User } from "@/db/repositories/types";
+import { logger } from "@/utils/logger";
 
 export interface DigestJobResult {
   tenantsProcessed: number;
@@ -30,29 +31,29 @@ export function createDigestJob(
   deps: DigestJobDependencies
 ): () => Promise<void> {
   return async function digestJob(): Promise<void> {
-    console.info("Starting scheduled digest job...");
+    logger.info("Starting scheduled digest job...");
     const startedAt = new Date();
 
     try {
       const result = await runDigestJob(deps);
 
-      console.info(
-        `Digest job completed: ${String(result.emailsSent)} emails sent, ` +
-          `${String(result.alertsMarkedSent)} alerts marked as sent`
-      );
+      logger.info("Digest job completed", {
+        emailsSent: result.emailsSent,
+        alertsMarkedSent: result.alertsMarkedSent,
+      });
 
       if (result.errors.length > 0) {
-        console.warn(`Digest job completed with ${String(result.errors.length)} errors:`, result.errors);
+        logger.warn("Digest job completed with errors", { errorCount: result.errors.length, errors: result.errors });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`Digest job failed: ${message}`);
+      logger.error("Digest job failed", error instanceof Error ? error : new Error(message));
       throw error;
     }
 
     const completedAt = new Date();
     const duration = completedAt.getTime() - startedAt.getTime();
-    console.info(`Digest job duration: ${String(duration)}ms`);
+    logger.info("Digest job duration", { durationMs: duration });
   };
 }
 
@@ -118,9 +119,6 @@ export async function runDigestJob(
   // Group by tenant_id in memory
   const usersByTenant = groupBy(allUsers, (u) => u.tenant_id);
   const alertsByTenant = groupBy(allAlerts, (a) => a.tenant_id);
-
-  // Create tenant lookup map for O(1) access
-  const tenantMap = new Map(tenants.map((t) => [t.id, t]));
 
   for (const tenant of tenants) {
     try {

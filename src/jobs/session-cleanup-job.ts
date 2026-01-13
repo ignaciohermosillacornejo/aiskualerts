@@ -1,4 +1,5 @@
 import type { SessionRepository } from "@/db/repositories/session";
+import { logger } from "@/utils/logger";
 
 export interface SessionCleanupResult {
   deletedCount: number;
@@ -19,7 +20,7 @@ export async function runSessionCleanup(
   const completedAt = new Date();
 
   if (deletedCount > 0) {
-    console.info(`Cleaned up ${String(deletedCount)} expired sessions`);
+    logger.info("Cleaned up expired sessions", { deletedCount });
   }
 
   return {
@@ -58,20 +59,18 @@ export function createSessionCleanupScheduler(
       return await runSessionCleanup(sessionRepo);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`Session cleanup failed: ${message}`);
+      logger.error("Session cleanup failed", error instanceof Error ? error : new Error(message));
       throw error;
     }
   };
 
   const start = (): void => {
     if (intervalId !== null) {
-      console.info("Session cleanup scheduler is already running");
+      logger.info("Session cleanup scheduler is already running");
       return;
     }
 
-    console.info(
-      `Session cleanup scheduler started (interval: ${String(mergedConfig.intervalMs / 1000 / 60)} minutes)`
-    );
+    logger.info("Session cleanup scheduler started", { intervalMinutes: mergedConfig.intervalMs / 1000 / 60 });
 
     if (mergedConfig.runOnStart) {
       void runCleanup();
@@ -86,7 +85,7 @@ export function createSessionCleanupScheduler(
     if (intervalId !== null) {
       clearInterval(intervalId);
       intervalId = null;
-      console.info("Session cleanup scheduler stopped");
+      logger.info("Session cleanup scheduler stopped");
     }
   };
 

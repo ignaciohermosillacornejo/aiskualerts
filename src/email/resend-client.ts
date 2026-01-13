@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import type { Config } from "@/config";
+import { logger } from "@/utils/logger";
 
 export interface SendEmailParams {
   to: string;
@@ -45,7 +46,7 @@ export function createEmailClient(config: Config): EmailClient {
   if (!apiKey) {
     return {
       sendEmail(): Promise<SendEmailResult> {
-        console.warn("Email sending skipped: RESEND_API_KEY not configured");
+        logger.warn("Email sending skipped: RESEND_API_KEY not configured");
         return Promise.resolve({ success: false, error: "API key not configured" });
       },
     };
@@ -79,10 +80,11 @@ export function createEmailClient(config: Config): EmailClient {
 
           if (attempt < MAX_RETRIES && isRetryableError(error)) {
             const delayMs = RETRY_DELAY_MS * attempt;
-            console.warn(
-              `Email send attempt ${String(attempt)} failed, retrying in ${String(delayMs)}ms:`,
-              lastError.message
-            );
+            logger.warn("Email send attempt failed, retrying", {
+              attempt,
+              retryDelayMs: delayMs,
+              error: lastError.message,
+            });
             await delay(delayMs);
             continue;
           }
@@ -91,7 +93,7 @@ export function createEmailClient(config: Config): EmailClient {
         }
       }
 
-      console.error("Email send failed after all retries:", lastError?.message);
+      logger.error("Email send failed after all retries", lastError ?? undefined, { error: lastError?.message });
       return {
         success: false,
         error: lastError?.message ?? "Unknown error",

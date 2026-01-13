@@ -6,6 +6,7 @@ import type { Tenant, StockSnapshotInput } from "@/db/repositories/types";
 import type { SyncResult, SyncOptions } from "./types";
 import { DEFAULT_SYNC_OPTIONS } from "./types";
 import { BsaleAuthError, BsaleRateLimitError } from "@/lib/errors";
+import { logger } from "@/utils/logger";
 
 export interface TenantSyncDependencies {
   tenantRepo: TenantRepository;
@@ -116,11 +117,11 @@ export async function syncTenant(
     if (error instanceof BsaleAuthError) {
       // Authentication errors are permanent - mark as failed
       await deps.tenantRepo.updateSyncStatus(tenant.id, "failed");
-      console.error(`Authentication failed for tenant ${tenant.id}`);
+      logger.error("Authentication failed for tenant", error, { tenantId: tenant.id });
     } else if (error instanceof BsaleRateLimitError) {
       // Rate limit errors are temporary - mark as pending for retry
       await deps.tenantRepo.updateSyncStatus(tenant.id, "pending");
-      console.warn(`Rate limit hit for tenant ${tenant.id}, will retry`);
+      logger.warn("Rate limit hit for tenant, will retry", { tenantId: tenant.id });
     } else if (error instanceof Error) {
       // Check for temporary database connectivity issues
       if (errorMessage.includes('ECONNREFUSED') ||
@@ -128,11 +129,11 @@ export async function syncTenant(
           errorMessage.includes('timeout')) {
         // Database connectivity issues are temporary - mark as pending for retry
         await deps.tenantRepo.updateSyncStatus(tenant.id, "pending");
-        console.warn(`Temporary database error for tenant ${tenant.id}, will retry`);
+        logger.warn("Temporary database error for tenant, will retry", { tenantId: tenant.id });
       } else {
         // All other errors are permanent - mark as failed
         await deps.tenantRepo.updateSyncStatus(tenant.id, "failed");
-        console.error(`Sync failed for tenant ${tenant.id}: ${errorMessage}`);
+        logger.error("Sync failed for tenant", error, { tenantId: tenant.id });
       }
     } else {
       // Unknown error type - mark as failed

@@ -2,6 +2,7 @@ import type { StripeClient } from "@/billing/stripe";
 import type { TenantRepository } from "@/db/repositories/tenant";
 import type { UserRepository } from "@/db/repositories/user";
 import type { AuthMiddleware } from "@/api/middleware/auth";
+import { logger } from "@/utils/logger";
 
 export interface BillingHandlerDeps {
   stripeClient: StripeClient;
@@ -52,7 +53,7 @@ export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
         if (error instanceof Error && error.name === "AuthenticationError") {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
-        console.error("Checkout error:", error);
+        logger.error("Checkout error", error instanceof Error ? error : new Error(String(error)));
         return Response.json(
           { error: "Failed to create checkout session" },
           { status: 500 }
@@ -85,7 +86,7 @@ export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
         if (error instanceof Error && error.name === "AuthenticationError") {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
-        console.error("Portal error:", error);
+        logger.error("Portal error", error instanceof Error ? error : new Error(String(error)));
         return Response.json(
           { error: "Failed to create portal session" },
           { status: 500 }
@@ -126,7 +127,7 @@ export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
 
         return Response.json({ received: true });
       } catch (error) {
-        console.error("Webhook error:", error);
+        logger.error("Webhook error", error instanceof Error ? error : new Error(String(error)));
         return Response.json(
           { error: "Webhook processing failed" },
           { status: 400 }

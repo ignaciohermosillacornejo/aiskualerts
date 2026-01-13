@@ -9,6 +9,7 @@ import {
   BsaleRateLimitError,
   BsaleServerError,
 } from "@/lib/errors";
+import { logger } from "@/utils/logger";
 
 type Country = "CL" | "PE" | "MX";
 
@@ -87,7 +88,7 @@ export class BsaleClient {
           return { id, variant };
         } catch (error) {
           // Log but don't fail the entire batch for individual variant failures
-          console.warn(`Failed to fetch variant ${String(id)}: ${error instanceof Error ? error.message : "Unknown error"}`);
+          logger.warn("Failed to fetch variant", { variantId: id, error: error instanceof Error ? error.message : "Unknown error" });
           return { id, variant: null };
         }
       });
