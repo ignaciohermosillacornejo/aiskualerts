@@ -210,4 +210,28 @@ describe("StockSnapshotRepository", () => {
       expect(result).toBe(0);
     });
   });
+
+  describe("getById", () => {
+    test("returns snapshot when found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(mockSnapshot);
+
+      const repo = new StockSnapshotRepository(db);
+      const result = await repo.getById("123e4567-e89b-12d3-a456-426614174000");
+
+      expect(result).toEqual(mockSnapshot);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+
+    test("returns null when not found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new StockSnapshotRepository(db);
+      const result = await repo.getById("non-existent-id");
+
+      expect(result).toBeNull();
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+  });
 });
