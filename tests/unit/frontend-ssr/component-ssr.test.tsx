@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeAll, beforeEach, afterEach, afterAll, mock } from "bun:test";
+import { test, expect, describe, beforeAll, beforeEach, afterEach, mock } from "bun:test";
 import { renderToString } from "react-dom/server";
 import "../../setup";
 
@@ -30,15 +30,10 @@ beforeAll(() => {
   clearModuleCache("wouter");
 });
 
-// Clean up module cache after all tests so other test files can use the real modules
-afterAll(() => {
-  clearModuleCache("../../../src/frontend/contexts/AuthContext");
-  clearModuleCache("../../../src/frontend/api/client");
-  clearModuleCache("../../../src/frontend/components/Header");
-  clearModuleCache("../../../src/frontend/components/ProtectedRoute");
-  clearModuleCache("../../../src/frontend/pages/Login");
-  clearModuleCache("wouter");
-});
+// Note: We intentionally don't clear module cache in afterAll because it can cause
+// issues with Bun's mock.module when other test files run after this one. The mocked
+// modules will remain mocked but this doesn't affect test isolation since each test
+// file should handle its own module imports.
 
 // Helper to create a fetch mock compatible with globalThis.fetch type
 function createFetchMock(handler: () => Promise<Response>) {

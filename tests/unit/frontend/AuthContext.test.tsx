@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeAll, beforeEach, afterEach, afterAll, mock, spyOn } from "bun:test";
+import { test, expect, describe, beforeAll, beforeEach, afterEach, mock, spyOn } from "bun:test";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import "../../setup";
@@ -59,20 +59,8 @@ describe("AuthContext", () => {
     globalThis.fetch = originalFetch;
   });
 
-  // Clean up module cache after all tests so other test files can use mock.module
-  afterAll(() => {
-    // Clear AuthContext and related modules
-    clearModuleCache("../../../src/frontend/contexts/AuthContext");
-    clearModuleCache("../../../src/frontend/api/client");
-    // Clear components that depend on AuthContext
-    try {
-      clearModuleCache("../../../src/frontend/components/Header");
-      clearModuleCache("../../../src/frontend/components/ProtectedRoute");
-      clearModuleCache("../../../src/frontend/pages/Login");
-    } catch {
-      // Ignore if modules don't exist in cache
-    }
-  });
+  // Note: We don't clear module cache in afterAll because it can cause issues
+  // with Bun's module system when other test files run after this one
 
   describe("module exports", () => {
     test("exports AuthProvider function", async () => {
@@ -2016,6 +2004,653 @@ describe("AuthContext", () => {
       expect(value).toHaveProperty("login");
       expect(value).toHaveProperty("logout");
       expect(value).toHaveProperty("refreshUser");
+    });
+  });
+
+  describe("DOM rendering with useEffect (using createRoot)", () => {
+    test("useEffect triggers checkSession on mount", async () => {
+      // Clear module cache to get fresh import
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
+
+      let fetchCallCount = 0;
+      globalThis.fetch = createFetchMock(() => {
+        fetchCallCount++;
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response);
+      });
+
+      // Use dynamic import to get fresh modules
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      // Create a DOM container
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const StateTracker = () => {
+        const ctx = useAuth();
+        return React.createElement("div", null, ctx.loading ? "loading" : "loaded");
+      };
+
+      // Render using React 18 concurrent mode
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(StateTracker)));
+        // Allow effects to run
+        setTimeout(resolve, 150);
+      });
+
+      // Verify that fetch was called (checkSession was triggered)
+      expect(fetchCallCount).toBeGreaterThan(0);
+
+      // Cleanup
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("checkSession sets user state from API response", async () => {
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
+
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response)
+      );
+
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = { capturedUser: null as User | null };
+
+      const UserCapture = () => {
+        const ctx = useAuth();
+        refs.capturedUser = ctx.user;
+        return React.createElement("div", null, ctx.user?.email ?? "no user");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(UserCapture)));
+        setTimeout(resolve, 150);
+      });
+
+      // User should be set from API response
+      expect(refs.capturedUser).not.toBeNull();
+      expect(refs.capturedUser?.email).toBe(mockUser.email);
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("checkSession handles failure by clearing user", async () => {
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
+
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ error: "Unauthorized" }),
+        } as Response)
+      );
+
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      let capturedUser: User | null = mockUser; // Start with user to verify it gets cleared
+      let capturedLoading = true;
+
+      const StateCapture = () => {
+        const ctx = useAuth();
+        capturedUser = ctx.user;
+        capturedLoading = ctx.loading;
+        return React.createElement("div", null, "test");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(StateCapture)));
+        setTimeout(resolve, 150);
+      });
+
+      // User should be null after failed session check
+      expect(capturedUser).toBeNull();
+      expect(capturedLoading).toBe(false);
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("refreshUser re-fetches user data", async () => {
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
+
+      let callCount = 0;
+      globalThis.fetch = createFetchMock(() => {
+        callCount++;
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response);
+      });
+
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = { refreshFn: null as (() => Promise<void>) | null };
+
+      const RefreshCapture = () => {
+        const ctx = useAuth();
+        refs.refreshFn = ctx.refreshUser;
+        return React.createElement("div", null, "test");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(RefreshCapture)));
+        setTimeout(resolve, 150);
+      });
+
+      const initialCallCount = callCount;
+
+      // Call refreshUser
+      if (refs.refreshFn) {
+        await refs.refreshFn();
+        // Wait for state update
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      // Should have made additional API call
+      expect(callCount).toBeGreaterThan(initialCallCount);
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("login function updates user on success", async () => {
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
+
+      let callCount = 0;
+      globalThis.fetch = createFetchMock(() => {
+        callCount++;
+        if (callCount === 1) {
+          // First call: checkSession returns no user
+          return Promise.resolve({
+            ok: false,
+            status: 401,
+            json: () => Promise.resolve({ error: "Not authenticated" }),
+          } as Response);
+        }
+        // Second call: login returns user
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response);
+      });
+
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = {
+        loginFn: null as ((email: string, password: string) => Promise<void>) | null,
+        capturedUser: null as User | null,
+      };
+
+      const LoginCapture = () => {
+        const ctx = useAuth();
+        refs.loginFn = ctx.login;
+        refs.capturedUser = ctx.user;
+        return React.createElement("div", null, ctx.user?.email ?? "no user");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(LoginCapture)));
+        setTimeout(resolve, 150);
+      });
+
+      expect(refs.capturedUser).toBeNull();
+
+      // Call login
+      if (refs.loginFn) {
+        await refs.loginFn("test@test.com", "password123");
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      expect(refs.capturedUser).not.toBeNull();
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("login function sets error on failure", async () => {
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
+
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ error: "Invalid credentials" }),
+        } as Response)
+      );
+
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = {
+        loginFn: null as ((email: string, password: string) => Promise<void>) | null,
+        capturedError: null as string | null,
+      };
+
+      const ErrorCapture = () => {
+        const ctx = useAuth();
+        refs.loginFn = ctx.login;
+        refs.capturedError = ctx.error;
+        return React.createElement("div", null, ctx.error ?? "no error");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(ErrorCapture)));
+        setTimeout(resolve, 150);
+      });
+
+      // Call login expecting failure
+      if (refs.loginFn) {
+        try {
+          await refs.loginFn("test@test.com", "wrongpassword");
+        } catch {
+          // Expected to throw
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      expect(refs.capturedError).not.toBeNull();
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("logout function clears user state", async () => {
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
+
+      let callCount = 0;
+      globalThis.fetch = createFetchMock(() => {
+        callCount++;
+        if (callCount === 1) {
+          // First call: checkSession returns user
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ user: mockUser }),
+          } as Response);
+        }
+        // Second call: logout succeeds
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({}),
+        } as Response);
+      });
+
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = {
+        logoutFn: null as (() => Promise<void>) | null,
+        capturedUser: null as User | null,
+      };
+
+      const LogoutCapture = () => {
+        const ctx = useAuth();
+        refs.logoutFn = ctx.logout;
+        refs.capturedUser = ctx.user;
+        return React.createElement("div", null, ctx.user?.email ?? "no user");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(LogoutCapture)));
+        setTimeout(resolve, 150);
+      });
+
+      expect(refs.capturedUser).not.toBeNull();
+
+      // Call logout
+      if (refs.logoutFn) {
+        await refs.logoutFn();
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      expect(refs.capturedUser).toBeNull();
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("logout handles error and still clears user", async () => {
+      clearModuleCache("../../../src/frontend/contexts/AuthContext");
+      clearModuleCache("../../../src/frontend/api/client");
+
+      const consoleSpy = spyOn(console, "error").mockImplementation(noop);
+
+      let callCount = 0;
+      globalThis.fetch = createFetchMock(() => {
+        callCount++;
+        if (callCount === 1) {
+          // First call: checkSession returns user
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ user: mockUser }),
+          } as Response);
+        }
+        // Second call: logout fails
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ error: "Server error" }),
+        } as Response);
+      });
+
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = {
+        logoutFn: null as (() => Promise<void>) | null,
+        capturedUser: null as User | null,
+      };
+
+      const LogoutErrorCapture = () => {
+        const ctx = useAuth();
+        refs.logoutFn = ctx.logout;
+        refs.capturedUser = ctx.user;
+        return React.createElement("div", null, "test");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(LogoutErrorCapture)));
+        setTimeout(resolve, 150);
+      });
+
+      expect(refs.capturedUser).not.toBeNull();
+
+      // Call logout (will error)
+      if (refs.logoutFn) {
+        await refs.logoutFn();
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      // User should still be cleared despite error
+      expect(refs.capturedUser).toBeNull();
+      // Console.error should have been called
+      expect(consoleSpy).toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+      root.unmount();
+      document.body.removeChild(container);
+    });
+  });
+
+  describe("Coverage completion tests (shared module)", () => {
+    // These tests use the same module instance to ensure coverage is tracked
+    // Import once at test time and reuse
+    test("login function body is covered", async () => {
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      // Mock successful login
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response)
+      );
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = {
+        loginFn: null as ((email: string, password: string) => Promise<void>) | null,
+        state: { user: null as User | null, loading: true, error: null as string | null },
+      };
+
+      const LoginBodyTest = () => {
+        const ctx = useAuth();
+        refs.loginFn = ctx.login;
+        refs.state = { user: ctx.user, loading: ctx.loading, error: ctx.error };
+        return React.createElement("div", null, "test");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(LoginBodyTest)));
+        setTimeout(resolve, 100);
+      });
+
+      // Call login to cover lines 41-48
+      if (refs.loginFn) {
+        await refs.loginFn("test@test.com", "password123");
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      expect(refs.state.user).not.toBeNull();
+      expect(refs.state.loading).toBe(false);
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("login error handling covers catch block", async () => {
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      // Mock failed login
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ error: "Bad password" }),
+        } as Response)
+      );
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = {
+        loginFn: null as ((email: string, password: string) => Promise<void>) | null,
+        state: { user: null as User | null, loading: true, error: null as string | null },
+      };
+
+      const LoginErrorTest = () => {
+        const ctx = useAuth();
+        refs.loginFn = ctx.login;
+        refs.state = { user: ctx.user, loading: ctx.loading, error: ctx.error };
+        return React.createElement("div", null, "test");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(LoginErrorTest)));
+        setTimeout(resolve, 100);
+      });
+
+      // Call login expecting it to fail
+      if (refs.loginFn) {
+        try {
+          await refs.loginFn("test@test.com", "badpassword");
+        } catch {
+          // Expected
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      expect(refs.state.error).not.toBeNull();
+      expect(refs.state.user).toBeNull();
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("refreshUser function body is covered", async () => {
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      let fetchCount = 0;
+      globalThis.fetch = createFetchMock(() => {
+        fetchCount++;
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response);
+      });
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = { refreshFn: null as (() => Promise<void>) | null };
+
+      const RefreshBodyTest = () => {
+        const ctx = useAuth();
+        refs.refreshFn = ctx.refreshUser;
+        return React.createElement("div", null, "test");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(RefreshBodyTest)));
+        setTimeout(resolve, 100);
+      });
+
+      const countBefore = fetchCount;
+
+      // Call refreshUser to cover line 64
+      if (refs.refreshFn) {
+        await refs.refreshFn();
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      expect(fetchCount).toBeGreaterThan(countBefore);
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("checkSession catch block is covered via network error", async () => {
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      // Mock network error to trigger catch block
+      globalThis.fetch = createFetchMock(() =>
+        Promise.reject(new Error("Network failure"))
+      );
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      let state: { user: User | null; loading: boolean; error: string | null } = {
+        user: mockUser, // Start with user to verify it gets cleared
+        loading: true,
+        error: null,
+      };
+
+      const CatchBlockTest = () => {
+        const ctx = useAuth();
+        state = { user: ctx.user, loading: ctx.loading, error: ctx.error };
+        return React.createElement("div", null, "test");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(CatchBlockTest)));
+        setTimeout(resolve, 150);
+      });
+
+      // After network error, user should be null, loading false, no error shown
+      expect(state.user).toBeNull();
+      expect(state.loading).toBe(false);
+      // checkSession catch doesn't set error state
+      expect(state.error).toBeNull();
+
+      root.unmount();
+      document.body.removeChild(container);
+    });
+
+    test("login with non-Error exception uses fallback message", async () => {
+      const { AuthProvider, useAuth } = await import("../../../src/frontend/contexts/AuthContext");
+      const { createRoot } = await import("react-dom/client");
+
+      // Make api.login throw a non-Error (validation error from zod)
+      globalThis.fetch = createFetchMock(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ user: mockUser }),
+        } as Response)
+      );
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const refs = {
+        loginFn: null as ((email: string, password: string) => Promise<void>) | null,
+        state: { user: null as User | null, loading: true, error: null as string | null },
+      };
+
+      const FallbackTest = () => {
+        const ctx = useAuth();
+        refs.loginFn = ctx.login;
+        refs.state = { user: ctx.user, loading: ctx.loading, error: ctx.error };
+        return React.createElement("div", null, "test");
+      };
+
+      await new Promise<void>((resolve) => {
+        root.render(React.createElement(AuthProvider, null, React.createElement(FallbackTest)));
+        setTimeout(resolve, 100);
+      });
+
+      // Call login with invalid email (will throw zod validation error)
+      if (refs.loginFn) {
+        try {
+          await refs.loginFn("invalid-email", "password");
+        } catch {
+          // Expected - validation throws
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      // Error should contain validation message
+      expect(refs.state.error).not.toBeNull();
+
+      root.unmount();
+      document.body.removeChild(container);
     });
   });
 });

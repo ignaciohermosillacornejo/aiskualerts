@@ -1,36 +1,9 @@
 import { test, expect, describe, beforeEach } from "bun:test";
 import "../../setup";
 
-describe("Auth Components Logic", () => {
-  describe("AuthContext Module", () => {
-    test("exports AuthProvider and useAuth", async () => {
-      const authModule = await import("../../../src/frontend/contexts/AuthContext");
-      expect(authModule.AuthProvider).toBeFunction();
-      expect(authModule.useAuth).toBeFunction();
-    });
-  });
-
-  describe("ProtectedRoute Module", () => {
-    test("exports ProtectedRoute component", async () => {
-      const protectedRouteModule = await import("../../../src/frontend/components/ProtectedRoute");
-      expect(protectedRouteModule.ProtectedRoute).toBeFunction();
-    });
-  });
-
-  describe("Login Module", () => {
-    test("exports Login component", async () => {
-      const loginModule = await import("../../../src/frontend/pages/Login");
-      expect(loginModule.Login).toBeFunction();
-    });
-  });
-
-  describe("Header Module", () => {
-    test("exports Header component", async () => {
-      const headerModule = await import("../../../src/frontend/components/Header");
-      expect(headerModule.Header).toBeFunction();
-    });
-  });
-});
+// Note: Module export tests are covered in individual component test files
+// (AuthContext.test.tsx, Header.test.tsx, etc.) which are more comprehensive.
+// This file focuses on testing logical behaviors that don't require component imports.
 
 describe("sessionStorage Behavior", () => {
   beforeEach(() => {
