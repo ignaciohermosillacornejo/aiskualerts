@@ -28,7 +28,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load secrets from 1Password
-        uses: 1password/load-secrets-action@v2
+        uses: 1password/load-secrets-action@v3
         with:
           export-env: true
         env:
