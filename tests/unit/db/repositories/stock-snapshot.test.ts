@@ -121,6 +121,48 @@ describe("StockSnapshotRepository", () => {
     });
   });
 
+  describe("getLatestByTenantPaginated", () => {
+    test("returns paginated snapshots with metadata", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockSnapshot]);
+      mocks.queryOne.mockResolvedValue({ count: "50" });
+
+      const repo = new StockSnapshotRepository(db);
+      const result = await repo.getLatestByTenantPaginated("tenant-123", { limit: 20, offset: 0 });
+
+      expect(result.data).toEqual([mockSnapshot]);
+      expect(result.pagination.page).toBe(1);
+      expect(result.pagination.limit).toBe(20);
+      expect(result.pagination.total).toBe(50);
+      expect(result.pagination.totalPages).toBe(3);
+    });
+
+    test("calculates correct page from offset", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockSnapshot]);
+      mocks.queryOne.mockResolvedValue({ count: "100" });
+
+      const repo = new StockSnapshotRepository(db);
+      const result = await repo.getLatestByTenantPaginated("tenant-123", { limit: 10, offset: 20 });
+
+      expect(result.pagination.page).toBe(3);
+      expect(result.pagination.totalPages).toBe(10);
+    });
+
+    test("handles zero results", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+      mocks.queryOne.mockResolvedValue({ count: "0" });
+
+      const repo = new StockSnapshotRepository(db);
+      const result = await repo.getLatestByTenantPaginated("tenant-123", { limit: 20, offset: 0 });
+
+      expect(result.data).toEqual([]);
+      expect(result.pagination.total).toBe(0);
+      expect(result.pagination.totalPages).toBe(0);
+    });
+  });
+
   describe("getByVariant", () => {
     test("returns snapshot for variant with office", async () => {
       const { db, mocks } = createMockDb();
