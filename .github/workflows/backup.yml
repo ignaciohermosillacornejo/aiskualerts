@@ -12,11 +12,11 @@ jobs:
       - name: Install 1Password CLI
         uses: 1password/install-cli-action@v2
 
-      - name: Load secrets
+      - name: Run backup
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          # Load secrets and mask them in logs
+          # Load secrets (kept in local variables, not exported to GITHUB_ENV)
           SSH_HOST=$(op read 'op://Dev/HETZNER_SERVER_IP/credential')
           B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
           B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
@@ -24,32 +24,14 @@ jobs:
           B2_BUCKET_REGION=$(op read 'op://Dev/B2_BUCKET_REGION/credential')
           BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
 
-          # Mask sensitive values
-          echo "::add-mask::$B2_KEY_ID"
-          echo "::add-mask::$B2_APPLICATION_KEY"
-          echo "::add-mask::$BACKUP_ENCRYPTION_KEY"
-
-          # Export to environment
-          echo "SSH_HOST=$SSH_HOST" >> $GITHUB_ENV
-          echo "B2_KEY_ID=$B2_KEY_ID" >> $GITHUB_ENV
-          echo "B2_APPLICATION_KEY=$B2_APPLICATION_KEY" >> $GITHUB_ENV
-          echo "B2_BUCKET_NAME=$B2_BUCKET_NAME" >> $GITHUB_ENV
-          echo "B2_BUCKET_REGION=$B2_BUCKET_REGION" >> $GITHUB_ENV
-          echo "BACKUP_ENCRYPTION_KEY=$BACKUP_ENCRYPTION_KEY" >> $GITHUB_ENV
-
-      - name: Setup SSH
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
+          # Setup SSH
           mkdir -p ~/.ssh
           op read "op://Dev/HETZNER_SSH_KEY/private key?ssh-format=openssh" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Stream backup from server, encrypt, and save
-        run: |
-          # SSH into server, run pg_dump inside docker container
-          # Stream output to runner, compress, encrypt with GPG
+          # Stream backup from server, compress, encrypt
+          echo "Creating backup..."
           ssh -i ~/.ssh/deploy_key -C root@"$SSH_HOST" \
             "docker exec aiskualerts-db pg_dump -U aiskualerts -d aiskualerts --no-owner --no-acl" \
           | gzip \
@@ -58,18 +40,15 @@ jobs:
 
           echo "Backup created: $(du -h backup.sql.gz.gpg | cut -f1)"
 
-      - name: Upload to B2
-        env:
-          AWS_ACCESS_KEY_ID: ${{ env.B2_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ env.B2_APPLICATION_KEY }}
-        run: |
+          # Upload to B2
           FILENAME="backup-$(date +%Y-%m-%d).sql.gz.gpg"
+          AWS_ACCESS_KEY_ID="$B2_KEY_ID" \
+          AWS_SECRET_ACCESS_KEY="$B2_APPLICATION_KEY" \
           aws s3 cp backup.sql.gz.gpg "s3://$B2_BUCKET_NAME/daily/$FILENAME" \
             --endpoint-url "https://$B2_BUCKET_REGION"
+
           echo "Uploaded: daily/$FILENAME"
 
-      - name: Cleanup
-        if: always()
-        run: |
+          # Cleanup
           rm -f backup.sql.gz.gpg
           rm -f ~/.ssh/deploy_key
