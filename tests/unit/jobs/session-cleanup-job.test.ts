@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/prefer-promise-reject-errors */
 import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
 import {
   runSessionCleanup,
