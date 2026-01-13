@@ -361,7 +361,7 @@ export function createServer(
           }
           const body = parseResult.data;
           // Mock login - always succeeds for demo
-          const isProduction = process.env["NODE_ENV"] === "production";
+          const isProduction = process.env.NODE_ENV === "production";
           const maxAge = 30 * 24 * 60 * 60; // 30 days
           const sessionToken = `mock_${String(Date.now())}_${Math.random().toString(36)}`;
 
