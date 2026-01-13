@@ -38,6 +38,7 @@ jobs:
           B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
           B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
           B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')
+          B2_BUCKET_REGION=$(op read 'op://Dev/B2_BUCKET_REGION/credential')
           BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
 
           # Mask sensitive values
@@ -50,6 +51,7 @@ jobs:
           echo "B2_KEY_ID=$B2_KEY_ID" >> $GITHUB_ENV
           echo "B2_APPLICATION_KEY=$B2_APPLICATION_KEY" >> $GITHUB_ENV
           echo "B2_BUCKET_NAME=$B2_BUCKET_NAME" >> $GITHUB_ENV
+          echo "B2_BUCKET_REGION=$B2_BUCKET_REGION" >> $GITHUB_ENV
           echo "BACKUP_ENCRYPTION_KEY=$BACKUP_ENCRYPTION_KEY" >> $GITHUB_ENV
 
       - name: Setup SSH
@@ -69,7 +71,7 @@ jobs:
           if [ "$BACKUP_FILE" = "latest" ]; then
             echo "Finding latest backup..."
             BACKUP_FILE=$(aws s3 ls "s3://$B2_BUCKET_NAME/daily/" \
-              --endpoint-url https://s3.us-west-002.backblazeb2.com \
+              --endpoint-url "https://$B2_BUCKET_REGION" \
               | sort -r | head -1 | awk '{print $4}')
             if [[ -z "$BACKUP_FILE" ]]; then
               echo "Error: No backup files found in B2 bucket"
@@ -86,7 +88,7 @@ jobs:
         run: |
           echo "Downloading: daily/$BACKUP_FILE"
           aws s3 cp "s3://$B2_BUCKET_NAME/daily/$BACKUP_FILE" backup.sql.gz.gpg \
-            --endpoint-url https://s3.us-west-002.backblazeb2.com
+            --endpoint-url "https://$B2_BUCKET_REGION"
 
       - name: Decrypt and stream to server
         run: |
