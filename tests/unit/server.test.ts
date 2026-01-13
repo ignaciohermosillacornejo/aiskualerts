@@ -6,6 +6,7 @@ import {
   jsonWithCors,
   responseWithCors,
   preflightResponse,
+  withErrorBoundary,
   CreateThresholdSchema,
   UpdateThresholdSchema,
   UpdateSettingsSchema,
@@ -24,6 +25,7 @@ const testConfig: Config = {
   syncMinute: 0,
   syncBatchSize: 100,
   syncTenantDelay: 5000,
+  sentryEnvironment: "test",
 };
 
 let serverInstance: ReturnType<typeof createServer> | null = null;
@@ -759,6 +761,7 @@ describe("createServer", () => {
         syncMinute: 0,
         syncBatchSize: 100,
         syncTenantDelay: 5000,
+        sentryEnvironment: "test",
       };
       serverInstance = createServer(customConfig);
       expect(serverInstance.port).toBeGreaterThan(0);
@@ -773,6 +776,7 @@ describe("createServer", () => {
         syncMinute: 0,
         syncBatchSize: 100,
         syncTenantDelay: 5000,
+        sentryEnvironment: "test",
       };
       serverInstance = createServer(productionConfig);
       expect(serverInstance.development).toBe(false);
@@ -787,6 +791,7 @@ describe("createServer", () => {
         syncMinute: 0,
         syncBatchSize: 100,
         syncTenantDelay: 5000,
+        sentryEnvironment: "test",
       };
       serverInstance = createServer(devConfig);
       expect(serverInstance.development).toBe(true);
@@ -807,6 +812,7 @@ describe("createServer", () => {
           syncMinute: 0,
           syncBatchSize: 100,
           syncTenantDelay: 5000,
+          sentryEnvironment: "test",
         };
         serverInstance = createServer(productionConfig);
 
@@ -1421,5 +1427,70 @@ describe("startServer", () => {
   test("starts server with dependencies", () => {
     serverInstance = startServer(testConfig, {});
     expect(serverInstance.port).toBeGreaterThan(0);
+  });
+});
+
+describe("withErrorBoundary", () => {
+  test("returns successful response from handler", async () => {
+    const handler = () => new Response("OK", { status: 200 });
+    const wrapped = withErrorBoundary(handler);
+
+    const request = new Request("http://localhost/test");
+    const response = await wrapped(request);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("OK");
+  });
+
+  test("returns async response from handler", async () => {
+    const handler = async () => new Response("Async OK", { status: 200 });
+    const wrapped = withErrorBoundary(handler);
+
+    const request = new Request("http://localhost/test");
+    const response = await wrapped(request);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("Async OK");
+  });
+
+  test("catches sync errors and returns 500", async () => {
+    const handler = () => {
+      throw new Error("Test error");
+    };
+    const wrapped = withErrorBoundary(handler);
+
+    const request = new Request("http://localhost/test");
+    const response = await wrapped(request);
+
+    expect(response.status).toBe(500);
+    const body = await response.json() as { error: string };
+    expect(body.error).toBe("Internal server error");
+  });
+
+  test("catches async errors and returns 500", async () => {
+    const handler = async () => {
+      throw new Error("Async error");
+    };
+    const wrapped = withErrorBoundary(handler);
+
+    const request = new Request("http://localhost/test");
+    const response = await wrapped(request);
+
+    expect(response.status).toBe(500);
+    const body = await response.json() as { error: string };
+    expect(body.error).toBe("Internal server error");
+  });
+
+  test("includes CORS headers in error response", async () => {
+    const handler = () => {
+      throw new Error("Test error");
+    };
+    const wrapped = withErrorBoundary(handler);
+
+    const request = new Request("http://localhost/test");
+    const response = await wrapped(request);
+
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBeDefined();
+    expect(response.headers.get("Access-Control-Allow-Methods")).toBeDefined();
   });
 });

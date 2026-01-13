@@ -18,6 +18,7 @@ import {
   type AuthMiddleware,
   type AuthContext,
 } from "@/api/middleware/auth";
+import { captureException } from "@/monitoring/sentry";
 
 // CORS configuration
 export function getCorsHeaders(): Record<string, string> {
@@ -56,6 +57,42 @@ export function preflightResponse(): Response {
     status: 204,
     headers: getCorsHeaders(),
   });
+}
+
+// Type for route handler functions
+type RouteHandler = (req: Request) => Response | Promise<Response>;
+
+/**
+ * Wraps a route handler with error boundary to catch unhandled errors
+ * and report them to Sentry
+ */
+export function withErrorBoundary(handler: RouteHandler): RouteHandler {
+  return async (req: Request): Promise<Response> => {
+    try {
+      return await handler(req);
+    } catch (error) {
+      const url = new URL(req.url);
+      console.error(`[ErrorBoundary] Unhandled error in ${req.method} ${url.pathname}:`, error);
+
+      // Capture to Sentry with request context
+      captureException(error, {
+        tags: {
+          route: url.pathname,
+          method: req.method,
+        },
+        extra: {
+          url: req.url,
+          headers: Object.fromEntries(req.headers.entries()),
+        },
+      });
+
+      // Return generic error response
+      return jsonWithCors(
+        { error: "Internal server error" },
+        { status: 500 }
+      );
+    }
+  };
 }
 
 // Zod schemas for API request validation
@@ -816,45 +853,46 @@ export function createServer(
     async fetch(request: Request): Promise<Response> {
       const url = new URL(request.url);
 
-      // Handle OPTIONS preflight requests for CORS
-      if (request.method === "OPTIONS") {
-        return preflightResponse();
-      }
-
-      // OAuth routes (if configured)
-      if (oauthRoutes) {
-        if (url.pathname === "/api/auth/bsale/start" && request.method === "GET") {
-          return oauthRoutes.start(request);
+      try {
+        // Handle OPTIONS preflight requests for CORS
+        if (request.method === "OPTIONS") {
+          return preflightResponse();
         }
 
-        if (url.pathname === "/api/auth/bsale/callback" && request.method === "GET") {
-          return await oauthRoutes.callback(request);
+        // OAuth routes (if configured)
+        if (oauthRoutes) {
+          if (url.pathname === "/api/auth/bsale/start" && request.method === "GET") {
+            return oauthRoutes.start(request);
+          }
+
+          if (url.pathname === "/api/auth/bsale/callback" && request.method === "GET") {
+            return await oauthRoutes.callback(request);
+          }
+
+          if (url.pathname === "/api/auth/logout" && request.method === "POST") {
+            return await oauthRoutes.logout(request);
+          }
         }
 
-        if (url.pathname === "/api/auth/logout" && request.method === "POST") {
-          return await oauthRoutes.logout(request);
-        }
-      }
+        // Billing routes (if configured)
+        if (billingRoutes) {
+          if (url.pathname === "/api/billing/checkout" && request.method === "POST") {
+            return await billingRoutes.checkout(request);
+          }
 
-      // Billing routes (if configured)
-      if (billingRoutes) {
-        if (url.pathname === "/api/billing/checkout" && request.method === "POST") {
-          return await billingRoutes.checkout(request);
+          if (url.pathname === "/api/billing/portal" && request.method === "POST") {
+            return await billingRoutes.portal(request);
+          }
+
+          if (url.pathname === "/api/webhooks/stripe" && request.method === "POST") {
+            return await billingRoutes.webhook(request);
+          }
         }
 
-        if (url.pathname === "/api/billing/portal" && request.method === "POST") {
-          return await billingRoutes.portal(request);
+        // API routes that don't match should return 404
+        if (url.pathname.startsWith("/api/")) {
+          return jsonWithCors({ error: "Not Found" }, { status: 404 });
         }
-
-        if (url.pathname === "/api/webhooks/stripe" && request.method === "POST") {
-          return await billingRoutes.webhook(request);
-        }
-      }
-
-      // API routes that don't match should return 404
-      if (url.pathname.startsWith("/api/")) {
-        return jsonWithCors({ error: "Not Found" }, { status: 404 });
-      }
 
       // All other routes not defined in the routes object should return 404
       return new Response(
@@ -916,6 +954,27 @@ export function createServer(
           headers: { "Content-Type": "text/html" },
         }
       );
+      } catch (error) {
+        console.error(`[FetchHandler] Unhandled error in ${request.method} ${url.pathname}:`, error);
+
+        // Capture to Sentry with request context
+        captureException(error, {
+          tags: {
+            route: url.pathname,
+            method: request.method,
+            handler: "fetch",
+          },
+          extra: {
+            url: request.url,
+          },
+        });
+
+        // Return generic error response
+        return jsonWithCors(
+          { error: "Internal server error" },
+          { status: 500 }
+        );
+      }
     },
 
     development:

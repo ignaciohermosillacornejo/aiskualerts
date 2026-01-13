@@ -108,4 +108,30 @@ describe("loadConfig", () => {
   test("throws on invalid sync minute (out of range)", () => {
     expect(() => loadConfig({ SYNC_MINUTE: "60" })).toThrow();
   });
+
+  test("returns default Sentry config values", () => {
+    const config = loadConfig({});
+
+    expect(config.sentryDsn).toBeUndefined();
+    expect(config.sentryEnvironment).toBe("development");
+  });
+
+  test("parses Sentry config from environment", () => {
+    const config = loadConfig({
+      SENTRY_DSN: "https://abc123@sentry.io/456",
+      SENTRY_ENVIRONMENT: "production",
+    });
+
+    expect(config.sentryDsn).toBe("https://abc123@sentry.io/456");
+    expect(config.sentryEnvironment).toBe("production");
+  });
+
+  test("handles undefined Sentry DSN", () => {
+    const config = loadConfig({
+      SENTRY_ENVIRONMENT: "staging",
+    });
+
+    expect(config.sentryDsn).toBeUndefined();
+    expect(config.sentryEnvironment).toBe("staging");
+  });
 });

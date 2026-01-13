@@ -17,6 +17,8 @@ const configSchema = z.object({
   bsaleOAuthBaseUrl: z.string().optional(),
   resendApiKey: z.string().optional(),
   notificationFromEmail: z.string().email().optional(),
+  sentryDsn: z.string().optional(),
+  sentryEnvironment: z.string().default("development"),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -36,5 +38,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     bsaleOAuthBaseUrl: env["BSALE_OAUTH_BASE_URL"],
     resendApiKey: env["RESEND_API_KEY"],
     notificationFromEmail: env["NOTIFICATION_FROM_EMAIL"],
+    sentryDsn: env["SENTRY_DSN"],
+    sentryEnvironment: env["SENTRY_ENVIRONMENT"],
   });
 }
