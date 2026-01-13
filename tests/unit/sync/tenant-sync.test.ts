@@ -18,13 +18,14 @@ const mockTenant: Tenant = {
 };
 
 interface MockDeps {
-  updateSyncStatus: Mock<() => Promise<void>>;
+  updateSyncStatus: Mock<(tenantId: string, status: string) => Promise<void>>;
   upsertBatch: Mock<() => Promise<number>>;
   getAllStocks: Mock<() => AsyncGenerator<StockItem>>;
 }
 
 function createMockDeps(): { deps: TenantSyncDependencies; mocks: MockDeps } {
-  const updateSyncStatus = mock(() => Promise.resolve());
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- args captured by mock
+  const updateSyncStatus = mock((_tenantId: string, _status: string) => Promise.resolve());
   const upsertBatch = mock(() => Promise.resolve(0));
 
   // eslint-disable-next-line require-yield
