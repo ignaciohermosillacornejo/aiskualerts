@@ -151,6 +151,18 @@ export class AlertRepository {
     );
   }
 
+  async getPendingByTenants(tenantIds: string[]): Promise<Alert[]> {
+    if (tenantIds.length === 0) return [];
+
+    const placeholders = tenantIds.map((_, i) => `$${String(i + 1)}`).join(", ");
+    return this.db.query<Alert>(
+      `SELECT * FROM alerts
+       WHERE tenant_id IN (${placeholders}) AND status = 'pending'
+       ORDER BY created_at DESC`,
+      tenantIds
+    );
+  }
+
   async markAsSent(alertIds: string[]): Promise<void> {
     if (alertIds.length === 0) return;
 

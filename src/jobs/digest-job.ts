@@ -57,6 +57,23 @@ export function createDigestJob(
 }
 
 /**
+ * Group items by a key extracted from each item
+ */
+function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyFn(item);
+    const existing = map.get(key);
+    if (existing) {
+      existing.push(item);
+    } else {
+      map.set(key, [item]);
+    }
+  }
+  return map;
+}
+
+/**
  * Run the digest job for a specific frequency (daily or weekly)
  */
 export async function runDigestJob(
@@ -78,17 +95,42 @@ export async function runDigestJob(
   // Get all active tenants
   const tenants = await tenantRepo.getActiveTenants();
 
+  if (tenants.length === 0) {
+    return {
+      tenantsProcessed,
+      emailsSent,
+      emailsFailed,
+      alertsMarkedSent,
+      startedAt,
+      completedAt: new Date(),
+      errors,
+    };
+  }
+
+  const tenantIds = tenants.map((t) => t.id);
+
+  // Batch fetch all users and alerts (3 queries total instead of 1+2N)
+  const [allUsers, allAlerts] = await Promise.all([
+    userRepo.getWithDigestEnabledBatch(tenantIds, frequency),
+    alertRepo.getPendingByTenants(tenantIds),
+  ]);
+
+  // Group by tenant_id in memory
+  const usersByTenant = groupBy(allUsers, (u) => u.tenant_id);
+  const alertsByTenant = groupBy(allAlerts, (a) => a.tenant_id);
+
+  // Create tenant lookup map for O(1) access
+  const tenantMap = new Map(tenants.map((t) => [t.id, t]));
+
   for (const tenant of tenants) {
     try {
-      // Get users who want digest emails at this frequency
-      const users = await userRepo.getWithDigestEnabled(tenant.id, frequency);
+      const users = usersByTenant.get(tenant.id) ?? [];
 
       if (users.length === 0) {
         continue;
       }
 
-      // Get pending alerts for this tenant
-      const pendingAlerts = await alertRepo.getPendingByTenant(tenant.id);
+      const pendingAlerts = alertsByTenant.get(tenant.id) ?? [];
 
       if (pendingAlerts.length === 0) {
         continue;
@@ -96,11 +138,14 @@ export async function runDigestJob(
 
       tenantsProcessed++;
 
+      // Create user lookup map for O(1) access
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
       // Group alerts by user
       const alertsByUser = groupAlertsByUser(pendingAlerts, users);
 
       for (const [userId, userAlerts] of alertsByUser) {
-        const user = users.find((u) => u.id === userId);
+        const user = userMap.get(userId);
         if (!user || userAlerts.length === 0) {
           continue;
         }
