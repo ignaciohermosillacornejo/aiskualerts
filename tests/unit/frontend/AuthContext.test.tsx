@@ -16,7 +16,7 @@ function createFetchMock(handler: () => Promise<Response>) {
 // Helper to clear module cache safely
 function clearModuleCache(modulePath: string): void {
   const resolvedPath = require.resolve(modulePath);
-  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete, security/detect-object-injection
   delete require.cache[resolvedPath];
 }
 

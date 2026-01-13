@@ -13,7 +13,7 @@ const noopAsync = (): Promise<void> => Promise.resolve();
 function clearModuleCache(modulePath: string): void {
   try {
     const resolvedPath = require.resolve(modulePath);
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete, security/detect-object-injection
     delete require.cache[resolvedPath];
   } catch {
     // Module not in cache, ignore

@@ -266,28 +266,28 @@ describe.skipIf(shouldSkip)("BsaleClient E2E Integration Tests", () => {
       expect(variants.length).toBe(5);
 
       // Verify each variant has the correct ID and handles nullable/optional fields
-      for (let index = 0; index < variants.length; index++) {
-        const variant = variants[index];
+      variants.forEach((variant, index) => {
+        // eslint-disable-next-line security/detect-object-injection -- index is bounds-checked
         const expectedId = variantIds[index];
-        if (expectedId !== undefined && variant !== undefined) {
+        if (expectedId !== undefined) {
           expect(variant.id).toBe(expectedId);
-
-          // These fields can be null in real data
-          if (variant.code !== null) {
-            expect(typeof variant.code).toBe("string");
-          }
-          if (variant.barCode !== null) {
-            expect(typeof variant.barCode).toBe("string");
-          }
-          if (variant.description !== null) {
-            expect(typeof variant.description).toBe("string");
-          }
-          // Product can exist but have undefined/null name in real API data
-          if (variant.product?.name) {
-            expect(typeof variant.product.name).toBe("string");
-          }
         }
-      }
+
+        // These fields can be null in real data
+        if (variant.code !== null) {
+          expect(typeof variant.code).toBe("string");
+        }
+        if (variant.barCode !== null) {
+          expect(typeof variant.barCode).toBe("string");
+        }
+        if (variant.description !== null) {
+          expect(typeof variant.description).toBe("string");
+        }
+        // Product can exist but have undefined/null name in real API data
+        if (variant.product?.name) {
+          expect(typeof variant.product.name).toBe("string");
+        }
+      });
     },
     { timeout: 10000 }
   );

@@ -17,59 +17,60 @@ describe("Header", () => {
   });
 
   describe("pageTitles mapping", () => {
-    const pageTitles: Record<string, string> = {
-      "/app": "Dashboard",
-      "/app/alerts": "Alertas",
-      "/app/products": "Productos",
-      "/app/thresholds": "Umbrales",
-      "/app/settings": "Configuracion",
-    };
+    // Use Map to avoid security/detect-object-injection warning
+    const pageTitles = new Map<string, string>([
+      ["/app", "Dashboard"],
+      ["/app/alerts", "Alertas"],
+      ["/app/products", "Productos"],
+      ["/app/thresholds", "Umbrales"],
+      ["/app/settings", "Configuracion"],
+    ]);
 
     test("returns 'Dashboard' for /app route", () => {
       const location = "/app";
-      const title = pageTitles[location] ?? "AISku Alerts";
+      const title = pageTitles.get(location) ?? "AISku Alerts";
       expect(title).toBe("Dashboard");
     });
 
     test("returns 'Alertas' for /app/alerts route", () => {
       const location = "/app/alerts";
-      const title = pageTitles[location] ?? "AISku Alerts";
+      const title = pageTitles.get(location) ?? "AISku Alerts";
       expect(title).toBe("Alertas");
     });
 
     test("returns 'Productos' for /app/products route", () => {
       const location = "/app/products";
-      const title = pageTitles[location] ?? "AISku Alerts";
+      const title = pageTitles.get(location) ?? "AISku Alerts";
       expect(title).toBe("Productos");
     });
 
     test("returns 'Umbrales' for /app/thresholds route", () => {
       const location = "/app/thresholds";
-      const title = pageTitles[location] ?? "AISku Alerts";
+      const title = pageTitles.get(location) ?? "AISku Alerts";
       expect(title).toBe("Umbrales");
     });
 
     test("returns 'Configuracion' for /app/settings route", () => {
       const location = "/app/settings";
-      const title = pageTitles[location] ?? "AISku Alerts";
+      const title = pageTitles.get(location) ?? "AISku Alerts";
       expect(title).toBe("Configuracion");
     });
 
     test("returns 'AISku Alerts' for unknown routes", () => {
       const location = "/unknown/route";
-      const title = pageTitles[location] ?? "AISku Alerts";
+      const title = pageTitles.get(location) ?? "AISku Alerts";
       expect(title).toBe("AISku Alerts");
     });
 
     test("returns 'AISku Alerts' for root route", () => {
       const location = "/";
-      const title = pageTitles[location] ?? "AISku Alerts";
+      const title = pageTitles.get(location) ?? "AISku Alerts";
       expect(title).toBe("AISku Alerts");
     });
 
     test("returns 'AISku Alerts' for /login route", () => {
       const location = "/login";
-      const title = pageTitles[location] ?? "AISku Alerts";
+      const title = pageTitles.get(location) ?? "AISku Alerts";
       expect(title).toBe("AISku Alerts");
     });
   });
