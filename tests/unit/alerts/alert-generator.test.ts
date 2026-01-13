@@ -631,7 +631,7 @@ describe("generateAlertsForUser", () => {
       days_warning: 14,
     };
 
-    const { deps, mocks } = createMockDeps({
+    const { deps } = createMockDeps({
       getThresholdsByUser: mock(() => Promise.resolve([thresholdWithDaysWarning])),
       getStockSnapshot: mock(() => Promise.resolve(highStockSnapshot)),
       getHistoricalSnapshots: mock(() => Promise.resolve(historicalSnapshots)),
@@ -661,7 +661,7 @@ describe("generateAlertsForUser", () => {
       days_warning: 14,
     };
 
-    const { deps, mocks } = createMockDeps({
+    const { deps } = createMockDeps({
       getThresholdsByUser: mock(() => Promise.resolve([thresholdWithDaysWarning])),
       getStockSnapshot: mock(() => Promise.resolve(highStockSnapshot)),
       getHistoricalSnapshots: mock(() => Promise.resolve(historicalSnapshots)),
