@@ -119,17 +119,17 @@ export const UpdateThresholdSchema = z.object({
 
 export const UpdateSettingsSchema = z.object({
   companyName: z.string().optional(),
-  email: z.string().email("Invalid email format").optional(),
+  email: z.email("Invalid email format").optional(),
   bsaleConnected: z.boolean().optional(),
   lastSyncAt: z.string().optional(),
   emailNotifications: z.boolean().optional(),
-  notificationEmail: z.string().email("Invalid notification email format").optional(),
+  notificationEmail: z.email("Invalid notification email format").optional(),
   syncFrequency: z.enum(["hourly", "daily", "weekly"]).optional(),
   digestFrequency: z.enum(["daily", "weekly", "none"]).optional(),
 });
 
 export const LoginSchema = z.object({
-  email: z.string().email("Invalid email format"),
+  email: z.email("Invalid email format"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -138,7 +138,7 @@ function createValidationErrorResponse(error: ZodError): Response {
   return jsonWithCors(
     {
       error: "Validation failed",
-      details: error.errors.map((e) => ({
+      details: error.issues.map((e) => ({
         path: e.path.join("."),
         message: e.message,
       })),
