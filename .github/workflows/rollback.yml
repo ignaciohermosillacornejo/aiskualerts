@@ -18,6 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Validate backup_file input
+        run: |
+          BACKUP_FILE="${{ github.event.inputs.backup_file }}"
+          # Only allow "latest" or backup-YYYY-MM-DD.sql.gz.gpg format
+          if [[ "$BACKUP_FILE" != "latest" && ! "$BACKUP_FILE" =~ ^backup-[0-9]{4}-[0-9]{2}-[0-9]{2}\.sql\.gz\.gpg$ ]]; then
+            echo "Error: Invalid backup_file format. Must be 'latest' or 'backup-YYYY-MM-DD.sql.gz.gpg'"
+            exit 1
+          fi
+          echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_ENV
+
       - name: Install 1Password CLI
         uses: 1password/install-cli-action@v2
 
@@ -32,28 +42,32 @@ jobs:
           echo "HETZNER_SERVER_IP=$HETZNER_SERVER_IP" >> $GITHUB_ENV
           ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
 
-      - name: Get credentials
+      - name: Create secrets file
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          echo "B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')" >> $GITHUB_ENV
-          echo "B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')" >> $GITHUB_ENV
-          echo "B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')" >> $GITHUB_ENV
-          echo "BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')" >> $GITHUB_ENV
+          B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
+          B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
+          B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')
+          BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
+          cat > /tmp/restore-secrets.env << EOF
+          export B2_KEY_ID='${B2_KEY_ID}'
+          export B2_APPLICATION_KEY='${B2_APPLICATION_KEY}'
+          export B2_BUCKET_NAME='${B2_BUCKET_NAME}'
+          export BACKUP_ENCRYPTION_KEY='${BACKUP_ENCRYPTION_KEY}'
+          export BACKUP_FILE='${BACKUP_FILE}'
+          EOF
+          chmod 600 /tmp/restore-secrets.env
 
-      - name: Copy restore script and run
+      - name: Copy files and run restore
         run: |
+          scp -i ~/.ssh/deploy_key /tmp/restore-secrets.env root@"$HETZNER_SERVER_IP":/tmp/
           scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@"$HETZNER_SERVER_IP":/tmp/
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "chmod +x /tmp/restore-db.sh && \
-            B2_KEY_ID='$B2_KEY_ID' \
-            B2_APPLICATION_KEY='$B2_APPLICATION_KEY' \
-            B2_BUCKET_NAME='$B2_BUCKET_NAME' \
-            BACKUP_ENCRYPTION_KEY='$BACKUP_ENCRYPTION_KEY' \
-            BACKUP_FILE='${{ github.event.inputs.backup_file }}' \
-            /tmp/restore-db.sh"
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "chmod +x /tmp/restore-db.sh && /tmp/restore-db.sh"
 
       - name: Cleanup
         if: always()
         run: |
+          rm -f /tmp/restore-secrets.env
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "rm -f /tmp/restore-db.sh /tmp/restore-secrets.env" 2>/dev/null || true
           rm -f ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "rm -f /tmp/restore-db.sh" 2>/dev/null || true
