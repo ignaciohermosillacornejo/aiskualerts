@@ -90,6 +90,8 @@ export async function runSyncAndAlerts(
         getThresholdsByUser: (userId: string) => thresholdRepo.getByUser(userId),
         getStockSnapshot: (tid: string, variantId: number, officeId: number | null) =>
           snapshotRepo.getByVariant(tid, variantId, officeId),
+        getHistoricalSnapshots: (tid: string, variantId: number, officeId: number | null, days: number) =>
+          snapshotRepo.getHistoricalSnapshots(tid, variantId, officeId, days),
         hasPendingAlert: (userId: string, variantId: number, officeId: number | null, alertType) =>
           alertRepo.hasPendingAlert(userId, variantId, officeId, alertType),
         createAlerts: (alerts) => alertRepo.createBatch(alerts),
