@@ -1,5 +1,20 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run lint 2>&1 | head -50 || true"
+          },
+          {
+            "type": "command",
+            "command": "bun run typecheck 2>&1 | head -30 || true"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
