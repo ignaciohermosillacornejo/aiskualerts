@@ -132,9 +132,12 @@ export async function generateAlertsForUser(
         continue;
       }
 
+      // Store non-null variant_id for TypeScript narrowing
+      const variantId = threshold.bsale_variant_id;
+
       const snapshot = await deps.getStockSnapshot(
         tenantId,
-        threshold.bsale_variant_id,
+        variantId,
         threshold.bsale_office_id
       );
 
@@ -168,7 +171,7 @@ export async function generateAlertsForUser(
         // Get historical snapshots for velocity calculation
         const historicalSnapshots = await deps.getHistoricalSnapshots(
           tenantId,
-          threshold.bsale_variant_id,
+          variantId,
           threshold.bsale_office_id,
           VELOCITY_HISTORY_DAYS
         );
