@@ -145,6 +145,49 @@ describe("StockSnapshotRepository", () => {
     });
   });
 
+  describe("getHistoricalSnapshots", () => {
+    test("returns historical snapshots for variant with office", async () => {
+      const { db, mocks } = createMockDb();
+      const historicalSnapshots = [
+        { ...mockSnapshot, snapshot_date: new Date("2024-01-15") },
+        { ...mockSnapshot, snapshot_date: new Date("2024-01-14") },
+        { ...mockSnapshot, snapshot_date: new Date("2024-01-13") },
+      ];
+      mocks.query.mockResolvedValue(historicalSnapshots);
+
+      const repo = new StockSnapshotRepository(db);
+      const result = await repo.getHistoricalSnapshots("tenant-123", 100, 1, 7);
+
+      expect(result).toEqual(historicalSnapshots);
+      expect(result.length).toBe(3);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("returns historical snapshots for variant without office", async () => {
+      const { db, mocks } = createMockDb();
+      const historicalSnapshots = [
+        { ...mockSnapshot, bsale_office_id: null },
+      ];
+      mocks.query.mockResolvedValue(historicalSnapshots);
+
+      const repo = new StockSnapshotRepository(db);
+      const result = await repo.getHistoricalSnapshots("tenant-123", 100, null, 7);
+
+      expect(result).toEqual(historicalSnapshots);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("returns empty array when no historical data", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new StockSnapshotRepository(db);
+      const result = await repo.getHistoricalSnapshots("tenant-123", 100, 1, 7);
+
+      expect(result).toEqual([]);
+    });
+  });
+
   describe("deleteOlderThan", () => {
     test("deletes old snapshots and returns count", async () => {
       const { db, mocks } = createMockDb();

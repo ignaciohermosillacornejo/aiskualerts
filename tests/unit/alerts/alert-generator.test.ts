@@ -2,6 +2,7 @@ import { test, expect, describe, mock } from "bun:test";
 import {
   checkThresholdBreach,
   createAlertInput,
+  createVelocityAlertInput,
   generateAlertsForUser,
 } from "@/alerts/alert-generator";
 import type { Threshold, StockSnapshot, AlertInput } from "@/db/repositories/types";
@@ -163,10 +164,48 @@ describe("createAlertInput", () => {
   });
 });
 
+describe("createVelocityAlertInput", () => {
+  test("creates AlertInput with low_velocity type", () => {
+    const result = createVelocityAlertInput(mockThreshold, mockSnapshot, 5.5);
+
+    expect(result.tenant_id).toBe("tenant-123");
+    expect(result.user_id).toBe("user-456");
+    expect(result.bsale_variant_id).toBe(100);
+    expect(result.bsale_office_id).toBe(1);
+    expect(result.sku).toBe("SKU-001");
+    expect(result.product_name).toBe("Test Product");
+    expect(result.alert_type).toBe("low_velocity");
+    expect(result.current_quantity).toBe(5);
+    expect(result.threshold_quantity).toBeNull();
+    expect(result.days_to_stockout).toBe(5.5);
+  });
+
+  test("handles null office_id", () => {
+    const snapshotWithNullOffice: StockSnapshot = {
+      ...mockSnapshot,
+      bsale_office_id: null,
+    };
+    const thresholdWithNullOffice: Threshold = {
+      ...mockThreshold,
+      bsale_office_id: null,
+    };
+
+    const result = createVelocityAlertInput(
+      thresholdWithNullOffice,
+      snapshotWithNullOffice,
+      10
+    );
+
+    expect(result.bsale_office_id).toBeNull();
+    expect(result.days_to_stockout).toBe(10);
+  });
+});
+
 describe("generateAlertsForUser", () => {
   interface MockOverrides {
     getThresholdsByUser?: ReturnType<typeof mock>;
     getStockSnapshot?: ReturnType<typeof mock>;
+    getHistoricalSnapshots?: ReturnType<typeof mock>;
     hasPendingAlert?: ReturnType<typeof mock>;
     createAlerts?: ReturnType<typeof mock>;
   }
@@ -176,6 +215,7 @@ describe("generateAlertsForUser", () => {
     mocks: {
       getThresholdsByUser: ReturnType<typeof mock>;
       getStockSnapshot: ReturnType<typeof mock>;
+      getHistoricalSnapshots: ReturnType<typeof mock>;
       hasPendingAlert: ReturnType<typeof mock>;
       createAlerts: ReturnType<typeof mock>;
     };
@@ -186,12 +226,15 @@ describe("generateAlertsForUser", () => {
       overrides.getThresholdsByUser ?? mock(() => Promise.resolve([] as Threshold[]));
     const getStockSnapshot =
       overrides.getStockSnapshot ?? mock(() => Promise.resolve(null as StockSnapshot | null));
+    const getHistoricalSnapshots =
+      overrides.getHistoricalSnapshots ?? mock(() => Promise.resolve([] as StockSnapshot[]));
     const hasPendingAlert = overrides.hasPendingAlert ?? mock(() => Promise.resolve(false));
     const createAlerts = overrides.createAlerts ?? mock(() => Promise.resolve(0));
 
     const mocks = {
       getThresholdsByUser,
       getStockSnapshot,
+      getHistoricalSnapshots,
       hasPendingAlert,
       createAlerts,
     };
@@ -199,6 +242,16 @@ describe("generateAlertsForUser", () => {
     return {
       deps: mocks as unknown as AlertGeneratorDependencies,
       mocks,
+    };
+  }
+
+  function createHistoricalSnapshot(daysAgo: number, quantity: number): StockSnapshot {
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+    return {
+      ...mockSnapshot,
+      quantity_available: quantity,
+      snapshot_date: date,
     };
   }
 
@@ -344,5 +397,284 @@ describe("generateAlertsForUser", () => {
     expect(result.thresholdsChecked).toBe(2);
     expect(result.alertsCreated).toBe(2);
     expect(mocks.createAlerts).toHaveBeenCalled();
+  });
+
+  // Velocity alert tests
+  test("creates low_velocity alert when days_to_stockout below threshold", async () => {
+    // Stock above min threshold (50 > 10), but velocity predicts stockout soon
+    const highStockSnapshot: StockSnapshot = {
+      ...mockSnapshot,
+      quantity_available: 50,
+    };
+
+    // Historical: 100 units 7 days ago → 50 now = 7.14/day velocity
+    // Days to stockout: 50 / 7.14 = 7 days (below days_warning of 14)
+    const historicalSnapshots = [
+      createHistoricalSnapshot(0, 50),
+      createHistoricalSnapshot(7, 100),
+    ];
+
+    const thresholdWithDaysWarning: Threshold = {
+      ...mockThreshold,
+      min_quantity: 10,
+      days_warning: 14,
+    };
+
+    const { deps, mocks } = createMockDeps({
+      getThresholdsByUser: mock(() => Promise.resolve([thresholdWithDaysWarning])),
+      getStockSnapshot: mock(() => Promise.resolve(highStockSnapshot)),
+      getHistoricalSnapshots: mock(() => Promise.resolve(historicalSnapshots)),
+      hasPendingAlert: mock(() => Promise.resolve(false)),
+      createAlerts: mock((alerts: AlertInput[]) => Promise.resolve(alerts.length)),
+    });
+
+    const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+    expect(result.thresholdsChecked).toBe(1);
+    expect(result.alertsCreated).toBe(1);
+    expect(mocks.getHistoricalSnapshots).toHaveBeenCalledWith(
+      "tenant-123",
+      100,
+      1,
+      7
+    );
+
+    // Verify the alert was a low_velocity type
+    const createAlertsCall = mocks.createAlerts.mock.calls[0] as unknown as [AlertInput[]];
+    const alerts = createAlertsCall[0];
+    expect(alerts.length).toBe(1);
+    const firstAlert = alerts[0];
+    expect(firstAlert).toBeDefined();
+    expect(firstAlert?.alert_type).toBe("low_velocity");
+    expect(firstAlert?.days_to_stockout).not.toBeNull();
+  });
+
+  test("does not create velocity alert when days_warning is 0", async () => {
+    const highStockSnapshot: StockSnapshot = {
+      ...mockSnapshot,
+      quantity_available: 50,
+    };
+
+    const thresholdWithNoWarning: Threshold = {
+      ...mockThreshold,
+      min_quantity: 10,
+      days_warning: 0,
+    };
+
+    const { deps, mocks } = createMockDeps({
+      getThresholdsByUser: mock(() => Promise.resolve([thresholdWithNoWarning])),
+      getStockSnapshot: mock(() => Promise.resolve(highStockSnapshot)),
+      hasPendingAlert: mock(() => Promise.resolve(false)),
+    });
+
+    const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+    expect(result.thresholdsChecked).toBe(1);
+    expect(result.alertsCreated).toBe(0);
+    expect(mocks.getHistoricalSnapshots).not.toHaveBeenCalled();
+  });
+
+  test("does not create velocity alert for out of stock products", async () => {
+    const outOfStockSnapshot: StockSnapshot = {
+      ...mockSnapshot,
+      quantity_available: 0,
+    };
+
+    const { deps, mocks } = createMockDeps({
+      getThresholdsByUser: mock(() => Promise.resolve([mockThreshold])),
+      getStockSnapshot: mock(() => Promise.resolve(outOfStockSnapshot)),
+      hasPendingAlert: mock(() => Promise.resolve(false)),
+      createAlerts: mock((alerts: AlertInput[]) => Promise.resolve(alerts.length)),
+    });
+
+    const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+    // Should create out_of_stock alert, not velocity alert
+    expect(result.alertsCreated).toBe(1);
+    expect(mocks.getHistoricalSnapshots).not.toHaveBeenCalled();
+
+    const createAlertsCall = mocks.createAlerts.mock.calls[0] as unknown as [AlertInput[]];
+    const alerts = createAlertsCall[0];
+    const firstAlert = alerts[0];
+    expect(firstAlert).toBeDefined();
+    expect(firstAlert?.alert_type).toBe("out_of_stock");
+  });
+
+  test("does not create velocity alert when pending low_velocity alert exists", async () => {
+    const highStockSnapshot: StockSnapshot = {
+      ...mockSnapshot,
+      quantity_available: 50,
+    };
+
+    const historicalSnapshots = [
+      createHistoricalSnapshot(0, 50),
+      createHistoricalSnapshot(7, 100),
+    ];
+
+    const thresholdWithDaysWarning: Threshold = {
+      ...mockThreshold,
+      min_quantity: 10,
+      days_warning: 14,
+    };
+
+    // Return true for low_velocity pending check
+    const hasPendingAlertMock = mock((
+      _userId: string,
+      _variantId: number,
+      _officeId: number | null,
+      alertType: string
+    ) => {
+      if (alertType === "low_velocity") {
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(false);
+    });
+
+    const { deps, mocks } = createMockDeps({
+      getThresholdsByUser: mock(() => Promise.resolve([thresholdWithDaysWarning])),
+      getStockSnapshot: mock(() => Promise.resolve(highStockSnapshot)),
+      getHistoricalSnapshots: mock(() => Promise.resolve(historicalSnapshots)),
+      hasPendingAlert: hasPendingAlertMock,
+    });
+
+    const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+    expect(result.thresholdsChecked).toBe(1);
+    expect(result.alertsCreated).toBe(0);
+    expect(mocks.createAlerts).not.toHaveBeenCalled();
+  });
+
+  test("creates both low_stock and low_velocity alerts when applicable", async () => {
+    // Stock below threshold AND velocity predicts quick stockout
+    const lowStockSnapshot: StockSnapshot = {
+      ...mockSnapshot,
+      quantity_available: 5,
+    };
+
+    const historicalSnapshots = [
+      createHistoricalSnapshot(0, 5),
+      createHistoricalSnapshot(7, 40),
+    ];
+
+    const thresholdWithDaysWarning: Threshold = {
+      ...mockThreshold,
+      min_quantity: 10,
+      days_warning: 14,
+    };
+
+    const { deps, mocks } = createMockDeps({
+      getThresholdsByUser: mock(() => Promise.resolve([thresholdWithDaysWarning])),
+      getStockSnapshot: mock(() => Promise.resolve(lowStockSnapshot)),
+      getHistoricalSnapshots: mock(() => Promise.resolve(historicalSnapshots)),
+      hasPendingAlert: mock(() => Promise.resolve(false)),
+      createAlerts: mock((alerts: AlertInput[]) => Promise.resolve(alerts.length)),
+    });
+
+    const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+    expect(result.thresholdsChecked).toBe(1);
+    expect(result.alertsCreated).toBe(2);
+
+    const createAlertsCall = mocks.createAlerts.mock.calls[0] as unknown as [AlertInput[]];
+    const alerts = createAlertsCall[0];
+    expect(alerts.length).toBe(2);
+
+    const alertTypes = alerts.map((a) => a.alert_type);
+    expect(alertTypes).toContain("low_stock");
+    expect(alertTypes).toContain("low_velocity");
+  });
+
+  test("does not create velocity alert when velocity is too slow", async () => {
+    const highStockSnapshot: StockSnapshot = {
+      ...mockSnapshot,
+      quantity_available: 100,
+    };
+
+    // Very slow velocity: only 5 units sold in 7 days = 0.71/day
+    // Days to stockout: 100 / 0.71 = 140 days (above days_warning of 14)
+    const historicalSnapshots = [
+      createHistoricalSnapshot(0, 100),
+      createHistoricalSnapshot(7, 105),
+    ];
+
+    const thresholdWithDaysWarning: Threshold = {
+      ...mockThreshold,
+      min_quantity: 10,
+      days_warning: 14,
+    };
+
+    const { deps, mocks } = createMockDeps({
+      getThresholdsByUser: mock(() => Promise.resolve([thresholdWithDaysWarning])),
+      getStockSnapshot: mock(() => Promise.resolve(highStockSnapshot)),
+      getHistoricalSnapshots: mock(() => Promise.resolve(historicalSnapshots)),
+      hasPendingAlert: mock(() => Promise.resolve(false)),
+    });
+
+    const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+    expect(result.thresholdsChecked).toBe(1);
+    expect(result.alertsCreated).toBe(0);
+    expect(mocks.createAlerts).not.toHaveBeenCalled();
+  });
+
+  test("does not create velocity alert when stock is increasing", async () => {
+    const highStockSnapshot: StockSnapshot = {
+      ...mockSnapshot,
+      quantity_available: 150,
+    };
+
+    // Stock increased from 100 to 150
+    const historicalSnapshots = [
+      createHistoricalSnapshot(0, 150),
+      createHistoricalSnapshot(7, 100),
+    ];
+
+    const thresholdWithDaysWarning: Threshold = {
+      ...mockThreshold,
+      min_quantity: 10,
+      days_warning: 14,
+    };
+
+    const { deps } = createMockDeps({
+      getThresholdsByUser: mock(() => Promise.resolve([thresholdWithDaysWarning])),
+      getStockSnapshot: mock(() => Promise.resolve(highStockSnapshot)),
+      getHistoricalSnapshots: mock(() => Promise.resolve(historicalSnapshots)),
+      hasPendingAlert: mock(() => Promise.resolve(false)),
+    });
+
+    const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+    expect(result.thresholdsChecked).toBe(1);
+    expect(result.alertsCreated).toBe(0);
+  });
+
+  test("does not create velocity alert with insufficient history", async () => {
+    const highStockSnapshot: StockSnapshot = {
+      ...mockSnapshot,
+      quantity_available: 50,
+    };
+
+    // Only 1 snapshot - insufficient data
+    const historicalSnapshots = [
+      createHistoricalSnapshot(0, 50),
+    ];
+
+    const thresholdWithDaysWarning: Threshold = {
+      ...mockThreshold,
+      min_quantity: 10,
+      days_warning: 14,
+    };
+
+    const { deps } = createMockDeps({
+      getThresholdsByUser: mock(() => Promise.resolve([thresholdWithDaysWarning])),
+      getStockSnapshot: mock(() => Promise.resolve(highStockSnapshot)),
+      getHistoricalSnapshots: mock(() => Promise.resolve(historicalSnapshots)),
+      hasPendingAlert: mock(() => Promise.resolve(false)),
+    });
+
+    const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+    expect(result.thresholdsChecked).toBe(1);
+    expect(result.alertsCreated).toBe(0);
   });
 });
