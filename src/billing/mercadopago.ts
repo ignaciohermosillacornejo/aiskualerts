@@ -53,7 +53,7 @@ export class MercadoPagoClient {
     return withSpan(
       {
         name: "mercadopago preapproval.create",
-        op: "api.stripe", // Using existing span op type
+        op: "api.billing", // Using existing span op type
         attributes: {
           "mercadopago.operation": "preapproval.create",
           "peer.service": "mercadopago",
@@ -107,7 +107,7 @@ export class MercadoPagoClient {
     return withSpan(
       {
         name: "mercadopago preapproval.update",
-        op: "api.stripe",
+        op: "api.billing",
         attributes: {
           "mercadopago.operation": "preapproval.update",
           "peer.service": "mercadopago",
