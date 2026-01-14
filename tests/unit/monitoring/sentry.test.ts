@@ -15,7 +15,7 @@ import {
   traceDbQuery,
   traceDbTransaction,
   traceBsaleApi,
-  traceStripeApi,
+  tracePaymentApi,
   recordMetric,
   incrementCounter,
   recordDistribution,
@@ -649,24 +649,24 @@ describe("traceBsaleApi", () => {
   });
 });
 
-describe("traceStripeApi", () => {
-  test("creates api.stripe span for Stripe API call", async () => {
+describe("tracePaymentApi", () => {
+  test("creates api.billing span for payment API call", async () => {
     initializeSentry({
       dsn: "https://test@sentry.io/123",
       environment: "test",
     });
 
-    const callback = mock(async () => ({ id: "cs_123" }));
+    const callback = mock(async () => ({ id: "preapproval_123" }));
 
-    await traceStripeApi("checkout.sessions.create", callback);
+    await tracePaymentApi("preapproval.create", callback);
 
     expect(mockSentry.startSpan).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: "stripe checkout.sessions.create",
-        op: "api.stripe",
+        name: "billing preapproval.create",
+        op: "api.billing",
         attributes: {
-          "stripe.operation": "checkout.sessions.create",
-          "peer.service": "stripe",
+          "billing.operation": "preapproval.create",
+          "peer.service": "billing",
         },
       }),
       expect.any(Function)
