@@ -74,4 +74,4 @@ jobs:
             Always read CLAUDE.md first for project conventions.
             Read the relevant code files before deciding.
 
-          claude_args: '--model claude-sonnet-4-20250514 --allowed-tools "Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr comment:*),Read,Write,Edit,Grep,Glob"'
+          claude_args: '--model claude-sonnet-4-20250514 --allowedTools "Bash(git:*),Bash(gh:*),Read,Write,Edit,Grep,Glob"'

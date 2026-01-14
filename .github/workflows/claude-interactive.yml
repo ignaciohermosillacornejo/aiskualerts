@@ -64,4 +64,4 @@ jobs:
             Use `gh pr comment` or `gh issue comment` to reply.
             Read CLAUDE.md for project conventions.
 
-          claude_args: '--model claude-sonnet-4-20250514 --allowed-tools "Bash(git:*),Bash(gh:*),Read,Write,Edit,Grep,Glob"'
+          claude_args: '--model claude-sonnet-4-20250514 --allowedTools "Bash(git:*),Bash(gh:*),Read,Write,Edit,Grep,Glob"'
