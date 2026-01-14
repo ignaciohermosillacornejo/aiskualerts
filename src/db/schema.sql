@@ -8,9 +8,10 @@ CREATE TABLE tenants (
     bsale_access_token TEXT NOT NULL,        -- Encrypted at rest
     sync_status TEXT DEFAULT 'pending',       -- pending | syncing | success | failed
     last_sync_at TIMESTAMPTZ,
-    -- Billing
-    stripe_customer_id TEXT UNIQUE,
-    is_paid BOOLEAN DEFAULT FALSE,
+    -- Billing (provider-agnostic)
+    subscription_id TEXT UNIQUE,
+    subscription_status TEXT DEFAULT 'none',
+    subscription_ends_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -106,4 +107,4 @@ CREATE INDEX idx_alerts_user_status ON alerts(user_id, status);
 CREATE INDEX idx_alerts_tenant_date ON alerts(tenant_id, created_at DESC);
 CREATE INDEX idx_sessions_token ON sessions(token);
 CREATE INDEX idx_sessions_expires ON sessions(expires_at);
-CREATE INDEX idx_tenants_stripe_customer ON tenants(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;
+CREATE INDEX idx_tenants_subscription ON tenants(subscription_id) WHERE subscription_id IS NOT NULL;

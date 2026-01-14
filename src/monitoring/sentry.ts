@@ -245,7 +245,7 @@ export type SpanOperation =
   | "db.query"
   | "db.transaction"
   | "api.bsale"
-  | "api.stripe"
+  | "api.billing"
   | "function"
   | "task";
 
@@ -389,19 +389,19 @@ export async function traceBsaleApi<T>(
 }
 
 /**
- * Trace an external API call to Stripe
+ * Trace an external API call to payment provider (MercadoPago, etc.)
  */
-export async function traceStripeApi<T>(
+export async function tracePaymentApi<T>(
   operation: string,
   callback: (span: Span) => Promise<T>
 ): Promise<T> {
   return withSpan(
     {
-      name: `stripe ${operation}`,
-      op: "api.stripe",
+      name: `billing ${operation}`,
+      op: "api.billing",
       attributes: {
-        "stripe.operation": operation,
-        "peer.service": "stripe",
+        "billing.operation": operation,
+        "peer.service": "billing",
       },
     },
     callback
