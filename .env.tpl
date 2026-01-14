@@ -19,9 +19,7 @@
 POSTGRES_USER=aiskualerts
 POSTGRES_PASSWORD=op://Dev/POSTGRES/password
 POSTGRES_DB=aiskualerts
-
-# Internal Docker network URL for app container to connect to postgres container
-DATABASE_URL=postgresql://aiskualerts:op://Dev/POSTGRES/password@postgres:5432/aiskualerts
+# DATABASE_URL is constructed in deploy workflow from above variables
 
 # ===========================================
 # 1Password Service Account (Runtime)
