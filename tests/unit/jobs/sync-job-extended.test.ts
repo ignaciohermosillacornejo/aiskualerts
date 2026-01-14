@@ -48,6 +48,8 @@ describe("runSyncAndAlerts function", () => {
       digestHour: 8,
       digestMinute: 0,
       sentryEnvironment: "test",
+      mercadoPagoPlanAmount: 9990,
+      mercadoPagoPlanCurrency: "CLP",
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
@@ -110,6 +112,8 @@ describe("runSyncAndAlerts function", () => {
       digestHour: 8,
       digestMinute: 0,
       sentryEnvironment: "test",
+      mercadoPagoPlanAmount: 9990,
+      mercadoPagoPlanCurrency: "CLP",
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
@@ -152,6 +156,8 @@ describe("runSyncAndAlerts function", () => {
       digestHour: 8,
       digestMinute: 0,
       sentryEnvironment: "test",
+      mercadoPagoPlanAmount: 9990,
+      mercadoPagoPlanCurrency: "CLP",
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
@@ -182,6 +188,8 @@ describe("runSyncAndAlerts function", () => {
       digestHour: 8,
       digestMinute: 0,
       sentryEnvironment: "test",
+      mercadoPagoPlanAmount: 9990,
+      mercadoPagoPlanCurrency: "CLP",
     };
 
     const result = await runSyncAndAlerts(mockDb, config);

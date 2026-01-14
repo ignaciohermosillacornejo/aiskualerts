@@ -24,6 +24,8 @@ describe("Authentication Flow Integration", () => {
     digestHour: 8,
     digestMinute: 0,
     sentryEnvironment: "test",
+    mercadoPagoPlanAmount: 9990,
+    mercadoPagoPlanCurrency: "CLP",
   };
 
   beforeAll(async () => {

@@ -3,15 +3,16 @@ import { api } from "../api/client";
 import type { TenantSettings } from "../types";
 import { ApiError } from "../api/client";
 
-// Validate Stripe URLs to prevent open redirect attacks
-function isValidStripeUrl(url: string): boolean {
+// Validate MercadoPago URLs to prevent open redirect attacks
+function isValidMercadoPagoUrl(url: string): boolean {
   try {
     const parsedUrl = new URL(url);
     return (
       parsedUrl.protocol === "https:" &&
-      (parsedUrl.hostname === "checkout.stripe.com" ||
-        parsedUrl.hostname === "billing.stripe.com" ||
-        parsedUrl.hostname.endsWith(".stripe.com"))
+      (parsedUrl.hostname === "www.mercadopago.cl" ||
+        parsedUrl.hostname === "www.mercadopago.com" ||
+        parsedUrl.hostname.endsWith(".mercadopago.cl") ||
+        parsedUrl.hostname.endsWith(".mercadopago.com"))
     );
   } catch {
     return false;
@@ -80,7 +81,7 @@ export function Settings() {
       const { url } = await api.createCheckoutSession();
 
       // Validate URL before redirect to prevent open redirect attacks
-      if (!isValidStripeUrl(url)) {
+      if (!isValidMercadoPagoUrl(url)) {
         throw new Error("Invalid redirect URL");
       }
 
@@ -91,20 +92,16 @@ export function Settings() {
     }
   }, []);
 
-  const handleManageSubscription = useCallback(async () => {
+  const handleCancelSubscription = useCallback(async () => {
     try {
       setBillingLoading(true);
       setError(null);
-      const { url } = await api.createPortalSession();
+      const result = await api.cancelSubscription();
 
-      // Validate URL before redirect to prevent open redirect attacks
-      if (!isValidStripeUrl(url)) {
-        throw new Error("Invalid redirect URL");
-      }
-
-      window.location.href = url;
+      setSuccess(`Suscripcion cancelada. Tendras acceso hasta ${new Date(result.endsAt).toLocaleDateString()}`);
     } catch (err) {
-      setError(getSafeErrorMessage(err, "Error al abrir el portal de facturacion"));
+      setError(getSafeErrorMessage(err, "Error al cancelar la suscripcion"));
+    } finally {
       setBillingLoading(false);
     }
   }, []);
@@ -236,18 +233,18 @@ export function Settings() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="form-label">Estado</div>
-              <span className={`badge ${settings.isPaid ? "badge-success" : "badge-warning"}`}>
-                {settings.isPaid ? "Plan Pro" : "Plan Gratuito"}
+              <span className={`badge ${settings.subscriptionStatus === "active" ? "badge-success" : "badge-warning"}`}>
+                {settings.subscriptionStatus === "active" ? "Plan Pro" : "Plan Gratuito"}
               </span>
             </div>
-            {settings.isPaid ? (
+            {settings.subscriptionStatus === "active" ? (
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={handleManageSubscription}
+                onClick={handleCancelSubscription}
                 disabled={billingLoading}
               >
-                {billingLoading ? "Cargando..." : "Gestionar Suscripcion"}
+                {billingLoading ? "Cargando..." : "Cancelar Suscripcion"}
               </button>
             ) : (
               <button
@@ -260,7 +257,7 @@ export function Settings() {
               </button>
             )}
           </div>
-          {!settings.isPaid && (
+          {settings.subscriptionStatus !== "active" && (
             <p style={{ marginTop: "1rem", color: "#64748b", fontSize: "0.875rem" }}>
               Actualiza a Pro para acceder a alertas ilimitadas, sincronizacion cada hora y soporte prioritario.
             </p>

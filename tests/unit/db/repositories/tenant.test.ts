@@ -11,8 +11,9 @@ const mockTenant: Tenant = {
   bsale_access_token: "test-token",
   sync_status: "pending",
   last_sync_at: null,
-  stripe_customer_id: null,
-  is_paid: false,
+  subscription_id: null,
+  subscription_status: "none",
+  subscription_ends_at: null,
   created_at: new Date(),
   updated_at: new Date(),
 };
@@ -274,14 +275,14 @@ describe("TenantRepository", () => {
     });
   });
 
-  describe("findByStripeCustomerId", () => {
+  describe("findBySubscriptionId", () => {
     test("returns tenant when found", async () => {
       const { db, mocks } = createMockDb();
-      const paidTenant = { ...mockTenant, stripe_customer_id: "cus_123", is_paid: true };
+      const paidTenant = { ...mockTenant, subscription_id: "sub_123", subscription_status: "active" as const };
       mocks.queryOne.mockResolvedValue(paidTenant);
 
       const repo = new TenantRepository(db);
-      const result = await repo.findByStripeCustomerId("cus_123");
+      const result = await repo.findBySubscriptionId("sub_123");
 
       expect(result).toEqual(paidTenant);
       expect(mocks.queryOne).toHaveBeenCalled();
@@ -292,38 +293,39 @@ describe("TenantRepository", () => {
       mocks.queryOne.mockResolvedValue(null);
 
       const repo = new TenantRepository(db);
-      const result = await repo.findByStripeCustomerId("cus_nonexistent");
+      const result = await repo.findBySubscriptionId("sub_nonexistent");
 
       expect(result).toBeNull();
     });
   });
 
-  describe("updateStripeCustomer", () => {
-    test("updates stripe customer id and sets is_paid to true", async () => {
+  describe("activateSubscription", () => {
+    test("activates subscription and sets status to active", async () => {
       const { db, mocks } = createMockDb();
       const repo = new TenantRepository(db);
 
-      await repo.updateStripeCustomer(mockTenant.id, "cus_123");
+      await repo.activateSubscription(mockTenant.id, "sub_123");
 
       expect(mocks.execute).toHaveBeenCalled();
     });
   });
 
-  describe("updatePaidStatus", () => {
-    test("updates is_paid status by stripe customer id", async () => {
+  describe("updateSubscriptionStatus", () => {
+    test("updates subscription status", async () => {
       const { db, mocks } = createMockDb();
       const repo = new TenantRepository(db);
 
-      await repo.updatePaidStatus("cus_123", false);
+      await repo.updateSubscriptionStatus("sub_123", "cancelled");
 
       expect(mocks.execute).toHaveBeenCalled();
     });
 
-    test("can set is_paid to true", async () => {
+    test("can set status with end date", async () => {
       const { db, mocks } = createMockDb();
       const repo = new TenantRepository(db);
+      const endsAt = new Date("2025-01-01");
 
-      await repo.updatePaidStatus("cus_123", true);
+      await repo.updateSubscriptionStatus("sub_123", "cancelled", endsAt);
 
       expect(mocks.execute).toHaveBeenCalled();
     });

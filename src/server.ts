@@ -411,16 +411,16 @@ export function createServer(
             return response;
           }
 
-          if (url.pathname === "/api/billing/portal" && request.method === "POST") {
-            const response = await traceRequest("POST", "/api/billing/portal", async () => {
-              return await billingRoutes.portal(request);
+          if (url.pathname === "/api/billing/cancel" && request.method === "POST") {
+            const response = await traceRequest("POST", "/api/billing/cancel", async () => {
+              return await billingRoutes.cancel(request);
             });
             recordRequestMetrics(response.status);
             return response;
           }
 
-          if (url.pathname === "/api/webhooks/stripe" && request.method === "POST") {
-            const response = await traceRequest("POST", "/api/webhooks/stripe", async () => {
+          if (url.pathname === "/api/webhooks/mercadopago" && request.method === "POST") {
+            const response = await traceRequest("POST", "/api/webhooks/mercadopago", async () => {
               return await billingRoutes.webhook(request);
             });
             recordRequestMetrics(response.status);
