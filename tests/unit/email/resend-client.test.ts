@@ -20,6 +20,8 @@ function createMockConfig(overrides: Partial<Config> = {}): Config {
     sentryEnvironment: "test",
     mercadoPagoPlanAmount: 9990,
     mercadoPagoPlanCurrency: "CLP",
+    magicLinkExpiryMinutes: 15,
+    magicLinkRateLimitPerHour: 5,
     ...overrides,
   };
 }

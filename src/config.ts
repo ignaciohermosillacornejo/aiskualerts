@@ -42,6 +42,9 @@ const configSchema = z.object({
   mercadoPagoPlanAmount: z.coerce.number().positive().default(9990),
   mercadoPagoPlanCurrency: z.string().length(3).default("CLP"),
   appUrl: z.url().optional(),
+  // Magic link configuration
+  magicLinkExpiryMinutes: z.coerce.number().int().min(5).max(60).default(15),
+  magicLinkRateLimitPerHour: z.coerce.number().int().min(1).max(20).default(5),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -86,5 +89,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     mercadoPagoPlanAmount: env["MERCADOPAGO_PLAN_AMOUNT"],
     mercadoPagoPlanCurrency: env["MERCADOPAGO_PLAN_CURRENCY"],
     appUrl: env["APP_URL"],
+    // Magic link configuration
+    magicLinkExpiryMinutes: env["MAGIC_LINK_EXPIRY_MINUTES"],
+    magicLinkRateLimitPerHour: env["MAGIC_LINK_RATE_LIMIT_PER_HOUR"],
   });
 }

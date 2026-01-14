@@ -21,6 +21,10 @@ const LoginCredentialsSchema = z.object({
   password: z.string().min(1, "Password is required").max(255),
 });
 
+const MagicLinkRequestSchema = z.object({
+  email: z.email("Invalid email format").max(255),
+});
+
 const SettingsUpdateSchema = z.object({
   emailNotifications: z.boolean().optional(),
   notificationEmail: z.email().max(255).optional(),
@@ -231,6 +235,25 @@ async function logout(): Promise<void> {
   await request("/auth/logout", { method: "POST" });
 }
 
+// Magic link auth
+interface MagicLinkRequestResponse {
+  success: boolean;
+  message: string;
+}
+
+async function requestMagicLink(email: string): Promise<MagicLinkRequestResponse> {
+  const validated = MagicLinkRequestSchema.parse({ email });
+  return request<MagicLinkRequestResponse>("/auth/magic-link", {
+    method: "POST",
+    body: JSON.stringify(validated),
+  });
+}
+
+// Bsale connection
+async function disconnectBsale(): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>("/bsale/disconnect", { method: "POST" });
+}
+
 async function getCurrentUser(): Promise<LoginResponse["user"] | null> {
   try {
     const response = await request<{ user: LoginResponse["user"] }>("/auth/me");
@@ -298,6 +321,8 @@ export const api = {
   login,
   logout,
   getCurrentUser,
+  requestMagicLink,
+  disconnectBsale,
 
   // Billing
   createCheckoutSession,

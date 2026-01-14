@@ -8,6 +8,12 @@ export interface CreateTenantInput {
   bsale_access_token: string;
 }
 
+export interface ConnectBsaleInput {
+  clientCode: string;
+  clientName: string;
+  accessToken: string;
+}
+
 export interface UpdateTenantInput {
   bsale_client_name?: string;
   bsale_access_token?: string;
@@ -101,6 +107,8 @@ export class TenantRepository {
     const tenants = await this.db.query<Tenant>(
       `SELECT * FROM tenants
        WHERE sync_status != 'syncing'
+         AND sync_status != 'not_connected'
+         AND bsale_access_token IS NOT NULL
        ORDER BY last_sync_at ASC NULLS FIRST`
     );
     return this.processTenants(tenants);
@@ -224,5 +232,98 @@ export class TenantRepository {
        WHERE subscription_id = $3`,
       [status, endsAt?.toISOString() ?? null, subscriptionId]
     );
+  }
+
+  /**
+   * Create a tenant for magic link users (without Bsale connection)
+   */
+  async createForMagicLink(email: string, name?: string): Promise<Tenant> {
+    const tenants = await this.db.query<Tenant>(
+      `INSERT INTO tenants (bsale_client_code, bsale_client_name, bsale_access_token, sync_status)
+       VALUES (NULL, $1, NULL, 'not_connected')
+       RETURNING *`,
+      [name ?? email]
+    );
+
+    const tenant = tenants[0];
+    if (!tenant) {
+      throw new Error("Failed to create tenant");
+    }
+
+    return tenant;
+  }
+
+  /**
+   * Connect Bsale to an existing tenant
+   */
+  async connectBsale(tenantId: string, input: ConnectBsaleInput): Promise<Tenant> {
+    const encryptedToken = this.encryptToken(input.accessToken);
+
+    const tenants = await this.db.query<Tenant>(
+      `UPDATE tenants
+       SET bsale_client_code = $1,
+           bsale_client_name = $2,
+           bsale_access_token = $3,
+           sync_status = 'pending',
+           updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [input.clientCode, input.clientName, encryptedToken, tenantId]
+    );
+
+    const tenant = tenants[0];
+    if (!tenant) {
+      throw new Error(`Tenant ${tenantId} not found`);
+    }
+
+    return this.processTenant(tenant);
+  }
+
+  /**
+   * Disconnect Bsale from a tenant (preserves historical data)
+   */
+  async disconnectBsale(tenantId: string): Promise<Tenant> {
+    const tenants = await this.db.query<Tenant>(
+      `UPDATE tenants
+       SET bsale_access_token = NULL,
+           sync_status = 'not_connected',
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [tenantId]
+    );
+
+    const tenant = tenants[0];
+    if (!tenant) {
+      throw new Error(`Tenant ${tenantId} not found`);
+    }
+
+    return tenant;
+  }
+
+  /**
+   * Check if a tenant has a Bsale connection
+   */
+  async hasBsaleConnection(tenantId: string): Promise<boolean> {
+    const result = await this.db.queryOne<{ has_connection: boolean }>(
+      `SELECT bsale_access_token IS NOT NULL as has_connection
+       FROM tenants WHERE id = $1`,
+      [tenantId]
+    );
+
+    return result?.has_connection ?? false;
+  }
+
+  /**
+   * Find a tenant by email (for magic link users who might already exist)
+   */
+  async findByUserEmail(email: string): Promise<Tenant | null> {
+    const tenant = await this.db.queryOne<Tenant>(
+      `SELECT t.* FROM tenants t
+       JOIN users u ON u.tenant_id = t.id
+       WHERE u.email = $1`,
+      [email]
+    );
+    return tenant ? this.processTenant(tenant) : null;
   }
 }

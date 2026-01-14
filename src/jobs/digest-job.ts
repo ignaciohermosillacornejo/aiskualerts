@@ -161,8 +161,9 @@ export async function runDigestJob(
         }));
 
         // Render email HTML
+        const tenantDisplayName = tenant.bsale_client_name ?? "Tu empresa";
         const emailHtml = renderDailyDigestEmail({
-          tenantName: tenant.bsale_client_name,
+          tenantName: tenantDisplayName,
           date: new Date(),
           alerts: alertSummaries,
         });
@@ -174,7 +175,7 @@ export async function runDigestJob(
         // Send the email
         const result = await deps.emailClient.sendEmail({
           to: emailTo,
-          subject: `Resumen de Alertas - ${tenant.bsale_client_name}`,
+          subject: `Resumen de Alertas - ${tenantDisplayName}`,
           html: emailHtml,
         });
 
