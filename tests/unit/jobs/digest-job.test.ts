@@ -43,6 +43,8 @@ function createMockConfig(): Config {
     resendApiKey: "re_test_key",
     notificationFromEmail: "test@aiskualerts.com",
     sentryEnvironment: "test",
+    mercadoPagoPlanAmount: 9990,
+    mercadoPagoPlanCurrency: "CLP",
   };
 }
 
@@ -59,8 +61,9 @@ const mockTenant: Tenant = {
   bsale_access_token: "token123",
   sync_status: "success",
   last_sync_at: new Date("2024-01-01"),
-  stripe_customer_id: null,
-  is_paid: false,
+  subscription_id: null,
+  subscription_status: "none",
+  subscription_ends_at: null,
   created_at: new Date("2024-01-01"),
   updated_at: new Date("2024-01-01"),
 };

@@ -17,7 +17,7 @@ import {
   setupProcessErrorHandlers,
   flushSentry,
 } from "@/monitoring/sentry";
-import { StripeClient } from "@/billing/stripe";
+import { MercadoPagoClient } from "@/billing/mercadopago";
 import { createAuthMiddleware } from "@/api/middleware/auth";
 import { logger } from "@/utils/logger";
 
@@ -100,17 +100,18 @@ export function main(): void {
     logger.info("OAuth endpoints disabled (missing configuration)");
   }
 
-  // Billing dependencies (if Stripe is configured)
-  if (config.stripeSecretKey && config.stripePriceId) {
-    const stripeClient = new StripeClient({
-      secretKey: config.stripeSecretKey,
-      priceId: config.stripePriceId,
-      webhookSecret: config.stripeWebhookSecret,
+  // Billing dependencies (if MercadoPago is configured)
+  if (config.mercadoPagoAccessToken) {
+    const mercadoPagoClient = new MercadoPagoClient({
+      accessToken: config.mercadoPagoAccessToken,
+      webhookSecret: config.mercadoPagoWebhookSecret,
+      planAmount: config.mercadoPagoPlanAmount,
+      planCurrency: config.mercadoPagoPlanCurrency,
       appUrl: config.appUrl ?? `http://localhost:${String(config.port)}`,
     });
 
     serverDeps.billingDeps = {
-      stripeClient,
+      mercadoPagoClient,
       authMiddleware,
       tenantRepo,
       userRepo,
@@ -118,7 +119,7 @@ export function main(): void {
 
     logger.info("Billing endpoints enabled");
   } else {
-    logger.info("Billing endpoints disabled (missing Stripe configuration)");
+    logger.info("Billing endpoints disabled (missing MercadoPago configuration)");
   }
 
   // Sync dependencies (always enabled when auth is available)

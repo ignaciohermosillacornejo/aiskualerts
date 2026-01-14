@@ -46,8 +46,8 @@ export interface TenantSettings {
   syncFrequency: "hourly" | "daily" | "weekly";
   digestFrequency: "daily" | "weekly" | "none";
   // Billing
-  isPaid: boolean;
-  stripeCustomerId: string | null;
+  subscriptionStatus: "none" | "active" | "cancelled" | "past_due";
+  subscriptionEndsAt: string | null;
 }
 
 export interface User {

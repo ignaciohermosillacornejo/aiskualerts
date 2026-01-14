@@ -1,3 +1,5 @@
+export type SubscriptionStatus = "none" | "active" | "cancelled" | "past_due";
+
 export interface Tenant {
   id: string;
   bsale_client_code: string;
@@ -5,10 +7,24 @@ export interface Tenant {
   bsale_access_token: string;
   sync_status: "pending" | "syncing" | "success" | "failed";
   last_sync_at: Date | null;
-  stripe_customer_id: string | null;
-  is_paid: boolean;
+  // Billing (provider-agnostic)
+  subscription_id: string | null;
+  subscription_status: SubscriptionStatus;
+  subscription_ends_at: Date | null;
   created_at: Date;
   updated_at: Date;
+}
+
+/**
+ * Check if a tenant has an active paid subscription
+ * Handles grace period for cancelled subscriptions
+ */
+export function isTenantPaid(tenant: Tenant): boolean {
+  if (tenant.subscription_status === "active") return true;
+  if (tenant.subscription_status === "cancelled" && tenant.subscription_ends_at) {
+    return tenant.subscription_ends_at > new Date();
+  }
+  return false;
 }
 
 export type DigestFrequency = "daily" | "weekly" | "none";

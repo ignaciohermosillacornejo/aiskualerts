@@ -1,5 +1,5 @@
 import type { DatabaseClient } from "@/db/client";
-import type { Tenant, SyncStatus } from "./types";
+import type { Tenant, SyncStatus, SubscriptionStatus } from "./types";
 import type { EncryptionService } from "@/utils/encryption";
 
 export interface CreateTenantInput {
@@ -192,35 +192,37 @@ export class TenantRepository {
     return this.processTenants(tenants);
   }
 
-  async findByStripeCustomerId(stripeCustomerId: string): Promise<Tenant | null> {
+  async findBySubscriptionId(subscriptionId: string): Promise<Tenant | null> {
     const tenant = await this.db.queryOne<Tenant>(
-      `SELECT * FROM tenants WHERE stripe_customer_id = $1`,
-      [stripeCustomerId]
+      `SELECT * FROM tenants WHERE subscription_id = $1`,
+      [subscriptionId]
     );
     return tenant ? this.processTenant(tenant) : null;
   }
 
-  async updateStripeCustomer(
+  async activateSubscription(
     tenantId: string,
-    stripeCustomerId: string
+    subscriptionId: string
   ): Promise<void> {
     await this.db.execute(
       `UPDATE tenants
-       SET stripe_customer_id = $1, is_paid = TRUE, updated_at = NOW()
+       SET subscription_id = $1, subscription_status = 'active',
+           subscription_ends_at = NULL, updated_at = NOW()
        WHERE id = $2`,
-      [stripeCustomerId, tenantId]
+      [subscriptionId, tenantId]
     );
   }
 
-  async updatePaidStatus(
-    stripeCustomerId: string,
-    isPaid: boolean
+  async updateSubscriptionStatus(
+    subscriptionId: string,
+    status: SubscriptionStatus,
+    endsAt?: Date
   ): Promise<void> {
     await this.db.execute(
       `UPDATE tenants
-       SET is_paid = $1, updated_at = NOW()
-       WHERE stripe_customer_id = $2`,
-      [isPaid, stripeCustomerId]
+       SET subscription_status = $1, subscription_ends_at = $2, updated_at = NOW()
+       WHERE subscription_id = $3`,
+      [status, endsAt?.toISOString() ?? null, subscriptionId]
     );
   }
 }

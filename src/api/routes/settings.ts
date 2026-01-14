@@ -32,8 +32,8 @@ const mockSettings = {
   notificationEmail: "alertas@miempresa.cl",
   syncFrequency: "daily" as const,
   digestFrequency: "daily" as const,
-  isPaid: false,
-  stripeCustomerId: null as string | null,
+  subscriptionStatus: "none" as const,
+  subscriptionEndsAt: null as string | null,
 };
 
 export interface SettingsRoutes {
@@ -80,8 +80,8 @@ export function createSettingsRoutes(deps: SettingsRouteDeps): SettingsRoutes {
             notificationEmail: user.notification_email,
             syncFrequency: "daily" as const, // Default, could be stored in a settings table
             digestFrequency: user.digest_frequency,
-            isPaid: tenant.is_paid,
-            stripeCustomerId: tenant.stripe_customer_id,
+            subscriptionStatus: tenant.subscription_status,
+            subscriptionEndsAt: tenant.subscription_ends_at?.toISOString() ?? null,
           });
         }
 
@@ -136,8 +136,8 @@ export function createSettingsRoutes(deps: SettingsRouteDeps): SettingsRoutes {
             notificationEmail: updatedUser.notification_email,
             syncFrequency: body.syncFrequency ?? "daily",
             digestFrequency: updatedUser.digest_frequency,
-            isPaid: tenant?.is_paid ?? false,
-            stripeCustomerId: tenant?.stripe_customer_id ?? null,
+            subscriptionStatus: tenant?.subscription_status ?? "none",
+            subscriptionEndsAt: tenant?.subscription_ends_at?.toISOString() ?? null,
           });
         }
 

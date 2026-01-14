@@ -245,16 +245,17 @@ interface CheckoutResponse {
   url: string;
 }
 
-interface PortalResponse {
-  url: string;
+interface CancelSubscriptionResponse {
+  message: string;
+  endsAt: string;
 }
 
 async function createCheckoutSession(): Promise<CheckoutResponse> {
   return request<CheckoutResponse>("/billing/checkout", { method: "POST" });
 }
 
-async function createPortalSession(): Promise<PortalResponse> {
-  return request<PortalResponse>("/billing/portal", { method: "POST" });
+async function cancelSubscription(): Promise<CancelSubscriptionResponse> {
+  return request<CancelSubscriptionResponse>("/billing/cancel", { method: "POST" });
 }
 
 // Sync
@@ -300,7 +301,7 @@ export const api = {
 
   // Billing
   createCheckoutSession,
-  createPortalSession,
+  cancelSubscription,
 
   // Sync
   triggerSync,

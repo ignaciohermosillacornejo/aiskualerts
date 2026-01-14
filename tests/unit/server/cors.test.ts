@@ -24,6 +24,8 @@ const testConfig: Config = {
   digestHour: 8,
   digestMinute: 0,
   sentryEnvironment: "test",
+  mercadoPagoPlanAmount: 9990,
+  mercadoPagoPlanCurrency: "CLP",
 };
 
 let serverInstance: ReturnType<typeof createServer> | null = null;

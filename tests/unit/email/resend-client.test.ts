@@ -18,6 +18,8 @@ function createMockConfig(overrides: Partial<Config> = {}): Config {
     resendApiKey: "re_test_key",
     notificationFromEmail: "test@aiskualerts.com",
     sentryEnvironment: "test",
+    mercadoPagoPlanAmount: 9990,
+    mercadoPagoPlanCurrency: "CLP",
     ...overrides,
   };
 }

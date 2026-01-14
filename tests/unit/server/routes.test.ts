@@ -631,7 +631,7 @@ describe("Server with OAuth routes", () => {
 
     // Create minimal mock that satisfies the type using indexed access types
     const mockBillingDeps: BillingHandlerDeps = {
-      stripeClient: {} as unknown as BillingHandlerDeps["stripeClient"],
+      mercadoPagoClient: {} as unknown as BillingHandlerDeps["mercadoPagoClient"],
       tenantRepo: {} as unknown as BillingHandlerDeps["tenantRepo"],
       userRepo: {} as unknown as BillingHandlerDeps["userRepo"],
       authMiddleware: {} as unknown as BillingHandlerDeps["authMiddleware"],

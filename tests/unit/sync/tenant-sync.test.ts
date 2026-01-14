@@ -11,8 +11,9 @@ const mockTenant: Tenant = {
   bsale_access_token: "test-token",
   sync_status: "pending",
   last_sync_at: null,
-  stripe_customer_id: null,
-  is_paid: false,
+  subscription_id: null,
+  subscription_status: "none",
+  subscription_ends_at: null,
   created_at: new Date(),
   updated_at: new Date(),
 };

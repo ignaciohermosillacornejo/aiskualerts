@@ -73,8 +73,8 @@ export function createMockTenantSettings(overrides: Partial<TenantSettings> = {}
     notificationEmail: "alerts@example.com",
     syncFrequency: "hourly",
     digestFrequency: "daily",
-    isPaid: false,
-    stripeCustomerId: null,
+    subscriptionStatus: "none",
+    subscriptionEndsAt: null,
     ...overrides,
   };
 }

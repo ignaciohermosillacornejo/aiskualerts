@@ -596,24 +596,28 @@ describe("API Client", () => {
     });
   });
 
-  describe("createPortalSession", () => {
-    test("sends POST request to portal endpoint", async () => {
+  describe("cancelSubscription", () => {
+    test("sends POST request to cancel endpoint", async () => {
       mockFetch.mockImplementation(() =>
         Promise.resolve(
-          new Response(JSON.stringify({ url: "https://billing.stripe.com/portal123" }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          })
+          new Response(
+            JSON.stringify({ message: "Subscription cancelled", endsAt: "2025-02-01T00:00:00.000Z" }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }
+          )
         )
       );
 
-      const result = await api.createPortalSession();
+      const result = await api.cancelSubscription();
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/billing/portal",
+        "/api/billing/cancel",
         expect.objectContaining({ method: "POST" })
       );
-      expect(result.url).toBe("https://billing.stripe.com/portal123");
+      expect(result.message).toBe("Subscription cancelled");
+      expect(result.endsAt).toBe("2025-02-01T00:00:00.000Z");
     });
 
     test("throws ApiError when no subscription", async () => {
@@ -627,7 +631,7 @@ describe("API Client", () => {
       );
 
       try {
-        await api.createPortalSession();
+        await api.cancelSubscription();
         expect(true).toBe(false);
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
@@ -645,7 +649,7 @@ describe("API Client", () => {
         )
       );
 
-      await expect(api.createPortalSession()).rejects.toThrow(ApiError);
+      await expect(api.cancelSubscription()).rejects.toThrow(ApiError);
     });
   });
 

@@ -104,6 +104,8 @@ function createTestConfig(): Config {
     resendApiKey: "test-api-key",
     notificationFromEmail: "test@aiskualerts.com",
     sentryEnvironment: "test",
+    mercadoPagoPlanAmount: 9990,
+    mercadoPagoPlanCurrency: "CLP",
   };
 }
 
