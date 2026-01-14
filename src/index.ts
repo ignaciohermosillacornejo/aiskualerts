@@ -18,6 +18,7 @@ import {
   flushSentry,
 } from "@/monitoring/sentry";
 import { MercadoPagoClient } from "@/billing/mercadopago";
+import { SubscriptionService } from "@/billing/subscription-service";
 import { createAuthMiddleware } from "@/api/middleware/auth";
 import { logger as defaultLogger, type Logger } from "@/utils/logger";
 
@@ -42,6 +43,7 @@ export interface MainDependencies {
   BsaleOAuthClient: typeof BsaleOAuthClient;
   OAuthStateStore: typeof OAuthStateStore;
   MercadoPagoClient: typeof MercadoPagoClient;
+  SubscriptionService: typeof SubscriptionService;
   logger: Logger;
   processOn: (event: string, handler: () => void) => void;
   processExit: (code: number) => never;
@@ -69,6 +71,7 @@ export function createMainDependencies(): MainDependencies {
     BsaleOAuthClient,
     OAuthStateStore,
     MercadoPagoClient,
+    SubscriptionService,
     logger: defaultLogger,
     processOn: (event, handler) => {
       process.on(event, handler);
@@ -189,6 +192,12 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
       tenantRepo,
       userRepo,
     };
+
+    // Create subscription service for access checks
+    serverDeps.subscriptionService = new deps.SubscriptionService({
+      mercadoPagoClient,
+      tenantRepo,
+    });
 
     deps.logger.info("Billing endpoints enabled");
   } else {

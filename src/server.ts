@@ -10,6 +10,7 @@ import {
   createSyncRoutes,
   type SyncHandlerDeps,
 } from "@/api/handlers/sync";
+import type { SubscriptionService } from "@/billing/subscription-service";
 import type { AlertRepository } from "@/db/repositories/alert";
 import type { ThresholdRepository } from "@/db/repositories/threshold";
 import type { UserRepository } from "@/db/repositories/user";
@@ -187,6 +188,7 @@ export interface ServerDependencies {
   oauthDeps?: OAuthHandlerDeps;
   billingDeps?: BillingHandlerDeps;
   syncDeps?: SyncHandlerDeps;
+  subscriptionService?: SubscriptionService;
   // Repository dependencies for database-backed routes
   alertRepo?: AlertRepository;
   thresholdRepo?: ThresholdRepository;
@@ -426,6 +428,43 @@ export function createServer(
             recordRequestMetrics(response.status);
             return response;
           }
+        }
+
+        // Subscription status endpoint (if subscriptionService and auth are configured)
+        if (
+          url.pathname === "/api/subscription/status" &&
+          request.method === "GET" &&
+          deps?.subscriptionService &&
+          authMiddleware &&
+          deps.tenantRepo
+        ) {
+          const subscriptionService = deps.subscriptionService;
+          const tenantRepo = deps.tenantRepo;
+          const response = await traceRequest("GET", "/api/subscription/status", async () => {
+            try {
+              const authContext = await authMiddleware.authenticate(request);
+              const tenant = await tenantRepo.getById(authContext.tenantId);
+
+              if (!tenant) {
+                return jsonWithCors({ error: "Tenant not found" }, { status: 404 });
+              }
+
+              const hasAccess = await subscriptionService.hasActiveAccess(tenant);
+
+              return jsonWithCors({
+                hasActiveAccess: hasAccess,
+                subscriptionStatus: tenant.subscription_status,
+                subscriptionEndsAt: tenant.subscription_ends_at?.toISOString() ?? null,
+              });
+            } catch (error) {
+              if (error instanceof Error && error.name === "AuthenticationError") {
+                return jsonWithCors({ error: "Unauthorized" }, { status: 401 });
+              }
+              throw error;
+            }
+          });
+          recordRequestMetrics(response.status);
+          return response;
         }
 
         // Sync routes (if configured)
