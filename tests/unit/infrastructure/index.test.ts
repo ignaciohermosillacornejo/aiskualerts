@@ -149,6 +149,11 @@ function createMockDependencies(): MainDependencies & {
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Mock class for testing
+  class MockSubscriptionService {
+    hasActiveAccess = mock(() => Promise.resolve(true));
+  }
+
   return {
     loadConfig: loadConfig as unknown as MainDependencies["loadConfig"],
     getDb: getDb as unknown as MainDependencies["getDb"],
@@ -169,6 +174,7 @@ function createMockDependencies(): MainDependencies & {
     BsaleOAuthClient: MockBsaleOAuthClient as unknown as MainDependencies["BsaleOAuthClient"],
     OAuthStateStore: MockOAuthStateStore as unknown as MainDependencies["OAuthStateStore"],
     MercadoPagoClient: MockMercadoPagoClient as unknown as MainDependencies["MercadoPagoClient"],
+    SubscriptionService: MockSubscriptionService as unknown as MainDependencies["SubscriptionService"],
     logger: {
       debug: mock(() => undefined),
       info: loggerInfo,
