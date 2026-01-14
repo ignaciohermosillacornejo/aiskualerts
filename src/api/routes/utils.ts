@@ -62,7 +62,8 @@ export function validateOrigin(requestOrigin: string | null): string | null {
   }
 
   // If the request has no Origin header (same-origin request), allow it
-  if (!requestOrigin) {
+  // Note: Empty string is not the same as null - empty string should be rejected
+  if (requestOrigin === null) {
     return allowedOrigins[0] ?? null;
   }
 

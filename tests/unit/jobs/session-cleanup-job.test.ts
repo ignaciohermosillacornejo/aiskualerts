@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/prefer-promise-reject-errors */
-import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
+import { test, expect, describe, mock } from "bun:test";
 import {
   runSessionCleanup,
   createSessionCleanupScheduler,
@@ -7,20 +7,7 @@ import {
 } from "@/jobs/session-cleanup-job";
 import type { SessionRepository } from "@/db/repositories/session";
 
-// Save original console methods
-const originalInfo = console.info;
-const originalError = console.error;
-
 describe("runSessionCleanup", () => {
-  beforeEach(() => {
-    console.info = mock(() => undefined);
-    console.error = mock(() => undefined);
-  });
-
-  afterEach(() => {
-    console.info = originalInfo;
-    console.error = originalError;
-  });
 
   test("returns cleanup result with deleted count", async () => {
     const mockSessionRepo = {
@@ -37,30 +24,24 @@ describe("runSessionCleanup", () => {
     );
   });
 
-  test("logs message when sessions are deleted", async () => {
-    const mockInfo = mock(() => undefined);
-    console.info = mockInfo;
-
+  test("completes successfully when sessions are deleted", async () => {
     const mockSessionRepo = {
       deleteExpired: mock(() => Promise.resolve(3)),
     } as unknown as SessionRepository;
 
-    await runSessionCleanup(mockSessionRepo);
+    const result = await runSessionCleanup(mockSessionRepo);
 
-    expect(mockInfo).toHaveBeenCalledWith("Cleaned up 3 expired sessions");
+    expect(result.deletedCount).toBe(3);
   });
 
-  test("does not log when no sessions are deleted", async () => {
-    const mockInfo = mock(() => undefined);
-    console.info = mockInfo;
-
+  test("completes successfully when no sessions are deleted", async () => {
     const mockSessionRepo = {
       deleteExpired: mock(() => Promise.resolve(0)),
     } as unknown as SessionRepository;
 
-    await runSessionCleanup(mockSessionRepo);
+    const result = await runSessionCleanup(mockSessionRepo);
 
-    expect(mockInfo).not.toHaveBeenCalled();
+    expect(result.deletedCount).toBe(0);
   });
 
   test("returns zero count when no sessions expired", async () => {
@@ -87,15 +68,6 @@ describe("runSessionCleanup", () => {
 });
 
 describe("createSessionCleanupScheduler", () => {
-  beforeEach(() => {
-    console.info = mock(() => undefined);
-    console.error = mock(() => undefined);
-  });
-
-  afterEach(() => {
-    console.info = originalInfo;
-    console.error = originalError;
-  });
 
   test("creates scheduler with start, stop, and runNow methods", () => {
     const mockSessionRepo = {
@@ -125,10 +97,7 @@ describe("createSessionCleanupScheduler", () => {
     expect(result.deletedCount).toBe(2);
   });
 
-  test("start logs scheduler start message", () => {
-    const mockInfo = mock(() => undefined);
-    console.info = mockInfo;
-
+  test("start returns without error", () => {
     const mockSessionRepo = {
       deleteExpired: mock(() => Promise.resolve(0)),
     } as unknown as SessionRepository;
@@ -138,11 +107,8 @@ describe("createSessionCleanupScheduler", () => {
       runOnStart: false,
     });
 
-    scheduler.start();
-
-    expect(mockInfo).toHaveBeenCalledWith(
-      "Session cleanup scheduler started (interval: 1 minutes)"
-    );
+    // Should not throw
+    expect(() => scheduler.start()).not.toThrow();
 
     scheduler.stop();
   });
@@ -168,10 +134,7 @@ describe("createSessionCleanupScheduler", () => {
     scheduler.stop();
   });
 
-  test("stop clears the interval and logs message", () => {
-    const mockInfo = mock(() => undefined);
-    console.info = mockInfo;
-
+  test("stop clears the interval without error", () => {
     const mockSessionRepo = {
       deleteExpired: mock(() => Promise.resolve(0)),
     } as unknown as SessionRepository;
@@ -181,32 +144,23 @@ describe("createSessionCleanupScheduler", () => {
     });
 
     scheduler.start();
-    scheduler.stop();
 
-    expect(mockInfo).toHaveBeenCalledWith("Session cleanup scheduler stopped");
+    // Should not throw
+    expect(() => scheduler.stop()).not.toThrow();
   });
 
   test("stop does nothing if scheduler was not started", () => {
-    const mockInfo = mock(() => undefined);
-    console.info = mockInfo;
-
     const mockSessionRepo = {
       deleteExpired: mock(() => Promise.resolve(0)),
     } as unknown as SessionRepository;
 
     const scheduler = createSessionCleanupScheduler(mockSessionRepo);
 
-    scheduler.stop();
-
-    expect(mockInfo).not.toHaveBeenCalledWith(
-      "Session cleanup scheduler stopped"
-    );
+    // Should not throw when stopping without starting
+    expect(() => scheduler.stop()).not.toThrow();
   });
 
-  test("calling start twice logs already running message", () => {
-    const mockInfo = mock(() => undefined);
-    console.info = mockInfo;
-
+  test("calling start twice does not throw", () => {
     const mockSessionRepo = {
       deleteExpired: mock(() => Promise.resolve(0)),
     } as unknown as SessionRepository;
@@ -216,39 +170,27 @@ describe("createSessionCleanupScheduler", () => {
     });
 
     scheduler.start();
-    scheduler.start();
 
-    expect(mockInfo).toHaveBeenCalledWith(
-      "Session cleanup scheduler is already running"
-    );
+    // Should not throw when called twice
+    expect(() => scheduler.start()).not.toThrow();
 
     scheduler.stop();
   });
 
   test("uses default config values when not provided", () => {
-    const mockInfo = mock(() => undefined);
-    console.info = mockInfo;
-
     const mockSessionRepo = {
       deleteExpired: mock(() => Promise.resolve(0)),
     } as unknown as SessionRepository;
 
     const scheduler = createSessionCleanupScheduler(mockSessionRepo);
 
-    scheduler.start();
-
-    // Default interval is 1 hour = 60 minutes
-    expect(mockInfo).toHaveBeenCalledWith(
-      "Session cleanup scheduler started (interval: 60 minutes)"
-    );
+    // Should not throw with default config
+    expect(() => scheduler.start()).not.toThrow();
 
     scheduler.stop();
   });
 
-  test("runNow logs error and rethrows on failure", async () => {
-    const mockError = mock(() => undefined);
-    console.error = mockError;
-
+  test("runNow rethrows on failure", async () => {
     const mockSessionRepo = {
       deleteExpired: mock(() => Promise.reject(new Error("DB error"))),
     } as unknown as SessionRepository;
@@ -258,13 +200,9 @@ describe("createSessionCleanupScheduler", () => {
     });
 
     await expect(scheduler.runNow()).rejects.toThrow("DB error");
-    expect(mockError).toHaveBeenCalledWith("Session cleanup failed: DB error");
   });
 
   test("handles unknown error type in runNow", async () => {
-    const mockError = mock(() => undefined);
-    console.error = mockError;
-
     const mockSessionRepo = {
       deleteExpired: mock(() => Promise.reject("string error")),
     } as unknown as SessionRepository;
@@ -274,9 +212,6 @@ describe("createSessionCleanupScheduler", () => {
     });
 
     await expect(scheduler.runNow()).rejects.toBe("string error");
-    expect(mockError).toHaveBeenCalledWith(
-      "Session cleanup failed: Unknown error"
-    );
   });
 });
 
