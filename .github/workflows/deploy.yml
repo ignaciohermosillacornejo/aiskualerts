@@ -56,8 +56,11 @@ jobs:
           op inject -i .env.tpl -o .env
 
           # Construct DATABASE_URL from individual variables (op inject doesn't expand refs in strings)
-          source .env
-          echo "DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}" >> .env
+          # Use grep to safely extract values without shell interpretation issues
+          PG_USER=$(grep '^POSTGRES_USER=' .env | cut -d'=' -f2-)
+          PG_PASS=$(grep '^POSTGRES_PASSWORD=' .env | cut -d'=' -f2-)
+          PG_DB=$(grep '^POSTGRES_DB=' .env | cut -d'=' -f2-)
+          echo "DATABASE_URL=postgresql://${PG_USER}:${PG_PASS}@postgres:5432/${PG_DB}" >> .env
 
           chmod 600 .env
           echo "✅ Generated .env file with secrets from 1Password"
