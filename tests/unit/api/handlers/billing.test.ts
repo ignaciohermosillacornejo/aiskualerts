@@ -348,10 +348,12 @@ describe("createBillingRoutes", () => {
 
     test("processes subscription_preapproval cancelled event", async () => {
       const { deps, tenantRepo, mercadoPagoClient } = createMocks();
+      const endsAt = new Date("2024-02-15T00:00:00.000Z");
       mercadoPagoClient.processWebhookEvent.mockResolvedValue({
         type: "subscription_cancelled",
         subscriptionId: "sub_456",
         tenantId: mockTenant.id,
+        endsAt,
       });
 
       const routes = createBillingRoutes(deps);
