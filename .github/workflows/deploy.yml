@@ -116,19 +116,10 @@ jobs:
             # Start new containers
             docker compose up -d
 
-            # Wait for database to be ready (max 30 seconds)
-            echo "Waiting for database to be ready..."
-            for i in {1..30}; do
-              if docker compose exec -T db pg_isready -U postgres > /dev/null 2>&1; then
-                echo "✅ Database is ready"
-                break
-              fi
-              if [ \$i -eq 30 ]; then
-                echo "❌ Database failed to become ready"
-                exit 1
-              fi
-              sleep 1
-            done
+            # Docker compose already waits for DB health via depends_on
+            # Small buffer for app to fully initialize
+            echo "Waiting for services to stabilize..."
+            sleep 3
 
             # Run database migrations (fail deployment if migrations fail)
             echo "Running database migrations..."
