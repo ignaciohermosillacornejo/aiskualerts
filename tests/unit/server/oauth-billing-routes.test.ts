@@ -56,44 +56,39 @@ function createMockOAuthDeps(): OAuthHandlerDeps {
 
 function createMockBillingDeps(): BillingHandlerDeps {
   return {
-    stripeClient: {
-      createCheckoutSession: mock(() =>
-        Promise.resolve("https://checkout.stripe.com/session-123")
+    mercadoPagoClient: {
+      createSubscription: mock(() =>
+        Promise.resolve("https://www.mercadopago.cl/subscriptions/checkout/123")
       ),
-      createPortalSession: mock(() =>
-        Promise.resolve("https://billing.stripe.com/portal-123")
+      cancelSubscription: mock(() =>
+        Promise.resolve(new Date("2025-02-01"))
       ),
-      parseWebhookEvent: mock(() => ({
-        type: "checkout.session.completed",
-        data: {
-          object: {
-            customer: "cus_123",
-            metadata: { tenantId: "tenant-123" },
-          },
-        },
-      })),
-      processWebhookEvent: mock(() => ({
-        type: "checkout_completed",
-        tenantId: "tenant-123",
-        customerId: "cus_123",
-      })),
-    } as unknown as BillingHandlerDeps["stripeClient"],
+      validateWebhookSignature: mock(() => true),
+      processWebhookEvent: mock(() =>
+        Promise.resolve({
+          type: "subscription_authorized" as const,
+          subscriptionId: "sub_123",
+          tenantId: "tenant-123",
+        })
+      ),
+    } as unknown as BillingHandlerDeps["mercadoPagoClient"],
     tenantRepo: {
       getById: mock(() =>
         Promise.resolve({
           id: "tenant-123",
-          stripe_customer_id: "cus_123",
-          is_paid: false,
+          subscription_id: "sub_123",
+          subscription_status: "none",
+          subscription_ends_at: null,
         })
       ),
-      updateStripeCustomer: mock(() => Promise.resolve()),
-      findByStripeCustomerId: mock(() =>
+      activateSubscription: mock(() => Promise.resolve()),
+      findBySubscriptionId: mock(() =>
         Promise.resolve({
           id: "tenant-123",
-          stripe_customer_id: "cus_123",
+          subscription_id: "sub_123",
         })
       ),
-      updatePaidStatus: mock(() => Promise.resolve()),
+      updateSubscriptionStatus: mock(() => Promise.resolve()),
     } as unknown as BillingHandlerDeps["tenantRepo"],
     userRepo: {
       getById: mock(() =>
@@ -221,13 +216,13 @@ describe("Server Billing Routes", () => {
 
       expect(response.status).toBe(200);
       const body = (await response.json()) as { url: string };
-      expect(body.url).toContain("stripe.com");
+      expect(body.url).toContain("mercadopago");
     });
   });
 
-  describe("POST /api/billing/portal", () => {
-    test("returns portal URL", async () => {
-      const response = await fetch(`${baseUrl}/api/billing/portal`, {
+  describe("POST /api/billing/cancel", () => {
+    test("cancels subscription and returns end date", async () => {
+      const response = await fetch(`${baseUrl}/api/billing/cancel`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -236,22 +231,23 @@ describe("Server Billing Routes", () => {
       });
 
       expect(response.status).toBe(200);
-      const body = (await response.json()) as { url: string };
-      expect(body.url).toContain("stripe.com");
+      const body = (await response.json()) as { message: string; endsAt: string };
+      expect(body.message).toBe("Subscription cancelled");
     });
   });
 
-  describe("POST /api/webhooks/stripe", () => {
+  describe("POST /api/webhooks/mercadopago", () => {
     test("processes webhook event", async () => {
-      const response = await fetch(`${baseUrl}/api/webhooks/stripe`, {
+      const response = await fetch(`${baseUrl}/api/webhooks/mercadopago`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "stripe-signature": "test-signature",
+          "x-signature": "ts=123,v1=valid-hash",
+          "x-request-id": "req-123",
         },
         body: JSON.stringify({
-          type: "checkout.session.completed",
-          data: { object: { customer: "cus_123" } },
+          type: "subscription_preapproval",
+          data: { id: "sub_123" },
         }),
       });
 

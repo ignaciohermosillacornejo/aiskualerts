@@ -36,10 +36,11 @@ const configSchema = z.object({
   // Security configuration
   tokenEncryptionKey: z.string().min(32).optional(),
   csrfTokenSecret: z.string().min(32).optional(),
-  // Stripe billing configuration
-  stripeSecretKey: z.string().optional(),
-  stripePriceId: z.string().optional(),
-  stripeWebhookSecret: z.string().optional(),
+  // MercadoPago billing configuration
+  mercadoPagoAccessToken: z.string().optional(),
+  mercadoPagoWebhookSecret: z.string().optional(),
+  mercadoPagoPlanAmount: z.coerce.number().positive().default(9990),
+  mercadoPagoPlanCurrency: z.string().length(3).default("CLP"),
   appUrl: z.url().optional(),
 });
 
@@ -79,10 +80,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     // Security configuration
     tokenEncryptionKey: env["TOKEN_ENCRYPTION_KEY"],
     csrfTokenSecret: env["CSRF_TOKEN_SECRET"],
-    // Stripe billing configuration
-    stripeSecretKey: env["STRIPE_SECRET_KEY"],
-    stripePriceId: env["STRIPE_PRICE_ID"],
-    stripeWebhookSecret: env["STRIPE_WEBHOOK_SECRET"],
+    // MercadoPago billing configuration
+    mercadoPagoAccessToken: env["MERCADOPAGO_ACCESS_TOKEN"],
+    mercadoPagoWebhookSecret: env["MERCADOPAGO_WEBHOOK_SECRET"],
+    mercadoPagoPlanAmount: env["MERCADOPAGO_PLAN_AMOUNT"],
+    mercadoPagoPlanCurrency: env["MERCADOPAGO_PLAN_CURRENCY"],
     appUrl: env["APP_URL"],
   });
 }

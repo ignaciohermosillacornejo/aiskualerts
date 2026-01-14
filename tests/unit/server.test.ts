@@ -32,6 +32,8 @@ const testConfig: Config = {
   digestHour: 8,
   digestMinute: 0,
   sentryEnvironment: "test",
+  mercadoPagoPlanAmount: 9990,
+  mercadoPagoPlanCurrency: "CLP",
 };
 
 let serverInstance: ReturnType<typeof createServer> | null = null;
@@ -775,6 +777,8 @@ describe("createServer", () => {
         digestHour: 8,
         digestMinute: 0,
         sentryEnvironment: "test",
+        mercadoPagoPlanAmount: 9990,
+        mercadoPagoPlanCurrency: "CLP",
       };
       serverInstance = createServer(customConfig);
       expect(serverInstance.port).toBeGreaterThan(0);
@@ -794,6 +798,8 @@ describe("createServer", () => {
         digestHour: 8,
         digestMinute: 0,
         sentryEnvironment: "test",
+        mercadoPagoPlanAmount: 9990,
+        mercadoPagoPlanCurrency: "CLP",
       };
       serverInstance = createServer(productionConfig);
       expect(serverInstance.development).toBe(false);
@@ -813,6 +819,8 @@ describe("createServer", () => {
         digestHour: 8,
         digestMinute: 0,
         sentryEnvironment: "test",
+        mercadoPagoPlanAmount: 9990,
+        mercadoPagoPlanCurrency: "CLP",
       };
       serverInstance = createServer(devConfig);
       expect(serverInstance.development).toBe(true);
@@ -838,6 +846,8 @@ describe("createServer", () => {
           digestHour: 8,
           digestMinute: 0,
           sentryEnvironment: "test",
+          mercadoPagoPlanAmount: 9990,
+          mercadoPagoPlanCurrency: "CLP",
         };
         serverInstance = createServer(productionConfig);
 
