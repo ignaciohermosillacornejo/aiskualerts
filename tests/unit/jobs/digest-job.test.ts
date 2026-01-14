@@ -31,6 +31,7 @@ function createMockConfig(): Config {
   return {
     port: 3000,
     nodeEnv: "test",
+    allowedOrigins: [],
     syncEnabled: false,
     syncHour: 2,
     syncMinute: 0,

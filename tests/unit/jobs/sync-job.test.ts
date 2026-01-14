@@ -34,6 +34,7 @@ describe("createSyncJob", () => {
     const config: Config = {
       port: 3000,
       nodeEnv: "test",
+      allowedOrigins: [],
       syncEnabled: true,
       syncHour: 2,
       syncMinute: 0,
@@ -60,6 +61,7 @@ describe("createSyncJob", () => {
     const config: Config = {
       port: 3000,
       nodeEnv: "test",
+      allowedOrigins: [],
       syncEnabled: true,
       syncHour: 2,
       syncMinute: 0,
@@ -113,6 +115,7 @@ describe("Sync job execution", () => {
     const config: Config = {
       port: 3000,
       nodeEnv: "test",
+      allowedOrigins: [],
       syncEnabled: true,
       syncHour: 2,
       syncMinute: 0,
@@ -148,6 +151,7 @@ describe("Sync job execution", () => {
     const config: Config = {
       port: 3000,
       nodeEnv: "test",
+      allowedOrigins: [],
       syncEnabled: true,
       syncHour: 2,
       syncMinute: 0,
@@ -177,6 +181,7 @@ describe("Sync job execution", () => {
     const config: Config = {
       port: 3000,
       nodeEnv: "test",
+      allowedOrigins: [],
       syncEnabled: true,
       syncHour: 2,
       syncMinute: 0,
