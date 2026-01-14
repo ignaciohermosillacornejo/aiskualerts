@@ -37,7 +37,7 @@ function getCorsConfig(): { allowedOrigins: string[]; nodeEnv: string } {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
-  const nodeEnv = process.env["NODE_ENV"] ?? "development";
+  const nodeEnv = process.env.NODE_ENV ?? "development";
 
   return { allowedOrigins, nodeEnv };
 }
@@ -63,7 +63,7 @@ export function validateOrigin(requestOrigin: string | null): string | null {
 
   // If the request has no Origin header (same-origin request), allow it
   if (!requestOrigin) {
-    return allowedOrigins[0];
+    return allowedOrigins[0] ?? null;
   }
 
   // Check if the request origin is in the allowed list

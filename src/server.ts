@@ -209,7 +209,7 @@ export function createServer(
 ): Server<undefined> {
   // Configure CORS with the validated config
   configureCors({
-    allowedOrigins: config.allowedOrigins ?? [],
+    allowedOrigins: config.allowedOrigins,
     nodeEnv: config.nodeEnv,
   });
 

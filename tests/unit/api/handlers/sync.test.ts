@@ -24,6 +24,7 @@ const mockTenant: Tenant = {
 const mockConfig: Config = {
   port: 3000,
   nodeEnv: "test",
+  allowedOrigins: [],
   syncEnabled: true,
   syncHour: 2,
   syncMinute: 0,
