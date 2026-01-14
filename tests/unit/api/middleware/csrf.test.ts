@@ -286,7 +286,7 @@ describe("CSRF Middleware", () => {
         excludePaths: ["/api/webhooks/", "/api/public/"],
       });
 
-      const request = new Request("http://localhost/api/webhooks/stripe", {
+      const request = new Request("http://localhost/api/webhooks/mercadopago", {
         method: "POST",
         body: "{}",
       });
@@ -302,7 +302,7 @@ describe("CSRF Middleware", () => {
         excludePaths: ["/api/webhooks/"],
       });
 
-      const request = new Request("http://localhost/api/webhooks/stripe/events", {
+      const request = new Request("http://localhost/api/webhooks/mercadopago/events", {
         method: "POST",
         body: "{}",
       });

@@ -904,8 +904,9 @@ describe("createServer with dependencies", () => {
       bsale_access_token: "token-abc",
       sync_status: "success" as const,
       last_sync_at: new Date(),
-      stripe_customer_id: null,
-      is_paid: false,
+      subscription_id: null,
+      subscription_status: "none" as const,
+      subscription_ends_at: null,
       created_at: new Date(),
       updated_at: new Date(),
     };

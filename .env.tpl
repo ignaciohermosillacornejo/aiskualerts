@@ -79,6 +79,26 @@ TOKEN_ENCRYPTION_KEY=op://Dev/TOKEN_ENCRYPTION_KEY/credential
 CSRF_TOKEN_SECRET=op://Dev/CSRF_TOKEN_SECRET/credential
 
 # ===========================================
+# MercadoPago Billing Configuration
+# ===========================================
+# Access token from MercadoPago dashboard (Credenciales > Access Token)
+# For testing, use sandbox/test credentials
+MERCADOPAGO_ACCESS_TOKEN=op://Dev/MERCADOPAGO_ACCESS_TOKEN/credential
+
+# Webhook secret for validating webhook signatures (optional but recommended)
+# Generate from MercadoPago dashboard: Your applications > Webhooks
+MERCADOPAGO_WEBHOOK_SECRET=op://Dev/MERCADOPAGO_WEBHOOK_SECRET/credential
+
+# Subscription plan amount in minor units (e.g., 9990 = $99.90 CLP)
+MERCADOPAGO_PLAN_AMOUNT=9990
+
+# Currency code (3 characters): CLP, ARS, BRL, MXN, etc.
+MERCADOPAGO_PLAN_CURRENCY=CLP
+
+# Application URL for callbacks (must be publicly accessible for webhooks)
+APP_URL=https://aiskualerts.com
+
+# ===========================================
 # Test Database (Local Development Only)
 # ===========================================
 TEST_DATABASE_URL=postgres://test:test@localhost:5433/aiskualerts_test

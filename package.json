@@ -58,7 +58,6 @@
   },
   "dependencies": {
     "@sentry/bun": "^10.33.0",
-    "@types/stripe": "^8.0.417",
     "mercadopago": "^2.12.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
