@@ -13,6 +13,17 @@ The MercadoPago billing migration is complete. PR #104 contains:
 - Subscription status → `authorized` ✅
 - `external_reference` preserved ✅
 
+## Completed
+
+### PR #106: SubscriptionService Integration ✅
+- Added `SubscriptionService` to `MainDependencies` interface
+- Instantiate `SubscriptionService` when MercadoPago is configured
+- Added `subscriptionService` to `ServerDependencies`
+- Added `GET /api/subscription/status` endpoint:
+  - `hasActiveAccess`: boolean (dynamic access check with polling)
+  - `subscriptionStatus`: current tenant status
+  - `subscriptionEndsAt`: grace period end date if cancelled
+
 ## Webhook Configuration (Done by User)
 
 Enabled topics in MercadoPago dashboard:
@@ -21,9 +32,48 @@ Enabled topics in MercadoPago dashboard:
 - Vinculación de aplicaciones
 - Reclamos
 
+## Production Deployment Checklist
+
+### Pre-Deployment
+- [ ] Verify all production secrets in environment:
+  - `MERCADOPAGO_ACCESS_TOKEN`
+  - `MERCADOPAGO_WEBHOOK_SECRET`
+  - `MERCADOPAGO_PLAN_AMOUNT` (e.g., `9990` for $9.990 CLP)
+  - `MERCADOPAGO_PLAN_CURRENCY` (e.g., `CLP`)
+
+### Deployment Steps
+1. **Run database migration:**
+   ```bash
+   bun db:migrate
+   ```
+   Migration file: `src/db/migrations/004_mercadopago_billing.sql`
+
+2. **Configure webhook URL in MercadoPago dashboard:**
+   - URL: `https://aiskualerts.com/api/webhooks/mercadopago`
+   - Topics: `subscription_preapproval`
+
+3. **Deploy application** with new environment variables
+
+### Post-Deployment Verification
+- [ ] Test `/api/subscription/status` endpoint returns valid response
+- [ ] Create test subscription (can refund immediately)
+- [ ] Verify webhook received and processed (check logs)
+- [ ] Check database: `subscription_status = 'active'`
+- [ ] Test cancellation flow
+- [ ] Verify `subscription_ends_at` is set correctly
+
 ## Remaining Tasks
 
-### 1. Webhook Integration Tests (High Priority)
+### 1. Feature Gating (Future)
+
+The `SubscriptionService.hasActiveAccess()` is now available for feature gating.
+Potential features to gate:
+- Threshold management (POST, PUT, DELETE on `/api/thresholds`)
+- Alert configuration
+- Advanced sync frequencies
+- Custom webhook/notification settings
+
+### 2. Webhook Integration Tests (Optional)
 
 MercadoPago provides a "Simulate notification" button in the dashboard. Create integration tests that:
 
@@ -66,26 +116,15 @@ Added to 1Password Dev vault:
 
 ### 3. Database Migration
 
-Run in production:
-```bash
-bun db:migrate
-```
-
-Migration file: `src/db/migrations/004_mercadopago_billing.sql`
+**Included in Production Deployment Checklist above.**
 
 ### 4. Production Webhook URL
 
-Configure in MercadoPago dashboard:
-- **Production URL:** `https://aiskualerts.com/api/webhooks/mercadopago`
-- **Topics:** `subscription_preapproval` (already enabled)
+**Included in Production Deployment Checklist above.**
 
 ### 5. End-to-End Production Test
 
-After deployment:
-1. Create a real subscription (can refund immediately)
-2. Verify webhook received and processed
-3. Check database: `subscription_status = 'active'`
-4. Test cancellation flow
+**Included in Production Deployment Checklist above.**
 
 ## Test Credentials Reference
 
@@ -110,7 +149,9 @@ CVV: 123, Expiry: 11/30, Cardholder: `APRO`
 | File | Purpose |
 |------|---------|
 | `src/billing/mercadopago.ts` | MercadoPago client |
+| `src/billing/subscription-service.ts` | Subscription access checks with polling |
 | `src/api/handlers/billing.ts` | Checkout, cancel, webhook handlers |
+| `src/server.ts` | `/api/subscription/status` endpoint |
 | `src/db/repositories/tenant.ts` | `activateSubscription`, `updateSubscriptionStatus` |
 | `docs/BILLING.md` | E2E testing guide |
 | `tests/unit/billing/mercadopago.test.ts` | Unit tests (100% coverage) |
