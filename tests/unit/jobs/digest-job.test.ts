@@ -969,12 +969,24 @@ describe("runDigestJob", () => {
         if (callCount === 1) {
           return Promise.resolve([mockTenant]);
         }
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
-        throw "string error";
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        // Subsequent calls succeed (including alert update)
+        return Promise.resolve([]);
       });
 
       const config = createMockConfig();
-      const emailClient = createMockEmailClient();
+      // Email client that throws a non-Error exception
+      const emailClient = {
+        sendEmail: () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw "string error";
+        },
+      };
 
       const result = await runDigestJob({ db, config, emailClient });
 
@@ -1010,43 +1022,55 @@ describe("runDigestJob", () => {
       expect(result.errors[0]).toContain("Unknown error");
     });
 
-    test("continues processing remaining tenants after one tenant fails completely", async () => {
+    test("continues processing remaining tenants after one tenant email fails", async () => {
       const { db, mocks } = createMockDb();
       const tenant2 = { ...mockTenant, id: "tenant-456", bsale_client_name: "Company 2" };
       const tenant3 = { ...mockTenant, id: "tenant-789", bsale_client_name: "Company 3" };
+      const user2 = { ...mockUser, id: "user-456", tenant_id: "tenant-456" };
+      const user3 = { ...mockUser, id: "user-789", tenant_id: "tenant-789" };
+      const alert2 = { ...mockAlert, tenant_id: "tenant-456", user_id: "user-456" };
+      const alert3 = { ...mockAlert, tenant_id: "tenant-789", user_id: "user-789" };
 
       let callCount = 0;
       mocks.query.mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
+          // getActiveTenants
           return Promise.resolve([mockTenant, tenant2, tenant3]);
         }
         if (callCount === 2) {
-          throw new Error("Tenant 1 database error");
+          // getWithDigestEnabledBatch - returns users for all tenants
+          return Promise.resolve([mockUser, user2, user3]);
         }
         if (callCount === 3) {
-          return Promise.resolve([{ ...mockUser, tenant_id: "tenant-456" }]);
+          // getPendingByTenants - returns alerts for all tenants
+          return Promise.resolve([mockAlert, alert2, alert3]);
         }
-        if (callCount === 4) {
-          return Promise.resolve([{ ...mockAlert, tenant_id: "tenant-456", user_id: mockUser.id }]);
-        }
-        if (callCount === 5) {
-          return Promise.resolve([{ ...mockUser, tenant_id: "tenant-789" }]);
-        }
-        if (callCount === 6) {
-          return Promise.resolve([{ ...mockAlert, tenant_id: "tenant-789", user_id: mockUser.id }]);
-        }
+        // Subsequent calls for marking alerts as sent
         return Promise.resolve([]);
       });
 
       const config = createMockConfig();
-      const emailClient = createMockEmailClient();
+      // Email client that fails for first tenant only
+      let emailCallCount = 0;
+      const emailClient = {
+        sendEmail: () => {
+          emailCallCount++;
+          if (emailCallCount === 1) {
+            // Return failure result instead of throwing
+            return Promise.resolve({ success: false, error: "Email error for tenant 1" });
+          }
+          return Promise.resolve({ success: true, id: `email-${String(emailCallCount)}` });
+        },
+      };
 
       const result = await runDigestJob({ db, config, emailClient });
 
       expect(result.errors.length).toBe(1);
-      expect(result.tenantsProcessed).toBe(2);
+      expect(result.errors[0]).toContain("Email error for tenant 1");
+      expect(result.tenantsProcessed).toBe(3);
       expect(result.emailsSent).toBe(2);
+      expect(result.emailsFailed).toBe(1);
     });
   });
 

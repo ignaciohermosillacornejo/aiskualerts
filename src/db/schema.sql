@@ -26,6 +26,7 @@ CREATE TABLE users (
     name TEXT,
     notification_enabled BOOLEAN DEFAULT true,
     notification_email TEXT,                  -- Override email for notifications
+    digest_frequency TEXT DEFAULT 'daily' CHECK (digest_frequency IN ('daily', 'weekly', 'none')),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(tenant_id, email)
 );

@@ -5,6 +5,9 @@ import { api, ApiError } from "../../../src/frontend/api/client";
 // Store original fetch
 const originalFetch = globalThis.fetch;
 
+// Store original document
+const originalDocument = globalThis.document;
+
 describe("API Client", () => {
   let mockFetch: ReturnType<typeof mock>;
 
@@ -18,10 +21,15 @@ describe("API Client", () => {
       )
     );
     globalThis.fetch = mockFetch as unknown as typeof fetch;
+    // Mock document.cookie for CSRF token extraction
+    globalThis.document = {
+      cookie: "csrf_token=test-csrf-token",
+    } as unknown as Document;
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    globalThis.document = originalDocument;
   });
 
   describe("ApiError", () => {

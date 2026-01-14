@@ -297,12 +297,12 @@ export function createServer(
 
       // Health check
       "/health": {
-        GET: () => jsonWithCors(createHealthResponse()),
+        GET: (req: Request) => jsonWithCors(createHealthResponse(), undefined, req.headers.get("Origin")),
       },
 
       // API Routes
       "/api/health": {
-        GET: () => jsonWithCors(createHealthResponse()),
+        GET: (req: Request) => jsonWithCors(createHealthResponse(), undefined, req.headers.get("Origin")),
       },
 
       // Dashboard routes
