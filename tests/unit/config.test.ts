@@ -16,7 +16,7 @@ describe("loadConfig", () => {
   });
 
   test("parses NODE_ENV from environment", () => {
-    const config = loadConfig({ NODE_ENV: "production" });
+    const config = loadConfig({ NODE_ENV: "production", ALLOWED_ORIGINS: "https://example.com" });
 
     expect(config.nodeEnv).toBe("production");
   });
@@ -25,7 +25,7 @@ describe("loadConfig", () => {
     const devConfig = loadConfig({ NODE_ENV: "development" });
     expect(devConfig.nodeEnv).toBe("development");
 
-    const prodConfig = loadConfig({ NODE_ENV: "production" });
+    const prodConfig = loadConfig({ NODE_ENV: "production", ALLOWED_ORIGINS: "https://example.com" });
     expect(prodConfig.nodeEnv).toBe("production");
 
     const testConfig = loadConfig({ NODE_ENV: "test" });
