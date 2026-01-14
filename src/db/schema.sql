@@ -109,3 +109,16 @@ CREATE INDEX idx_alerts_tenant_date ON alerts(tenant_id, created_at DESC);
 CREATE INDEX idx_sessions_token ON sessions(token);
 CREATE INDEX idx_sessions_expires ON sessions(expires_at);
 CREATE INDEX idx_tenants_subscription ON tenants(subscription_id) WHERE subscription_id IS NOT NULL;
+
+-- ===========================================
+-- MIGRATION TRACKING
+-- ===========================================
+-- This table tracks which migrations have been applied.
+-- Schema.sql includes all changes from migrations 1-4.
+CREATE TABLE schema_migrations (
+    version INTEGER PRIMARY KEY,
+    applied_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Mark migrations 1-4 as already applied (since schema.sql includes their changes)
+INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4);
