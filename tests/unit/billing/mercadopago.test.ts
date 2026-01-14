@@ -312,6 +312,7 @@ describe("MercadoPagoClient", () => {
         type: "subscription_cancelled",
         subscriptionId: "preapproval_789",
         tenantId: "tenant-uuid-abc",
+        endsAt: new Date("2024-02-15T00:00:00.000Z"),
       } satisfies WebhookResult);
     });
 
@@ -332,6 +333,7 @@ describe("MercadoPagoClient", () => {
         type: "subscription_cancelled",
         subscriptionId: "preapproval_pause",
         tenantId: "tenant-uuid-pause",
+        endsAt: new Date("2024-02-15T00:00:00.000Z"),
       } satisfies WebhookResult);
     });
 

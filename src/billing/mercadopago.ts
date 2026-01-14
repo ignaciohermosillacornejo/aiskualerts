@@ -28,7 +28,7 @@ const CheckoutInputSchema = z.object({
 // Webhook event result
 export type WebhookResult =
   | { type: "subscription_authorized"; subscriptionId: string; tenantId: string }
-  | { type: "subscription_cancelled"; subscriptionId: string; tenantId: string }
+  | { type: "subscription_cancelled"; subscriptionId: string; tenantId: string; endsAt: Date }
   | { type: "ignored"; eventType: string };
 
 export class MercadoPagoClient {
@@ -144,6 +144,26 @@ export class MercadoPagoClient {
     );
   }
 
+  /**
+   * Fetches current subscription status from MercadoPago.
+   * Use this to refresh subscription state when subscription_ends_at has passed.
+   */
+  async getSubscriptionStatus(subscriptionId: string): Promise<{
+    status: string;
+    nextPaymentDate: Date | null;
+    isActive: boolean;
+  }> {
+    const preapproval = await this.preapproval.get({ id: subscriptionId });
+
+    return {
+      status: preapproval.status ?? "unknown",
+      nextPaymentDate: preapproval.next_payment_date
+        ? new Date(preapproval.next_payment_date)
+        : null,
+      isActive: preapproval.status === "authorized",
+    };
+  }
+
   validateWebhookSignature(
     xSignature: string,
     xRequestId: string,
@@ -207,10 +227,14 @@ export class MercadoPagoClient {
         eventType: "subscription_deleted",
       });
 
+      // next_payment_date is the end of the current billing period
+      const endsAt = new Date(preapproval.next_payment_date ?? Date.now());
+
       return {
         type: "subscription_cancelled",
         subscriptionId: preapproval.id,
         tenantId,
+        endsAt,
       };
     }
 

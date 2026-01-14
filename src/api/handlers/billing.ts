@@ -155,7 +155,8 @@ export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
           case "subscription_cancelled":
             await tenantRepo.updateSubscriptionStatus(
               result.subscriptionId,
-              "cancelled"
+              "cancelled",
+              result.endsAt
             );
             break;
 
