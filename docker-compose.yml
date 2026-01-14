@@ -26,9 +26,7 @@ services:
     container_name: aiskualerts-app
     env_file:
       - .env  # Secrets injected via 'op inject -i .env.tpl -o .env'
-    environment:
-      # Override DATABASE_URL to use internal docker network
-      DATABASE_URL: postgresql://${POSTGRES_USER:-aiskualerts}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aiskualerts}
+    # DATABASE_URL comes from .env file (uses internal docker network: postgres:5432)
     ports:
       - "3000:3000"
     depends_on:
