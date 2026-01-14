@@ -132,6 +132,19 @@ jobs:
             echo "Waiting for services to stabilize..."
             sleep 3
 
+            # Seed schema_migrations if database exists but migration tracking doesn't
+            # This handles databases initialized from schema.sql before migration tracking was added
+            echo "Checking migration tracking..."
+            docker compose exec -T postgres psql -U aiskualerts -d aiskualerts -c "
+              CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY,
+                applied_at TIMESTAMPTZ DEFAULT NOW()
+              );
+              INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4)
+              ON CONFLICT (version) DO NOTHING;
+            "
+            echo "✅ Migration tracking initialized"
+
             # Run database migrations (fail deployment if migrations fail)
             echo "Running database migrations..."
             if ! docker compose exec -T app bun src/db/migrate.ts; then
