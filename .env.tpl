@@ -82,11 +82,16 @@ CSRF_TOKEN_SECRET=op://Dev/CSRF_TOKEN_SECRET/credential
 # MercadoPago Billing Configuration
 # ===========================================
 # Access token from MercadoPago dashboard (Credenciales > Access Token)
-# For testing, use sandbox/test credentials
 MERCADOPAGO_ACCESS_TOKEN=op://Dev/MERCADOPAGO_ACCESS_TOKEN/credential
 
-# Webhook secret for validating webhook signatures (optional but recommended)
-# Generate from MercadoPago dashboard: Your applications > Webhooks
+# Public key (for frontend SDK if needed)
+MERCADOPAGO_PUBLIC_KEY=op://Dev/MERCADOPAGO_PUBLIC_KEY/credential
+
+# OAuth credentials (for marketplace integrations if needed)
+MERCADOPAGO_CLIENT_ID=op://Dev/MERCADOPAGO_CLIENT_ID/credential
+MERCADOPAGO_CLIENT_SECRET=op://Dev/MERCADOPAGO_CLIENT_SECRET/credential
+
+# Webhook secret for validating webhook signatures
 MERCADOPAGO_WEBHOOK_SECRET=op://Dev/MERCADOPAGO_WEBHOOK_SECRET/credential
 
 # Subscription plan amount in minor units (e.g., 9990 = $99.90 CLP)

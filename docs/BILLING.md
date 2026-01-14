@@ -214,6 +214,112 @@ ngrok http 3000
 
 Then update the sandbox webhook URL in MercadoPago dashboard.
 
+## Integration Testing Setup (Full E2E with ngrok)
+
+This section documents how to run a complete integration test with real MercadoPago webhooks.
+
+### Prerequisites
+
+1. **ngrok** - Install and authenticate:
+   ```bash
+   brew install ngrok
+   ngrok config add-authtoken <your-token>
+   ```
+   Or use 1Password CLI integration (see below).
+
+2. **Test Secrets** - Stored in 1Password Dev vault (see Test Secrets section)
+
+3. **Test Database** - Docker Compose test database
+
+### Quick Start
+
+```bash
+# 1. Start test database
+bun run db:start
+
+# 2. Start server with test seller credentials
+DATABASE_URL="postgres://test:test@localhost:5433/aiskualerts_test" \
+MERCADOPAGO_ACCESS_TOKEN="<TEST_SELLER_ACCESS_TOKEN>" \
+MERCADOPAGO_WEBHOOK_SECRET="<WEBHOOK_SECRET>" \
+MERCADOPAGO_PLAN_AMOUNT="9990" \
+MERCADOPAGO_PLAN_CURRENCY="CLP" \
+APP_URL="https://aiskualerts.com" \
+bun run dev
+
+# 3. Start ngrok (in another terminal)
+ngrok http 3000
+
+# 4. Create test tenant in database
+docker exec aiskualerts-test-db psql -U test -d aiskualerts_test -c \
+  "INSERT INTO tenants (id, bsale_client_code, bsale_client_name, bsale_access_token)
+   VALUES ('<UUID>', 'TEST-001', 'Webhook Test Company', 'test-token');"
+
+# 5. Create preapproval with that tenant UUID as external_reference
+# 6. Complete checkout as test buyer
+# 7. Send webhook from MercadoPago dashboard or use MCP tool
+```
+
+### Important: Access Token Matching
+
+The `MERCADOPAGO_ACCESS_TOKEN` used by the server **must** be able to access the preapprovals it receives webhooks about.
+
+- **Test preapprovals** → Use test seller's access token
+- **Production preapprovals** → Use production access token
+
+If you see `"the preapprovalId is not valid for callerId"`, you're using the wrong access token.
+
+### Test Secrets (1Password)
+
+Store test secrets in 1Password Dev vault for easy setup:
+
+| Secret Name | Description |
+|-------------|-------------|
+| `MP_TEST_SELLER_ACCESS_TOKEN` | Test seller's access token |
+| `MP_TEST_SELLER_EMAIL` | Test seller's email (e.g., TESTUSER...@testuser.com) |
+| `MP_TEST_BUYER_EMAIL` | Test buyer's email |
+| `MP_TEST_WEBHOOK_SECRET` | Webhook secret from test seller's app |
+
+Retrieve with:
+```bash
+op read "op://Dev/MP_TEST_SELLER_ACCESS_TOKEN/credential"
+```
+
+### Webhook Events Handled
+
+| Event Type | Status | Action |
+|------------|--------|--------|
+| `subscription_preapproval` | `authorized` | Activate subscription |
+| `subscription_preapproval` | `cancelled` | Deactivate, set `subscription_ends_at` |
+| `subscription_preapproval` | `paused` | Deactivate, set `subscription_ends_at` |
+| `subscription_authorized_payment` | * | Currently ignored (payment notifications) |
+| Other topics | * | Ignored |
+
+### Subscription Access Logic
+
+The `SubscriptionService.hasActiveAccess()` method determines access:
+
+1. **No subscription** → No access
+2. **Status = `active`** → Access granted
+3. **Status = `cancelled` + `subscription_ends_at` in future** → Access granted (paid period)
+4. **Status = `cancelled` + `subscription_ends_at` passed** → Poll MercadoPago for resubscription
+
+### Simulating Webhooks
+
+**Option 1: MercadoPago Dashboard**
+1. Go to your test app > Webhooks > "Simular notificación"
+2. Select topic: `subscription_preapproval`
+3. Enter Data ID: `<preapproval_id>`
+4. Set URL to your ngrok endpoint: `https://xxx.ngrok-free.app/api/webhooks/mercadopago`
+
+**Option 2: MercadoPago MCP Tool**
+```
+mcp__mercadopago__simulate_webhook({
+  topic: "subscription_preapproval",
+  resource_id: "<preapproval_id>",
+  url_callback: "https://xxx.ngrok-free.app/api/webhooks/mercadopago"
+})
+```
+
 ## Production Checklist
 
 ### Before Going Live
