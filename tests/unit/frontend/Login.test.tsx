@@ -40,37 +40,21 @@ describe("Login", () => {
   });
 
   describe("form validation logic", () => {
-    test("validates both fields are required", () => {
-      const email = "";
-      const password = "";
-      const isValid = email.length > 0 && password.length > 0;
-      expect(isValid).toBe(false);
-    });
-
     test("validates email is required", () => {
       const email = "";
-      const password = "password123";
-      const isValid = email.length > 0 && password.length > 0;
+      const isValid = email.length > 0;
       expect(isValid).toBe(false);
     });
 
-    test("validates password is required", () => {
+    test("validates form when email is provided", () => {
       const email = "test@example.com";
-      const password = "";
-      const isValid = email.length > 0 && password.length > 0;
-      expect(isValid).toBe(false);
-    });
-
-    test("validates form when both fields provided", () => {
-      const email = "test@example.com";
-      const password = "password123";
-      const isValid = email.length > 0 && password.length > 0;
+      const isValid = email.length > 0;
       expect(isValid).toBe(true);
     });
 
     test("validation error message", () => {
-      const validationError = "Por favor complete todos los campos";
-      expect(validationError).toBe("Por favor complete todos los campos");
+      const validationError = "Por favor ingresa tu correo electronico";
+      expect(validationError).toBe("Por favor ingresa tu correo electronico");
     });
   });
 
@@ -87,40 +71,38 @@ describe("Login", () => {
       expect(defaultPrevented).toBe(true);
     });
 
-    test("does not call login when validation fails", async () => {
+    test("does not call requestMagicLink when validation fails", async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const mockLogin = mock((_email: string, _password: string) => Promise.resolve());
+      const mockRequestMagicLink = mock((_email: string) => Promise.resolve());
       const emailValue = "";
-      const passwordValue = "";
 
-      // Validation: only call login if both fields are non-empty
-      const isValid = emailValue.length > 0 && passwordValue.length > 0;
+      // Validation: only call requestMagicLink if email is non-empty
+      const isValid = emailValue.length > 0;
       if (isValid) {
-        await mockLogin(emailValue, passwordValue);
+        await mockRequestMagicLink(emailValue);
       }
 
-      expect(mockLogin).not.toHaveBeenCalled();
+      expect(mockRequestMagicLink).not.toHaveBeenCalled();
     });
 
-    test("calls login with credentials when valid", async () => {
+    test("calls requestMagicLink with email when valid", async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const mockLogin = mock((_email: string, _password: string) => Promise.resolve());
+      const mockRequestMagicLink = mock((_email: string) => Promise.resolve());
       const emailValue = "user@company.com";
-      const passwordValue = "mypassword";
 
-      // Validation: only call login if both fields are non-empty
-      const isValid = emailValue.length > 0 && passwordValue.length > 0;
+      // Validation: only call requestMagicLink if email is non-empty
+      const isValid = emailValue.length > 0;
       if (isValid) {
-        await mockLogin(emailValue, passwordValue);
+        await mockRequestMagicLink(emailValue);
       }
 
-      expect(mockLogin).toHaveBeenCalledWith("user@company.com", "mypassword");
+      expect(mockRequestMagicLink).toHaveBeenCalledWith("user@company.com");
     });
 
-    test("clears error before login attempt", () => {
+    test("clears error before magic link request", () => {
       let error: string | null = "Previous error";
 
-      // Before login attempt
+      // Before magic link request
       error = null;
       expect(error).toBeNull();
     });
@@ -128,72 +110,78 @@ describe("Login", () => {
 
   describe("error handling logic", () => {
     test("sets error message from Error object", async () => {
-      const mockLogin = mock(() => Promise.reject(new Error("Invalid credentials")));
+      const mockRequest = mock(() => Promise.reject(new Error("Error al enviar el enlace")));
       let error: string | null = null;
 
       try {
-        await mockLogin();
+        await mockRequest();
       } catch (err) {
-        error = err instanceof Error ? err.message : "Error al iniciar sesion";
+        error = err instanceof Error ? err.message : "Error al enviar el enlace";
       }
 
-      expect(error).toBe("Invalid credentials");
+      expect(error).toBe("Error al enviar el enlace");
     });
 
     test("sets generic error for non-Error exceptions", async () => {
-      const mockLogin = mock(() => Promise.reject(new Error("some string error")));
+      const mockRequest = mock(() => Promise.reject(new Error("some string error")));
       let error: string | null = null;
 
       try {
-        await mockLogin();
+        await mockRequest();
       } catch (err) {
-        error = err instanceof Error ? err.message : "Error al iniciar sesion";
+        error = err instanceof Error ? err.message : "Error al enviar el enlace";
       }
 
       expect(error).toBe("some string error");
     });
 
-    test("displays authError from context", () => {
-      function getDisplayedError(localError: string | null, authError: string | null): string | null {
-        return localError ?? authError;
+    test("handles URL error parameter for invalid_token", () => {
+      function getUrlError(urlError: string | null): string | null {
+        if (urlError === "invalid_token") {
+          return "El enlace de acceso es invalido o ha expirado. Por favor solicita uno nuevo.";
+        }
+        return null;
       }
-      const displayedError = getDisplayedError(null, "Session expired");
-      expect(displayedError).toBe("Session expired");
+      const displayedError = getUrlError("invalid_token");
+      expect(displayedError).toBe("El enlace de acceso es invalido o ha expirado. Por favor solicita uno nuevo.");
     });
 
-    test("local error takes precedence over auth error", () => {
-      function getDisplayedError(localError: string | null, authError: string | null): string | null {
-        return localError ?? authError;
+    test("handles URL error parameter for server_error", () => {
+      function getUrlError(urlError: string | null): string | null {
+        if (urlError === "server_error") {
+          return "Hubo un error al verificar el enlace. Por favor intenta nuevamente.";
+        }
+        return null;
       }
-      const displayedError = getDisplayedError("Invalid credentials", "Session expired");
-      expect(displayedError).toBe("Invalid credentials");
+      const displayedError = getUrlError("server_error");
+      expect(displayedError).toBe("Hubo un error al verificar el enlace. Por favor intenta nuevamente.");
     });
   });
 
   describe("loading state logic", () => {
     function getButtonText(loading: boolean): string {
-      return loading ? "Ingresando..." : "Ingresar";
+      return loading ? "Enviando..." : "Enviar enlace de acceso";
     }
 
-    test("button shows loading text when loading", () => {
+    test("button shows loading text when sending", () => {
       const buttonText = getButtonText(true);
-      expect(buttonText).toBe("Ingresando...");
+      expect(buttonText).toBe("Enviando...");
     });
 
     test("button shows normal text when not loading", () => {
       const buttonText = getButtonText(false);
-      expect(buttonText).toBe("Ingresar");
+      expect(buttonText).toBe("Enviar enlace de acceso");
     });
 
     test("button is disabled when loading", () => {
-      const authLoading = true;
-      const isDisabled = authLoading;
+      const loading = true;
+      const isDisabled = loading;
       expect(isDisabled).toBe(true);
     });
 
     test("button is enabled when not loading", () => {
-      const authLoading = false;
-      const isDisabled = authLoading;
+      const loading = false;
+      const isDisabled = loading;
       expect(isDisabled).toBe(false);
     });
   });
@@ -301,30 +289,18 @@ describe("Login", () => {
     });
 
     test("email label", () => {
-      const label = "Email";
-      expect(label).toBe("Email");
-    });
-
-    test("password label", () => {
-      const label = "Contrasena";
-      expect(label).toBe("Contrasena");
+      const label = "Correo electronico";
+      expect(label).toBe("Correo electronico");
     });
 
     test("submit button text", () => {
-      const buttonText = "Ingresar";
-      expect(buttonText).toBe("Ingresar");
+      const buttonText = "Enviar enlace de acceso";
+      expect(buttonText).toBe("Enviar enlace de acceso");
     });
 
-    test("Bsale connect text", () => {
-      const text = "Conecte su cuenta Bsale para comenzar";
-      expect(text).toBe("Conecte su cuenta Bsale para comenzar");
-    });
-
-    test("Bsale connect link", () => {
-      const href = "/api/auth/bsale/start";
-      const linkText = "Conectar con Bsale";
-      expect(href).toBe("/api/auth/bsale/start");
-      expect(linkText).toBe("Conectar con Bsale");
+    test("magic link info text", () => {
+      const text = "Te enviaremos un enlace para iniciar sesion sin contrasena";
+      expect(text).toBe("Te enviaremos un enlace para iniciar sesion sin contrasena");
     });
   });
 
@@ -334,29 +310,14 @@ describe("Login", () => {
       expect(inputType).toBe("email");
     });
 
-    test("password input type", () => {
-      const inputType = "password";
-      expect(inputType).toBe("password");
-    });
-
     test("email placeholder", () => {
       const placeholder = "usuario@empresa.cl";
       expect(placeholder).toBe("usuario@empresa.cl");
     });
 
-    test("password placeholder", () => {
-      const placeholder = "********";
-      expect(placeholder).toBe("********");
-    });
-
     test("email autocomplete", () => {
       const autocomplete = "email";
       expect(autocomplete).toBe("email");
-    });
-
-    test("password autocomplete", () => {
-      const autocomplete = "current-password";
-      expect(autocomplete).toBe("current-password");
     });
   });
 
@@ -472,9 +433,9 @@ describe("Login", () => {
       expect(email).toBe("");
     });
 
-    test("initial password state", () => {
-      const password = "";
-      expect(password).toBe("");
+    test("initial login state", () => {
+      const state: "idle" | "loading" | "sent" | "error" = "idle";
+      expect(state).toBe("idle");
     });
 
     test("initial error state", () => {
@@ -488,10 +449,16 @@ describe("Login", () => {
       expect(email).toBe("test@example.com");
     });
 
-    test("password state updates on change", () => {
-      let password = "";
-      password = "secretpass";
-      expect(password).toBe("secretpass");
+    test("state transitions to loading", () => {
+      let state: "idle" | "loading" | "sent" | "error" = "idle";
+      state = "loading";
+      expect(state).toBe("loading");
+    });
+
+    test("state transitions to sent on success", () => {
+      let state: "idle" | "loading" | "sent" | "error" = "loading";
+      state = "sent";
+      expect(state).toBe("sent");
     });
   });
 
@@ -503,11 +470,11 @@ describe("Login", () => {
       expect(typeof setEmail).toBe("function");
     });
 
-    test("uses useState for password", () => {
-      // Component uses useState for password
-      const [password, setPassword] = ["", (val: string) => val];
-      expect(password).toBe("");
-      expect(typeof setPassword).toBe("function");
+    test("uses useState for state", () => {
+      // Component uses useState for state
+      const [state, setState] = ["idle" as const, (val: string) => val];
+      expect(state).toBe("idle");
+      expect(typeof setState).toBe("function");
     });
 
     test("uses useState for error", () => {
@@ -519,13 +486,11 @@ describe("Login", () => {
 
     test("uses useAuth hook", () => {
       const authContext = {
-        login: (): Promise<void> => Promise.resolve(),
         loading: false,
-        error: null,
         user: null,
       };
-      expect(typeof authContext.login).toBe("function");
       expect(authContext.loading).toBe(false);
+      expect(authContext.user).toBeNull();
     });
 
     test("uses useLocation from wouter", () => {
@@ -552,16 +517,12 @@ describe("Login", () => {
         )
       );
 
-      // Should render login form elements
-      expect(html).toContain("AISku Alerts");
-      expect(html).toContain("Email");
-      expect(html).toContain("Contrasena");
-      // Initial SSR has loading=true, so button shows "Ingresando..."
-      expect(html).toContain("Ingresando...");
-      expect(html).toContain("Conectar con Bsale");
+      // Initial SSR has loading=true, so shows "Verificando sesion..."
+      expect(html).toContain("Verificando sesion...");
+      expect(html).toContain("login-card");
     });
 
-    test("Login renders input fields with correct types", () => {
+    test("Login renders input fields with correct types", async () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: false,
@@ -570,16 +531,33 @@ describe("Login", () => {
         } as Response)
       );
 
-      const html = renderToString(
-        React.createElement(Router, null,
-          React.createElement(AuthProvider, null,
-            React.createElement(Login)
-          )
-        )
-      );
+      const container = document.createElement("div");
+      document.body.appendChild(container);
 
-      expect(html).toContain('type="email"');
-      expect(html).toContain('type="password"');
+      try {
+        const root = createRoot(container);
+
+        await new Promise<void>((resolve) => {
+          root.render(
+            React.createElement(Router, null,
+              React.createElement(AuthProvider, null,
+                React.createElement(Login)
+              )
+            )
+          );
+          setTimeout(resolve, 200);
+        });
+
+        // Magic link form only has email input (no password)
+        expect(container.innerHTML).toContain('type="email"');
+        expect(container.innerHTML).not.toContain('type="password"');
+
+        root.unmount();
+      } finally {
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      }
     });
 
     test("Login form handles user input", async () => {
@@ -616,13 +594,7 @@ describe("Login", () => {
           emailInput.dispatchEvent(new Event("change", { bubbles: true }));
         }
 
-        // Find password input and change value
-        const passwordInput = container.querySelector('input[type="password"]');
-        expect(passwordInput).not.toBeNull();
-        if (passwordInput) {
-          (passwordInput as HTMLInputElement).value = "password123";
-          passwordInput.dispatchEvent(new Event("change", { bubbles: true }));
-        }
+        // Magic link form only has email input (no password)
 
         root.unmount();
       } finally {
@@ -666,8 +638,8 @@ describe("Login", () => {
           form.dispatchEvent(submitEvent);
           await new Promise((r) => setTimeout(r, 100));
 
-          // Should show validation error
-          expect(container.textContent).toContain("Por favor complete todos los campos");
+          // Should show validation error for empty email
+          expect(container.textContent).toContain("Por favor ingresa tu correo electronico");
         }
 
         root.unmount();
@@ -694,9 +666,8 @@ describe("Login", () => {
         )
       );
 
-      // Initial SSR has loading=true from AuthProvider, so button is disabled with loading text
-      expect(html).toContain("Ingresando...");
-      expect(html).toContain('disabled=""');
+      // Initial SSR has loading=true from AuthProvider, so shows "Verificando sesion..."
+      expect(html).toContain("Verificando sesion...");
     });
 
     test("Login handles authenticated state (SSR)", () => {
@@ -717,8 +688,8 @@ describe("Login", () => {
         )
       );
 
-      // Form should be rendered in SSR
-      expect(html).toContain("form");
+      // Login card should be rendered in SSR
+      expect(html).toContain("login-card");
     });
 
     test("Login redirect logic", () => {
@@ -770,7 +741,7 @@ describe("Login", () => {
       }
     });
 
-    test("Login Bsale connect link has correct href", () => {
+    test("Login shows magic link description", async () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: false,
@@ -779,15 +750,32 @@ describe("Login", () => {
         } as Response)
       );
 
-      const html = renderToString(
-        React.createElement(Router, null,
-          React.createElement(AuthProvider, null,
-            React.createElement(Login)
-          )
-        )
-      );
+      const container = document.createElement("div");
+      document.body.appendChild(container);
 
-      expect(html).toContain('href="/api/auth/bsale/start"');
+      try {
+        const root = createRoot(container);
+
+        await new Promise<void>((resolve) => {
+          root.render(
+            React.createElement(Router, null,
+              React.createElement(AuthProvider, null,
+                React.createElement(Login)
+              )
+            )
+          );
+          setTimeout(resolve, 200);
+        });
+
+        // Magic link login shows description about passwordless login
+        expect(container.textContent).toContain("enlace para iniciar sesion sin contrasena");
+
+        root.unmount();
+      } finally {
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      }
     });
 
     test("Login component renders fully", async () => {
@@ -817,10 +805,9 @@ describe("Login", () => {
           setTimeout(resolve, 300);
         });
 
-        // Verify form renders
+        // Verify form renders (magic link only has email field, no password)
         expect(container.querySelector("form")).not.toBeNull();
         expect(container.querySelector('input[type="email"]')).not.toBeNull();
-        expect(container.querySelector('input[type="password"]')).not.toBeNull();
         expect(container.querySelector('button[type="submit"]')).not.toBeNull();
 
         root.unmount();

@@ -2,10 +2,10 @@ export type SubscriptionStatus = "none" | "active" | "cancelled" | "past_due";
 
 export interface Tenant {
   id: string;
-  bsale_client_code: string;
-  bsale_client_name: string;
-  bsale_access_token: string;
-  sync_status: "pending" | "syncing" | "success" | "failed";
+  bsale_client_code: string | null;    // NULL if not connected to Bsale
+  bsale_client_name: string | null;    // NULL if not connected to Bsale
+  bsale_access_token: string | null;   // NULL if not connected to Bsale (encrypted at rest)
+  sync_status: SyncStatus;
   last_sync_at: Date | null;
   // Billing (provider-agnostic)
   subscription_id: string | null;
@@ -110,7 +110,7 @@ export interface AlertInput {
   days_to_stockout: number | null;
 }
 
-export type SyncStatus = "pending" | "syncing" | "success" | "failed";
+export type SyncStatus = "not_connected" | "pending" | "syncing" | "success" | "failed";
 
 export interface PaginationParams {
   limit: number;
@@ -134,5 +134,14 @@ export interface Session {
   userId: string;
   token: string;
   expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface MagicLinkToken {
+  id: string;
+  email: string;
+  token: string;
+  expiresAt: Date;
+  usedAt: Date | null;
   createdAt: Date;
 }

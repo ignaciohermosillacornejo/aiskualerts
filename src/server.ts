@@ -2,6 +2,10 @@ import type { Server } from "bun";
 import { loadConfig, type Config } from "@/config";
 import type { OAuthHandlerDeps } from "@/api/handlers/oauth";
 import { createOAuthRoutes } from "@/api/routes/oauth";
+import type { MagicLinkHandlerDeps } from "@/api/handlers/magic-link";
+import { createMagicLinkRoutes } from "@/api/routes/magic-link";
+import type { BsaleConnectionDeps } from "@/api/handlers/bsale-connection";
+import { createBsaleConnectionRoutes } from "@/api/routes/bsale-connection";
 import {
   createBillingRoutes,
   type BillingHandlerDeps,
@@ -188,6 +192,8 @@ export interface ServerDependencies {
   oauthDeps?: OAuthHandlerDeps;
   billingDeps?: BillingHandlerDeps;
   syncDeps?: SyncHandlerDeps;
+  magicLinkDeps?: MagicLinkHandlerDeps;
+  bsaleConnectionDeps?: BsaleConnectionDeps;
   subscriptionService?: SubscriptionService;
   // Repository dependencies for database-backed routes
   alertRepo?: AlertRepository;
@@ -252,6 +258,16 @@ export function createServer(
     ? createBillingRoutes(deps.billingDeps)
     : null;
   const syncRoutes = deps?.syncDeps ? createSyncRoutes(deps.syncDeps) : null;
+  const magicLinkRoutes = deps?.magicLinkDeps
+    ? createMagicLinkRoutes(deps.magicLinkDeps, csrfMiddleware ? { csrfMiddleware } : {})
+    : null;
+  const bsaleConnectionRoutes =
+    deps?.bsaleConnectionDeps && authMiddleware
+      ? createBsaleConnectionRoutes(deps.bsaleConnectionDeps, {
+          authMiddleware,
+          ...(csrfMiddleware && { csrfMiddleware }),
+        })
+      : null;
 
   // Create route modules
   const dashboardRoutes = createDashboardRoutes({
@@ -373,6 +389,52 @@ export function createServer(
           const rateLimitResponse = apiRateLimiter.check(request);
           if (rateLimitResponse) {
             return rateLimitResponse;
+          }
+        }
+
+        // Magic link routes (if configured)
+        if (magicLinkRoutes) {
+          if (url.pathname === "/api/auth/magic-link" && request.method === "POST") {
+            const response = await traceRequest("POST", "/api/auth/magic-link", async () => {
+              return await magicLinkRoutes.request(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
+          }
+
+          if (url.pathname === "/api/auth/magic-link/verify" && request.method === "GET") {
+            const response = await traceRequest("GET", "/api/auth/magic-link/verify", async () => {
+              return await magicLinkRoutes.verify(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
+          }
+        }
+
+        // Bsale connection routes (if configured)
+        if (bsaleConnectionRoutes) {
+          if (url.pathname === "/api/bsale/connect" && request.method === "GET") {
+            const response = await traceRequest("GET", "/api/bsale/connect", async () => {
+              return await bsaleConnectionRoutes.connect(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
+          }
+
+          if (url.pathname === "/api/bsale/callback" && request.method === "GET") {
+            const response = await traceRequest("GET", "/api/bsale/callback", async () => {
+              return await bsaleConnectionRoutes.callback(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
+          }
+
+          if (url.pathname === "/api/bsale/disconnect" && request.method === "POST") {
+            const response = await traceRequest("POST", "/api/bsale/disconnect", async () => {
+              return await bsaleConnectionRoutes.disconnect(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
           }
         }
 

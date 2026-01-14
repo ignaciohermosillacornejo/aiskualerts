@@ -36,10 +36,13 @@ export interface DashboardStats {
   configuredThresholds: number;
 }
 
+export type SyncStatus = "not_connected" | "pending" | "syncing" | "success" | "failed";
+
 export interface TenantSettings {
-  companyName: string;
+  companyName: string | null;
   email: string;
   bsaleConnected: boolean;
+  syncStatus: SyncStatus;
   lastSyncAt: string | null;
   emailNotifications: boolean;
   notificationEmail: string;

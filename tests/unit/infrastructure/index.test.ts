@@ -57,6 +57,8 @@ function createMockDependencies(): MainDependencies & {
     sentryEnvironment: "test",
     mercadoPagoPlanAmount: 9990,
     mercadoPagoPlanCurrency: "CLP",
+    magicLinkExpiryMinutes: 15,
+    magicLinkRateLimitPerHour: 5,
   };
 
   const loadConfig = mock(() => defaultConfig);
@@ -132,6 +134,15 @@ function createMockDependencies(): MainDependencies & {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Mock class for testing
+  class MockMagicLinkRepository {
+    create = mock(() => Promise.resolve({ id: "token-123", email: "test@example.com", token: "abc123", expiresAt: new Date(), usedAt: null, createdAt: new Date() }));
+    findValidToken = mock(() => Promise.resolve(null));
+    markUsed = mock(() => Promise.resolve());
+    countRecentByEmail = mock(() => Promise.resolve(0));
+    deleteExpired = mock(() => Promise.resolve(0));
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Mock class for testing
   class MockBsaleOAuthClient {
     getAuthorizationUrl = mock(() => "https://oauth.bsale.io/authorize");
   }
@@ -171,6 +182,7 @@ function createMockDependencies(): MainDependencies & {
     SessionRepository: MockSessionRepository as unknown as MainDependencies["SessionRepository"],
     TenantRepository: MockTenantRepository as unknown as MainDependencies["TenantRepository"],
     UserRepository: MockUserRepository as unknown as MainDependencies["UserRepository"],
+    MagicLinkRepository: MockMagicLinkRepository as unknown as MainDependencies["MagicLinkRepository"],
     BsaleOAuthClient: MockBsaleOAuthClient as unknown as MainDependencies["BsaleOAuthClient"],
     OAuthStateStore: MockOAuthStateStore as unknown as MainDependencies["OAuthStateStore"],
     MercadoPagoClient: MockMercadoPagoClient as unknown as MainDependencies["MercadoPagoClient"],
@@ -239,6 +251,8 @@ describe("Application Bootstrap (src/index.ts)", () => {
         sentryEnvironment: "production",
         mercadoPagoPlanAmount: 9990,
         mercadoPagoPlanCurrency: "CLP",
+        magicLinkExpiryMinutes: 15,
+        magicLinkRateLimitPerHour: 5,
       });
 
       main(deps);
@@ -344,6 +358,8 @@ describe("Application Bootstrap (src/index.ts)", () => {
         bsaleAppId: "app-123",
         bsaleIntegratorToken: "token-456",
         bsaleRedirectUri: "http://localhost:3000/callback",
+        magicLinkExpiryMinutes: 15,
+        magicLinkRateLimitPerHour: 5,
       });
 
       main(deps);
@@ -370,6 +386,8 @@ describe("Application Bootstrap (src/index.ts)", () => {
         sentryEnvironment: "test",
         mercadoPagoPlanAmount: 9990,
         mercadoPagoPlanCurrency: "CLP",
+        magicLinkExpiryMinutes: 15,
+        magicLinkRateLimitPerHour: 5,
         // No OAuth config
       });
 

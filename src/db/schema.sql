@@ -3,10 +3,10 @@
 -- ===========================================
 CREATE TABLE tenants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    bsale_client_code TEXT UNIQUE NOT NULL,  -- RUT (Chile), RUC (Peru), RFC (Mexico)
-    bsale_client_name TEXT NOT NULL,
-    bsale_access_token TEXT NOT NULL,        -- Encrypted at rest
-    sync_status TEXT DEFAULT 'pending',       -- pending | syncing | success | failed
+    bsale_client_code TEXT UNIQUE,            -- RUT (Chile), RUC (Peru), RFC (Mexico) - NULL if not connected
+    bsale_client_name TEXT,                   -- NULL if not connected to Bsale
+    bsale_access_token TEXT,                  -- Encrypted at rest - NULL if not connected
+    sync_status TEXT DEFAULT 'not_connected', -- not_connected | pending | syncing | success | failed
     last_sync_at TIMESTAMPTZ,
     -- Billing (provider-agnostic)
     subscription_id TEXT UNIQUE,
@@ -98,6 +98,18 @@ CREATE TABLE sessions (
 );
 
 -- ===========================================
+-- MAGIC LINK TOKENS (passwordless auth)
+-- ===========================================
+CREATE TABLE magic_link_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ===========================================
 -- INDEXES
 -- ===========================================
 CREATE INDEX idx_snapshots_tenant_date ON stock_snapshots(tenant_id, snapshot_date DESC);
@@ -109,16 +121,18 @@ CREATE INDEX idx_alerts_tenant_date ON alerts(tenant_id, created_at DESC);
 CREATE INDEX idx_sessions_token ON sessions(token);
 CREATE INDEX idx_sessions_expires ON sessions(expires_at);
 CREATE INDEX idx_tenants_subscription ON tenants(subscription_id) WHERE subscription_id IS NOT NULL;
+CREATE INDEX idx_magic_link_tokens_token ON magic_link_tokens(token) WHERE used_at IS NULL;
+CREATE INDEX idx_magic_link_tokens_email_created ON magic_link_tokens(email, created_at DESC);
 
 -- ===========================================
 -- MIGRATION TRACKING
 -- ===========================================
 -- This table tracks which migrations have been applied.
--- Schema.sql includes all changes from migrations 1-4.
+-- Schema.sql includes all changes from migrations 1-5.
 CREATE TABLE schema_migrations (
     version INTEGER PRIMARY KEY,
     applied_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Mark migrations 1-4 as already applied (since schema.sql includes their changes)
-INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4);
+-- Mark migrations 1-5 as already applied (since schema.sql includes their changes)
+INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5);

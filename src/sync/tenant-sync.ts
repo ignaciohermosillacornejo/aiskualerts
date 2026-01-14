@@ -63,6 +63,17 @@ export async function syncTenant(
   const startedAt = new Date();
 
   try {
+    if (!tenant.bsale_access_token) {
+      return {
+        success: false,
+        tenantId: tenant.id,
+        itemsSynced: 0,
+        startedAt,
+        completedAt: new Date(),
+        error: "Tenant has no Bsale access token",
+      };
+    }
+
     await deps.tenantRepo.updateSyncStatus(tenant.id, "syncing");
 
     const client = deps.createBsaleClient(tenant.bsale_access_token);

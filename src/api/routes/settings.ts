@@ -74,7 +74,8 @@ export function createSettingsRoutes(deps: SettingsRouteDeps): SettingsRoutes {
           return jsonWithCors({
             companyName: tenant.bsale_client_name,
             email: user.email,
-            bsaleConnected: tenant.sync_status === "success",
+            bsaleConnected: tenant.bsale_access_token !== null,
+            syncStatus: tenant.sync_status,
             lastSyncAt: tenant.last_sync_at?.toISOString() ?? null,
             emailNotifications: user.notification_enabled,
             notificationEmail: user.notification_email,
@@ -130,7 +131,8 @@ export function createSettingsRoutes(deps: SettingsRouteDeps): SettingsRoutes {
           return jsonWithCors({
             companyName: body.companyName ?? tenant?.bsale_client_name ?? "",
             email: body.email ?? updatedUser.email,
-            bsaleConnected: tenant?.sync_status === "success",
+            bsaleConnected: tenant?.bsale_access_token !== null,
+            syncStatus: tenant?.sync_status ?? "not_connected",
             lastSyncAt: tenant?.last_sync_at?.toISOString() ?? null,
             emailNotifications: updatedUser.notification_enabled,
             notificationEmail: updatedUser.notification_email,

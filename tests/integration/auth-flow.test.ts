@@ -26,6 +26,8 @@ describe("Authentication Flow Integration", () => {
     sentryEnvironment: "test",
     mercadoPagoPlanAmount: 9990,
     mercadoPagoPlanCurrency: "CLP",
+    magicLinkExpiryMinutes: 15,
+    magicLinkRateLimitPerHour: 5,
   };
 
   beforeAll(async () => {

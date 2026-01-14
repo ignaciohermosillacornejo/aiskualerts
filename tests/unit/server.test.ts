@@ -34,6 +34,8 @@ const testConfig: Config = {
   sentryEnvironment: "test",
   mercadoPagoPlanAmount: 9990,
   mercadoPagoPlanCurrency: "CLP",
+  magicLinkExpiryMinutes: 15,
+  magicLinkRateLimitPerHour: 5,
 };
 
 let serverInstance: ReturnType<typeof createServer> | null = null;
@@ -779,6 +781,8 @@ describe("createServer", () => {
         sentryEnvironment: "test",
         mercadoPagoPlanAmount: 9990,
         mercadoPagoPlanCurrency: "CLP",
+        magicLinkExpiryMinutes: 15,
+        magicLinkRateLimitPerHour: 5,
       };
       serverInstance = createServer(customConfig);
       expect(serverInstance.port).toBeGreaterThan(0);
@@ -800,6 +804,8 @@ describe("createServer", () => {
         sentryEnvironment: "test",
         mercadoPagoPlanAmount: 9990,
         mercadoPagoPlanCurrency: "CLP",
+        magicLinkExpiryMinutes: 15,
+        magicLinkRateLimitPerHour: 5,
       };
       serverInstance = createServer(productionConfig);
       expect(serverInstance.development).toBe(false);
@@ -821,6 +827,8 @@ describe("createServer", () => {
         sentryEnvironment: "test",
         mercadoPagoPlanAmount: 9990,
         mercadoPagoPlanCurrency: "CLP",
+        magicLinkExpiryMinutes: 15,
+        magicLinkRateLimitPerHour: 5,
       };
       serverInstance = createServer(devConfig);
       expect(serverInstance.development).toBe(true);
@@ -848,6 +856,8 @@ describe("createServer", () => {
           sentryEnvironment: "test",
           mercadoPagoPlanAmount: 9990,
           mercadoPagoPlanCurrency: "CLP",
+          magicLinkExpiryMinutes: 15,
+          magicLinkRateLimitPerHour: 5,
         };
         serverInstance = createServer(productionConfig);
 
