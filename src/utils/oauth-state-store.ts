@@ -2,6 +2,7 @@ export interface OAuthStateData {
   codeVerifier: string;
   clientCode: string;
   createdAt: number;
+  tenantId?: string; // For Bsale connection flow (existing tenant)
 }
 
 /**

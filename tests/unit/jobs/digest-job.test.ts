@@ -45,6 +45,8 @@ function createMockConfig(): Config {
     sentryEnvironment: "test",
     mercadoPagoPlanAmount: 9990,
     mercadoPagoPlanCurrency: "CLP",
+    magicLinkExpiryMinutes: 15,
+    magicLinkRateLimitPerHour: 5,
   };
 }
 

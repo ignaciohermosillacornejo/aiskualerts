@@ -10,6 +10,7 @@ import { BsaleOAuthClient } from "@/bsale/oauth-client";
 import { TenantRepository } from "@/db/repositories/tenant";
 import { UserRepository } from "@/db/repositories/user";
 import { SessionRepository } from "@/db/repositories/session";
+import { MagicLinkRepository } from "@/db/repositories/magic-link";
 import { OAuthStateStore } from "@/utils/oauth-state-store";
 import {
   initializeSentry,
@@ -40,6 +41,7 @@ export interface MainDependencies {
   SessionRepository: typeof SessionRepository;
   TenantRepository: typeof TenantRepository;
   UserRepository: typeof UserRepository;
+  MagicLinkRepository: typeof MagicLinkRepository;
   BsaleOAuthClient: typeof BsaleOAuthClient;
   OAuthStateStore: typeof OAuthStateStore;
   MercadoPagoClient: typeof MercadoPagoClient;
@@ -68,6 +70,7 @@ export function createMainDependencies(): MainDependencies {
     SessionRepository,
     TenantRepository,
     UserRepository,
+    MagicLinkRepository,
     BsaleOAuthClient,
     OAuthStateStore,
     MercadoPagoClient,
@@ -121,6 +124,7 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
   const sessionRepo = new deps.SessionRepository(db);
   const tenantRepo = new deps.TenantRepository(db);
   const userRepo = new deps.UserRepository(db);
+  const magicLinkRepo = new deps.MagicLinkRepository(db);
 
   // Initialize session cleanup scheduler (runs every hour)
   const sessionCleanupScheduler = deps.createSessionCleanupScheduler(
@@ -214,6 +218,31 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
     tenantRepo,
   };
   deps.logger.info("Sync endpoints enabled");
+
+  // Magic link dependencies (always enabled)
+  serverDeps.magicLinkDeps = {
+    magicLinkRepo,
+    tenantRepo,
+    userRepo,
+    sessionRepo,
+    emailClient,
+    config: {
+      appUrl: config.appUrl ?? `http://localhost:${String(config.port)}`,
+      magicLinkExpiryMinutes: config.magicLinkExpiryMinutes,
+      magicLinkRateLimitPerHour: config.magicLinkRateLimitPerHour,
+    },
+  };
+  deps.logger.info("Magic link auth enabled");
+
+  // Bsale connection dependencies (if OAuth is configured)
+  if (serverDeps.oauthDeps) {
+    serverDeps.bsaleConnectionDeps = {
+      oauthClient: serverDeps.oauthDeps.oauthClient,
+      tenantRepo,
+      stateStore: serverDeps.oauthDeps.stateStore,
+    };
+    deps.logger.info("Bsale connection endpoints enabled");
+  }
 
   // Start the HTTP server
   const server = deps.createServer(config, serverDeps);

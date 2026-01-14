@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearch } from "wouter";
 import { api } from "../api/client";
-import type { TenantSettings } from "../types";
+import type { TenantSettings, SyncStatus } from "../types";
 import { ApiError } from "../api/client";
 
 // Validate MercadoPago URLs to prevent open redirect attacks
@@ -34,13 +35,49 @@ function getSafeErrorMessage(err: unknown, defaultMessage: string): string {
   return defaultMessage;
 }
 
+// Get human-readable sync status
+function getSyncStatusText(status: SyncStatus): string {
+  const statusMap: Record<SyncStatus, string> = {
+    not_connected: "Sin conexion",
+    pending: "Pendiente",
+    syncing: "Sincronizando...",
+    success: "Sincronizado",
+    failed: "Error en sincronizacion",
+  };
+  // eslint-disable-next-line security/detect-object-injection -- Safe: status is a validated SyncStatus enum value
+  return statusMap[status];
+}
+
+function getSyncStatusBadgeClass(status: SyncStatus): string {
+  switch (status) {
+    case "success":
+      return "badge-success";
+    case "syncing":
+    case "pending":
+      return "badge-warning";
+    case "failed":
+      return "badge-danger";
+    default:
+      return "badge-secondary";
+  }
+}
+
 export function Settings() {
+  const searchString = useSearch();
   const [settings, setSettings] = useState<TenantSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
+  const [bsaleLoading, setBsaleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [clientCode, setClientCode] = useState("");
+  const [showConnectForm, setShowConnectForm] = useState(false);
+
+  // Parse URL parameters
+  const params = new URLSearchParams(searchString);
+  const urlConnected = params.get("connected");
+  const urlError = params.get("error");
 
   useEffect(() => {
     async function loadSettings() {
@@ -56,6 +93,20 @@ export function Settings() {
     }
     loadSettings();
   }, []);
+
+  // Handle URL parameters from OAuth callback
+  useEffect(() => {
+    if (urlConnected === "true") {
+      setSuccess("Bsale conectado exitosamente. La sincronizacion comenzara en breve.");
+      // Reload settings to get updated connection status
+      api.getSettings().then(setSettings).catch((err: unknown) => {
+        // Log error but don't show to user - they already see success message
+        console.error("Failed to reload settings after Bsale connection:", err);
+      });
+    } else if (urlError) {
+      setError(decodeURIComponent(urlError));
+    }
+  }, [urlConnected, urlError]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,6 +124,36 @@ export function Settings() {
       setSaving(false);
     }
   }
+
+  const handleConnectBsale = useCallback(() => {
+    if (!clientCode.trim()) {
+      setError("Por favor ingresa tu codigo de cliente de Bsale");
+      return;
+    }
+    setBsaleLoading(true);
+    // Redirect to OAuth flow
+    window.location.href = `/api/bsale/connect?client_code=${encodeURIComponent(clientCode.trim())}`;
+  }, [clientCode]);
+
+  const handleDisconnectBsale = useCallback(async () => {
+    if (!window.confirm("Esta seguro de desconectar Bsale? Tus datos historicos se conservaran.")) {
+      return;
+    }
+
+    try {
+      setBsaleLoading(true);
+      setError(null);
+      await api.disconnectBsale();
+      setSuccess("Bsale desconectado exitosamente");
+      // Reload settings
+      const data = await api.getSettings();
+      setSettings(data);
+    } catch (err) {
+      setError(getSafeErrorMessage(err, "Error al desconectar Bsale"));
+    } finally {
+      setBsaleLoading(false);
+    }
+  }, []);
 
   const handleUpgrade = useCallback(async () => {
     try {
@@ -127,33 +208,108 @@ export function Settings() {
 
   return (
     <div>
+      {/* Bsale Connection Card */}
       <div className="card" style={{ marginBottom: "1.5rem" }}>
         <div className="card-header">
-          <h2 className="card-title">Cuenta Bsale</h2>
+          <h2 className="card-title">Conexion Bsale</h2>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-          <div>
-            <div className="form-label">Empresa</div>
-            <div style={{ fontWeight: 500 }}>{settings.companyName}</div>
-          </div>
-          <div>
-            <div className="form-label">Email</div>
-            <div>{settings.email}</div>
-          </div>
-          <div>
-            <div className="form-label">Estado Conexion</div>
-            <span className={`badge ${settings.bsaleConnected ? "badge-success" : "badge-danger"}`}>
-              {settings.bsaleConnected ? "Conectado" : "Desconectado"}
-            </span>
-          </div>
-          <div>
-            <div className="form-label">Ultima Sincronizacion</div>
-            <div>
-              {settings.lastSyncAt
-                ? new Date(settings.lastSyncAt).toLocaleString("es-CL")
-                : "Nunca"}
+
+        {settings.bsaleConnected ? (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+              <div>
+                <div className="form-label">Empresa</div>
+                <div style={{ fontWeight: 500 }}>{settings.companyName ?? "Sin nombre"}</div>
+              </div>
+              <div>
+                <div className="form-label">Estado</div>
+                <span className={`badge ${getSyncStatusBadgeClass(settings.syncStatus)}`}>
+                  {getSyncStatusText(settings.syncStatus)}
+                </span>
+              </div>
+              <div>
+                <div className="form-label">Ultima Sincronizacion</div>
+                <div>
+                  {settings.lastSyncAt
+                    ? new Date(settings.lastSyncAt).toLocaleString("es-CL")
+                    : "Nunca"}
+                </div>
+              </div>
             </div>
-          </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleDisconnectBsale}
+              disabled={bsaleLoading}
+            >
+              {bsaleLoading ? "Desconectando..." : "Desconectar Bsale"}
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ color: "#64748b", marginBottom: "1rem" }}>
+              Conecta tu cuenta de Bsale para comenzar a sincronizar tu inventario y recibir alertas.
+            </p>
+
+            {showConnectForm ? (
+              <div>
+                <div className="form-group">
+                  <label className="form-label">Codigo de Cliente Bsale</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={clientCode}
+                    onChange={(e) => setClientCode(e.target.value)}
+                    placeholder="ej: miempresa"
+                    disabled={bsaleLoading}
+                  />
+                  <p style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.5rem" }}>
+                    Tu codigo de cliente es el subdominio de tu tienda Bsale (ej: si tu URL es miempresa.bsale.cl, tu codigo es "miempresa")
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleConnectBsale}
+                    disabled={bsaleLoading || !clientCode.trim()}
+                  >
+                    {bsaleLoading ? "Conectando..." : "Conectar"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowConnectForm(false);
+                      setClientCode("");
+                    }}
+                    disabled={bsaleLoading}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setShowConnectForm(true)}
+              >
+                Conectar Bsale
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Account Info Card */}
+      <div className="card" style={{ marginBottom: "1.5rem" }}>
+        <div className="card-header">
+          <h2 className="card-title">Mi Cuenta</h2>
+        </div>
+        <div>
+          <div className="form-label">Email</div>
+          <div>{settings.email}</div>
         </div>
       </div>
 

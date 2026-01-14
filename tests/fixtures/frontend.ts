@@ -68,6 +68,7 @@ export function createMockTenantSettings(overrides: Partial<TenantSettings> = {}
     companyName: "Test Company",
     email: "company@example.com",
     bsaleConnected: true,
+    syncStatus: "success",
     lastSyncAt: new Date().toISOString(),
     emailNotifications: true,
     notificationEmail: "alerts@example.com",

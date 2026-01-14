@@ -46,6 +46,8 @@ describe("createSyncJob", () => {
       sentryEnvironment: "test",
       mercadoPagoPlanAmount: 9990,
       mercadoPagoPlanCurrency: "CLP",
+      magicLinkExpiryMinutes: 15,
+      magicLinkRateLimitPerHour: 5,
     };
 
     const job = createSyncJob(mockDb, config);
@@ -75,6 +77,8 @@ describe("createSyncJob", () => {
       sentryEnvironment: "test",
       mercadoPagoPlanAmount: 9990,
       mercadoPagoPlanCurrency: "CLP",
+      magicLinkExpiryMinutes: 15,
+      magicLinkRateLimitPerHour: 5,
     };
 
     const job = createSyncJob(mockDb, config);
@@ -131,6 +135,8 @@ describe("Sync job execution", () => {
       sentryEnvironment: "test",
       mercadoPagoPlanAmount: 9990,
       mercadoPagoPlanCurrency: "CLP",
+      magicLinkExpiryMinutes: 15,
+      magicLinkRateLimitPerHour: 5,
     };
 
     const job = createSyncJob(mockDb, config);
@@ -169,6 +175,8 @@ describe("Sync job execution", () => {
       sentryEnvironment: "test",
       mercadoPagoPlanAmount: 9990,
       mercadoPagoPlanCurrency: "CLP",
+      magicLinkExpiryMinutes: 15,
+      magicLinkRateLimitPerHour: 5,
     };
 
     const job = createSyncJob(mockDb, config);
@@ -201,6 +209,8 @@ describe("Sync job execution", () => {
       sentryEnvironment: "test",
       mercadoPagoPlanAmount: 9990,
       mercadoPagoPlanCurrency: "CLP",
+      magicLinkExpiryMinutes: 15,
+      magicLinkRateLimitPerHour: 5,
     };
 
     const job = createSyncJob(mockDb, config);

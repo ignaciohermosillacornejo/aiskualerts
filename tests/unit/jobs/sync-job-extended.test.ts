@@ -50,6 +50,8 @@ describe("runSyncAndAlerts function", () => {
       sentryEnvironment: "test",
       mercadoPagoPlanAmount: 9990,
       mercadoPagoPlanCurrency: "CLP",
+      magicLinkExpiryMinutes: 15,
+      magicLinkRateLimitPerHour: 5,
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
@@ -114,6 +116,8 @@ describe("runSyncAndAlerts function", () => {
       sentryEnvironment: "test",
       mercadoPagoPlanAmount: 9990,
       mercadoPagoPlanCurrency: "CLP",
+      magicLinkExpiryMinutes: 15,
+      magicLinkRateLimitPerHour: 5,
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
@@ -158,6 +162,8 @@ describe("runSyncAndAlerts function", () => {
       sentryEnvironment: "test",
       mercadoPagoPlanAmount: 9990,
       mercadoPagoPlanCurrency: "CLP",
+      magicLinkExpiryMinutes: 15,
+      magicLinkRateLimitPerHour: 5,
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
@@ -190,6 +196,8 @@ describe("runSyncAndAlerts function", () => {
       sentryEnvironment: "test",
       mercadoPagoPlanAmount: 9990,
       mercadoPagoPlanCurrency: "CLP",
+      magicLinkExpiryMinutes: 15,
+      magicLinkRateLimitPerHour: 5,
     };
 
     const result = await runSyncAndAlerts(mockDb, config);
