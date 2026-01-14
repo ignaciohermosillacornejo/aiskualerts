@@ -708,7 +708,7 @@ Get the current user's settings.
   "syncFrequency": "hourly",
   "digestFrequency": "daily",
   "isPaid": true,
-  "stripeCustomerId": "cus_xxx"
+  "subscriptionStatus": "active"
 }
 ```
 
@@ -723,7 +723,7 @@ Get the current user's settings.
 | `syncFrequency` | string | `"hourly"`, `"daily"`, or `"weekly"` |
 | `digestFrequency` | string | `"daily"`, `"weekly"`, or `"none"` |
 | `isPaid` | boolean | Subscription status |
-| `stripeCustomerId` | string \| null | Stripe customer ID |
+| `subscriptionStatus` | string | `"none"`, `"active"`, `"cancelled"`, or `"past_due"` |
 
 **curl Example**:
 
@@ -796,7 +796,7 @@ curl -X PUT https://your-domain.com/api/settings \
 
 #### POST /api/billing/checkout
 
-Create a Stripe checkout session for subscription.
+Create a MercadoPago subscription checkout URL.
 
 **Authentication**: Required
 
@@ -806,7 +806,7 @@ Create a Stripe checkout session for subscription.
 
 ```json
 {
-  "url": "https://checkout.stripe.com/pay/cs_xxx"
+  "url": "https://www.mercadopago.cl/subscriptions/checkout?preapproval_id=xxx"
 }
 ```
 
@@ -826,9 +826,9 @@ curl -X POST https://your-domain.com/api/billing/checkout \
 
 ---
 
-#### POST /api/billing/portal
+#### POST /api/billing/cancel
 
-Create a Stripe customer portal session.
+Cancel an active subscription.
 
 **Authentication**: Required
 
@@ -838,7 +838,8 @@ Create a Stripe customer portal session.
 
 ```json
 {
-  "url": "https://billing.stripe.com/session/xxx"
+  "message": "Subscription cancelled",
+  "endsAt": "2024-02-15T00:00:00Z"
 }
 ```
 
@@ -846,13 +847,14 @@ Create a Stripe customer portal session.
 - `401`: Unauthorized
 - `404`: Tenant not found
 - `400`: No active subscription
+- `500`: Failed to cancel subscription
 
-**Requirements**: Tenant must have an active Stripe customer ID
+**Requirements**: Tenant must have an active subscription
 
 **curl Example**:
 
 ```bash
-curl -X POST https://your-domain.com/api/billing/portal \
+curl -X POST https://your-domain.com/api/billing/cancel \
   -H "X-CSRF-Token: your-csrf-token" \
   -b cookies.txt
 ```
@@ -905,11 +907,11 @@ curl -X POST https://your-domain.com/api/sync/trigger \
 
 ### Webhooks
 
-#### POST /api/webhooks/stripe
+#### POST /api/webhooks/mercadopago
 
-Handle Stripe webhook events.
+Handle MercadoPago webhook events.
 
-**Authentication**: Stripe signature verification (not session-based)
+**Authentication**: MercadoPago HMAC signature verification (not session-based)
 
 **Rate Limit**: 1000 requests/minute
 
@@ -919,9 +921,19 @@ Handle Stripe webhook events.
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| `stripe-signature` | Yes | Stripe HMAC signature |
+| `x-signature` | Yes | MercadoPago HMAC signature (`ts=xxx,v1=xxx`) |
+| `x-request-id` | Yes | Unique request identifier |
 
-**Request Body**: Raw Stripe event JSON
+**Request Body**:
+
+```json
+{
+  "type": "subscription_preapproval",
+  "data": {
+    "id": "preapproval_id"
+  }
+}
+```
 
 **Response (200)**:
 
@@ -932,13 +944,14 @@ Handle Stripe webhook events.
 ```
 
 **Error Responses**:
-- `400`: Missing signature or webhook processing failed
+- `400`: Missing headers or invalid payload
+- `401`: Invalid signature
 
 **Processed Events**:
-- `checkout.session.completed`: Activates subscription
-- `customer.subscription.deleted`: Deactivates subscription
+- `subscription_preapproval` with status `authorized`: Activates subscription
+- `subscription_preapproval` with status `cancelled` or `paused`: Deactivates subscription
 
-**Note**: This endpoint should be configured in your Stripe webhook settings.
+**Note**: Configure this webhook URL in your MercadoPago application dashboard.
 
 ---
 
@@ -1089,9 +1102,9 @@ components:
           enum: [daily, weekly, none]
         isPaid:
           type: boolean
-        stripeCustomerId:
+        subscriptionStatus:
           type: string
-          nullable: true
+          enum: [none, active, cancelled, past_due]
 
     DashboardStats:
       type: object
@@ -1538,22 +1551,37 @@ paths:
         '500':
           description: Sync failed
 
-  /webhooks/stripe:
+  /webhooks/mercadopago:
     post:
-      summary: Handle Stripe webhooks
+      summary: Handle MercadoPago webhooks
       tags: [Webhooks]
       parameters:
-        - name: stripe-signature
+        - name: x-signature
           in: header
           required: true
           schema:
             type: string
+          description: MercadoPago HMAC signature (ts=xxx,v1=xxx)
+        - name: x-request-id
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Unique request identifier
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              properties:
+                type:
+                  type: string
+                data:
+                  type: object
+                  properties:
+                    id:
+                      type: string
       responses:
         '200':
           description: Webhook received
@@ -1565,5 +1593,7 @@ paths:
                   received:
                     type: boolean
         '400':
+          description: Missing headers or invalid payload
+        '401':
           description: Invalid signature
 ```

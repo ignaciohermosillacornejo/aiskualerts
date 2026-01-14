@@ -555,7 +555,7 @@ describe("API Client", () => {
     test("sends POST request to checkout endpoint", async () => {
       mockFetch.mockImplementation(() =>
         Promise.resolve(
-          new Response(JSON.stringify({ url: "https://checkout.stripe.com/session123" }), {
+          new Response(JSON.stringify({ url: "https://www.mercadopago.cl/subscriptions/checkout?preapproval_id=abc123" }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           })
@@ -568,7 +568,7 @@ describe("API Client", () => {
         "/api/billing/checkout",
         expect.objectContaining({ method: "POST" })
       );
-      expect(result.url).toBe("https://checkout.stripe.com/session123");
+      expect(result.url).toBe("https://www.mercadopago.cl/subscriptions/checkout?preapproval_id=abc123");
     });
 
     test("throws ApiError on failure", async () => {

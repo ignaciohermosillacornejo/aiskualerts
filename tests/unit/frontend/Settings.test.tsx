@@ -3,15 +3,19 @@ import { test, expect, describe } from "bun:test";
 // Test the URL validation and error sanitization logic directly
 // These are exported for testing purposes
 
-// Validate Stripe URLs to prevent open redirect attacks
-function isValidStripeUrl(url: string): boolean {
+// Validate MercadoPago URLs to prevent open redirect attacks
+function isValidMercadoPagoUrl(url: string): boolean {
   try {
     const parsedUrl = new URL(url);
     return (
       parsedUrl.protocol === "https:" &&
-      (parsedUrl.hostname === "checkout.stripe.com" ||
-        parsedUrl.hostname === "billing.stripe.com" ||
-        parsedUrl.hostname.endsWith(".stripe.com"))
+      (parsedUrl.hostname === "www.mercadopago.com" ||
+        parsedUrl.hostname === "www.mercadopago.cl" ||
+        parsedUrl.hostname === "www.mercadopago.com.ar" ||
+        parsedUrl.hostname === "www.mercadopago.com.br" ||
+        parsedUrl.hostname === "www.mercadopago.com.mx" ||
+        parsedUrl.hostname.endsWith(".mercadopago.com") ||
+        parsedUrl.hostname.endsWith(".mercadopago.cl"))
     );
   } catch {
     return false;
@@ -43,58 +47,62 @@ function getSafeErrorMessage(err: unknown, defaultMessage: string): string {
   return defaultMessage;
 }
 
-describe("isValidStripeUrl", () => {
-  describe("valid Stripe URLs", () => {
-    test("accepts checkout.stripe.com", () => {
-      expect(isValidStripeUrl("https://checkout.stripe.com/session123")).toBe(true);
+describe("isValidMercadoPagoUrl", () => {
+  describe("valid MercadoPago URLs", () => {
+    test("accepts www.mercadopago.com", () => {
+      expect(isValidMercadoPagoUrl("https://www.mercadopago.com/checkout/v1/redirect")).toBe(true);
     });
 
-    test("accepts billing.stripe.com", () => {
-      expect(isValidStripeUrl("https://billing.stripe.com/portal123")).toBe(true);
+    test("accepts www.mercadopago.cl (Chile)", () => {
+      expect(isValidMercadoPagoUrl("https://www.mercadopago.cl/subscriptions/checkout")).toBe(true);
     });
 
-    test("accepts subdomains of stripe.com", () => {
-      expect(isValidStripeUrl("https://pay.stripe.com/checkout")).toBe(true);
+    test("accepts www.mercadopago.com.ar (Argentina)", () => {
+      expect(isValidMercadoPagoUrl("https://www.mercadopago.com.ar/checkout")).toBe(true);
+    });
+
+    test("accepts subdomains of mercadopago.com", () => {
+      expect(isValidMercadoPagoUrl("https://api.mercadopago.com/checkout")).toBe(true);
     });
 
     test("accepts URLs with paths and query params", () => {
       expect(
-        isValidStripeUrl("https://checkout.stripe.com/pay/cs_test_abc?locale=es")
+        isValidMercadoPagoUrl("https://www.mercadopago.cl/subscriptions/checkout?preapproval_id=abc123")
       ).toBe(true);
     });
   });
 
   describe("invalid URLs", () => {
     test("rejects http (non-https) URLs", () => {
-      expect(isValidStripeUrl("http://checkout.stripe.com/session123")).toBe(false);
+      expect(isValidMercadoPagoUrl("http://www.mercadopago.com/checkout")).toBe(false);
     });
 
-    test("rejects non-Stripe domains", () => {
-      expect(isValidStripeUrl("https://malicious-site.com/checkout")).toBe(false);
+    test("rejects non-MercadoPago domains", () => {
+      expect(isValidMercadoPagoUrl("https://malicious-site.com/checkout")).toBe(false);
     });
 
-    test("rejects domains that contain stripe.com but are not subdomains", () => {
-      expect(isValidStripeUrl("https://fakstripe.com/checkout")).toBe(false);
+    test("rejects domains that contain mercadopago but are not subdomains", () => {
+      expect(isValidMercadoPagoUrl("https://fakmercadopago.com/checkout")).toBe(false);
     });
 
-    test("rejects domains that look like stripe but aren't", () => {
-      expect(isValidStripeUrl("https://stripe.com.evil.com/checkout")).toBe(false);
+    test("rejects domains that look like mercadopago but aren't", () => {
+      expect(isValidMercadoPagoUrl("https://mercadopago.com.evil.com/checkout")).toBe(false);
     });
 
     test("rejects invalid URLs", () => {
-      expect(isValidStripeUrl("not-a-url")).toBe(false);
+      expect(isValidMercadoPagoUrl("not-a-url")).toBe(false);
     });
 
     test("rejects empty string", () => {
-      expect(isValidStripeUrl("")).toBe(false);
+      expect(isValidMercadoPagoUrl("")).toBe(false);
     });
 
     test("rejects javascript: URLs", () => {
-      expect(isValidStripeUrl("javascript:alert(1)")).toBe(false);
+      expect(isValidMercadoPagoUrl("javascript:alert(1)")).toBe(false);
     });
 
     test("rejects data: URLs", () => {
-      expect(isValidStripeUrl("data:text/html,<script>alert(1)</script>")).toBe(false);
+      expect(isValidMercadoPagoUrl("data:text/html,<script>alert(1)</script>")).toBe(false);
     });
   });
 });
