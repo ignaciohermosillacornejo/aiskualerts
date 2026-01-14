@@ -12,7 +12,7 @@ ALTER TABLE tenants ALTER COLUMN bsale_access_token DROP NOT NULL;
 -- No constraint change needed as sync_status uses TEXT without enum constraint
 
 -- 4. Create magic_link_tokens table for passwordless authentication
-CREATE TABLE magic_link_tokens (
+CREATE TABLE IF NOT EXISTS magic_link_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT NOT NULL,
     token TEXT UNIQUE NOT NULL,
@@ -22,5 +22,5 @@ CREATE TABLE magic_link_tokens (
 );
 
 -- Indexes for efficient token lookup and rate limiting
-CREATE INDEX idx_magic_link_tokens_token ON magic_link_tokens(token) WHERE used_at IS NULL;
-CREATE INDEX idx_magic_link_tokens_email_created ON magic_link_tokens(email, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_magic_link_tokens_token ON magic_link_tokens(token) WHERE used_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_magic_link_tokens_email_created ON magic_link_tokens(email, created_at DESC);
