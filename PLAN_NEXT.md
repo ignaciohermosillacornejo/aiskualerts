@@ -32,27 +32,18 @@ Enabled topics in MercadoPago dashboard:
 - Vinculación de aplicaciones
 - Reclamos
 
-## Production Deployment Checklist
+## Production Deployment ✅ COMPLETED
 
-### Pre-Deployment
-- [ ] Verify all production secrets in environment:
-  - `MERCADOPAGO_ACCESS_TOKEN`
-  - `MERCADOPAGO_WEBHOOK_SECRET`
-  - `MERCADOPAGO_PLAN_AMOUNT` (e.g., `9990` for $9.990 CLP)
-  - `MERCADOPAGO_PLAN_CURRENCY` (e.g., `CLP`)
+**Deployed on:** 2026-01-14
 
-### Deployment Steps
-1. **Run database migration:**
-   ```bash
-   bun db:migrate
-   ```
-   Migration file: `src/db/migrations/004_mercadopago_billing.sql`
+### Deployment Issues Fixed
+- **PR #113:** URL-encode database password (special characters broke URL parsing)
+- **PR #114:** Seed schema_migrations for existing databases (migration tracking)
 
-2. **Configure webhook URL in MercadoPago dashboard:**
-   - URL: `https://aiskualerts.com/api/webhooks/mercadopago`
-   - Topics: `subscription_preapproval`
-
-3. **Deploy application** with new environment variables
+### Verified
+- [x] Deploy workflow runs migrations automatically
+- [x] Application is healthy on production
+- [x] All secrets injected via 1Password
 
 ### Post-Deployment Verification
 - [ ] Test `/api/subscription/status` endpoint returns valid response
