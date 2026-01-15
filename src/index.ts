@@ -148,7 +148,11 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
   const authMiddleware = deps.createAuthMiddleware(sessionRepo, userRepo);
 
   // Initialize server dependencies
-  const serverDeps: ServerDependencies = {};
+  const serverDeps: ServerDependencies = {
+    tenantRepo,
+    userRepo,
+    sessionRepo,
+  };
 
   // OAuth dependencies (if configured)
   if (

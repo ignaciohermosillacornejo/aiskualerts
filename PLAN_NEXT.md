@@ -45,13 +45,25 @@ Enabled topics in MercadoPago dashboard:
 - [x] Application is healthy on production
 - [x] All secrets injected via 1Password
 
-### Post-Deployment Verification
-- [ ] Test `/api/subscription/status` endpoint returns valid response
-- [ ] Create test subscription (can refund immediately)
-- [ ] Verify webhook received and processed (check logs)
-- [ ] Check database: `subscription_status = 'active'`
-- [ ] Test cancellation flow
-- [ ] Verify `subscription_ends_at` is set correctly
+### Post-Deployment Verification ✅ COMPLETED (2026-01-15)
+- [x] Test `/api/subscription/status` endpoint returns valid response
+- [x] Create test subscription (can refund immediately)
+- [x] Verify webhook received and processed (check logs)
+- [x] Check database: `subscription_status = 'active'`
+- [x] Test cancellation flow
+- [x] Verify `subscription_ends_at` is set correctly
+
+### Magic Link E2E Testing ✅ COMPLETED (2026-01-15)
+- [x] Request magic link with valid email
+- [x] Magic link verification creates session and tenant
+- [x] Rate limiting works (5 requests per hour per email)
+- [x] Bsale connect endpoint returns OAuth authorization URL
+- [x] Bsale disconnect endpoint clears access token
+- [x] Tenant isolation prevents same Bsale client on multiple tenants (code review)
+
+### Bug Fix Applied
+- **Issue:** `/api/subscription/status` returned 404 because `tenantRepo` wasn't passed to `serverDeps`
+- **Fix:** Added `tenantRepo`, `userRepo`, and `sessionRepo` to `serverDeps` in `src/index.ts`
 
 ## Remaining Tasks
 
