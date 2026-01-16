@@ -99,9 +99,6 @@ export async function runMigrations(connectionString?: string): Promise<{
     // Ensure migrations table exists
     await ensureMigrationsTable(sql);
 
-    // Get list of already applied migrations
-    const appliedVersions = await getAppliedVersions(sql);
-
     // Get all migration files
     const migrations = await getMigrationFiles();
 
@@ -111,6 +108,9 @@ export async function runMigrations(connectionString?: string): Promise<{
     }
 
     logger.info("Migration files found", { count: migrations.length });
+
+    // Get list of already applied migrations
+    const appliedVersions = await getAppliedVersions(sql);
 
     for (const migration of migrations) {
       if (appliedVersions.has(migration.version)) {
