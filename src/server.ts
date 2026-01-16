@@ -56,6 +56,8 @@ import { createProductRoutes } from "@/api/routes/products";
 import { createThresholdRoutes, CreateThresholdSchema, UpdateThresholdSchema } from "@/api/routes/thresholds";
 import { createSettingsRoutes, UpdateSettingsSchema } from "@/api/routes/settings";
 import { createAuthRoutes, LoginSchema } from "@/api/routes/auth";
+import { createTestRoutes } from "@/api/routes/test";
+import type { MagicLinkRepository } from "@/db/repositories/magic-link";
 
 // Re-export utilities for backward compatibility
 export {
@@ -202,6 +204,7 @@ export interface ServerDependencies {
   tenantRepo?: TenantRepository;
   stockSnapshotRepo?: StockSnapshotRepository;
   sessionRepo?: SessionRepository;
+  magicLinkRepo?: MagicLinkRepository;
 }
 
 export function createHealthResponse(): HealthResponse {
@@ -300,6 +303,12 @@ export function createServer(
   });
 
   const authRoutesModule = createAuthRoutes();
+
+  // Create test routes (only in non-production environments)
+  const testRoutes =
+    config.nodeEnv !== "production" && deps?.magicLinkRepo
+      ? createTestRoutes({ magicLinkRepo: deps.magicLinkRepo })
+      : null;
 
   return Bun.serve({
     port: config.port,
@@ -405,6 +414,17 @@ export function createServer(
           if (url.pathname === "/api/auth/magic-link/verify" && request.method === "GET") {
             const response = await traceRequest("GET", "/api/auth/magic-link/verify", async () => {
               return await magicLinkRoutes.verify(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
+          }
+        }
+
+        // Test routes (only in non-production environments)
+        if (testRoutes) {
+          if (url.pathname === "/api/test/magic-link-token" && request.method === "GET") {
+            const response = await traceRequest("GET", "/api/test/magic-link-token", async () => {
+              return await testRoutes.getMagicLinkToken(request);
             });
             recordRequestMetrics(response.status);
             return response;

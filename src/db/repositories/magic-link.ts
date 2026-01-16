@@ -86,6 +86,34 @@ export class MagicLinkRepository {
     return parseInt(result?.count ?? "0", 10);
   }
 
+  /**
+   * Find the most recent valid (unused, not expired) token for an email
+   * Used by E2E tests to retrieve tokens without checking email
+   */
+  async findLatestValidTokenByEmail(email: string): Promise<MagicLinkToken | null> {
+    const result = await this.db.queryOne<{
+      id: string;
+      email: string;
+      token: string;
+      expires_at: string;
+      used_at: string | null;
+      created_at: string;
+    }>(
+      `SELECT id, email, token, expires_at, used_at, created_at
+       FROM magic_link_tokens
+       WHERE email = $1 AND used_at IS NULL AND expires_at > NOW()
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [email.toLowerCase().trim()]
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return this.mapToMagicLinkToken(result);
+  }
+
   private mapToMagicLinkToken(row: {
     id: string;
     email: string;
