@@ -1,7 +1,10 @@
 name: Deploy
 
 on:
-  workflow_dispatch:  # Manual deployment only
+  workflow_dispatch:  # Manual deployment
+  push:
+    branches:
+      - main  # Automatic deployment on merge to main
 
 jobs:
   build-and-push:
