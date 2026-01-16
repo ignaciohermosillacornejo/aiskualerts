@@ -243,7 +243,7 @@ export function createServer(
   const csrfMiddleware: CSRFMiddleware | null = config.csrfTokenSecret
     ? createCSRFMiddleware({
         secret: config.csrfTokenSecret,
-        excludePaths: ["/api/webhooks/", "/api/auth/bsale/"],
+        excludePaths: ["/api/webhooks/", "/api/auth/bsale/", "/api/auth/magic-link"],
       })
     : null;
 
@@ -394,7 +394,10 @@ export function createServer(
         }
 
         // Apply rate limiting to API endpoints (bypass health checks)
-        if (url.pathname.startsWith("/api/") && !healthPaths.includes(url.pathname)) {
+        // Skip auth rate limiting in development mode for E2E tests
+        const skipRateLimit =
+          config.nodeEnv === "development" && url.pathname.startsWith("/api/auth/");
+        if (url.pathname.startsWith("/api/") && !healthPaths.includes(url.pathname) && !skipRateLimit) {
           const rateLimitResponse = apiRateLimiter.check(request);
           if (rateLimitResponse) {
             return rateLimitResponse;
