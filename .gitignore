@@ -39,3 +39,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Claude stuff
 plan
 .claude/settings.local.json
+
+# Playwright
+playwright-report
+playwright-results
+test-results
+.playwright
