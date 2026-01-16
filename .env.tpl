@@ -54,9 +54,11 @@ BSALE_REDIRECT_URI=https://aiskualerts.com/api/auth/bsale/callback
 BSALE_OAUTH_BASE_URL=https://oauth.bsale.io
 
 # ===========================================
-# Email Configuration (Resend - for Phase 3)
+# Email Configuration (Resend)
 # ===========================================
-# RESEND_API_KEY=<will be added in Phase 3>
+# Required for magic link authentication emails
+RESEND_API_KEY=op://Dev/RESEND_API_KEY/credential
+NOTIFICATION_FROM_EMAIL=alerts@notifications.aiskualerts.com
 
 # ===========================================
 # Sync Configuration
