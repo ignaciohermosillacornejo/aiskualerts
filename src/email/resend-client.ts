@@ -41,7 +41,7 @@ function isRetryableError(error: unknown): boolean {
 
 export function createEmailClient(config: Config): EmailClient {
   const apiKey = config.resendApiKey;
-  const fromEmail = config.notificationFromEmail ?? "alerts@aiskualerts.com";
+  const fromEmail = config.notificationFromEmail ?? "alerts@notifications.aiskualerts.com";
 
   if (!apiKey) {
     return {
