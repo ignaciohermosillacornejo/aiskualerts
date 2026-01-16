@@ -48,4 +48,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD bun run -e "fetch('http://localhost:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1))"
 
 # Start server (secrets loaded from .env via docker-compose)
-CMD ["bun", "src/server.ts"]
+# Note: Use index.ts not server.ts - index.ts initializes all dependencies
+CMD ["bun", "src/index.ts"]

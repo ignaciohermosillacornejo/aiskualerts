@@ -236,6 +236,37 @@ The same 1Password approach extends to production deployments:
 
 ---
 
+### 🚀 Deploy (`deploy.yml`)
+
+**Triggers:**
+- Automatic on push/merge to main branch
+- Manual dispatch (via GitHub UI)
+
+**Jobs:**
+1. **Build and Push**
+   - Builds Docker image with Bun runtime
+   - Pushes to GitHub Container Registry (ghcr.io)
+   - Tags with both `latest` and git SHA
+
+2. **Deploy to Server**
+   - Loads secrets from 1Password
+   - Copies deployment files to Hetzner server via SSH
+   - Pulls new Docker image
+   - Runs database migrations
+   - Performs health check verification
+
+**Duration:** ~3-5 minutes
+
+**Requirements:**
+- `OP_SERVICE_ACCOUNT_TOKEN`: 1Password service account token
+- 1Password vault with:
+  - Production database credentials
+  - Hetzner server IP and SSH key
+  - Bsale API credentials
+  - Email service credentials
+
+---
+
 ### 🚀 Release Automation (`release.yml`)
 
 **Triggers:**
@@ -326,4 +357,4 @@ git commit -m "docs: update README with setup instructions"
 ## Future Improvements
 
 - [ ] Add performance benchmarking
-- [ ] Add deployment workflows with 1Password integration
+- [x] Add deployment workflows with 1Password integration
