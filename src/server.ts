@@ -56,6 +56,8 @@ import { createProductRoutes } from "@/api/routes/products";
 import { createThresholdRoutes, CreateThresholdSchema, UpdateThresholdSchema } from "@/api/routes/thresholds";
 import { createSettingsRoutes, UpdateSettingsSchema } from "@/api/routes/settings";
 import { createAuthRoutes, LoginSchema } from "@/api/routes/auth";
+import { createTestRoutes } from "@/api/routes/test";
+import type { MagicLinkRepository } from "@/db/repositories/magic-link";
 
 // Re-export utilities for backward compatibility
 export {
@@ -202,6 +204,7 @@ export interface ServerDependencies {
   tenantRepo?: TenantRepository;
   stockSnapshotRepo?: StockSnapshotRepository;
   sessionRepo?: SessionRepository;
+  magicLinkRepo?: MagicLinkRepository;
 }
 
 export function createHealthResponse(): HealthResponse {
@@ -240,7 +243,7 @@ export function createServer(
   const csrfMiddleware: CSRFMiddleware | null = config.csrfTokenSecret
     ? createCSRFMiddleware({
         secret: config.csrfTokenSecret,
-        excludePaths: ["/api/webhooks/", "/api/auth/bsale/"],
+        excludePaths: ["/api/webhooks/", "/api/auth/bsale/", "/api/auth/magic-link"],
       })
     : null;
 
@@ -300,6 +303,12 @@ export function createServer(
   });
 
   const authRoutesModule = createAuthRoutes();
+
+  // Create test routes (only in non-production environments)
+  const testRoutes =
+    config.nodeEnv !== "production" && deps?.magicLinkRepo
+      ? createTestRoutes({ magicLinkRepo: deps.magicLinkRepo })
+      : null;
 
   return Bun.serve({
     port: config.port,
@@ -385,7 +394,10 @@ export function createServer(
         }
 
         // Apply rate limiting to API endpoints (bypass health checks)
-        if (url.pathname.startsWith("/api/") && !healthPaths.includes(url.pathname)) {
+        // Skip auth rate limiting in development mode for E2E tests
+        const skipRateLimit =
+          config.nodeEnv === "development" && url.pathname.startsWith("/api/auth/");
+        if (url.pathname.startsWith("/api/") && !healthPaths.includes(url.pathname) && !skipRateLimit) {
           const rateLimitResponse = apiRateLimiter.check(request);
           if (rateLimitResponse) {
             return rateLimitResponse;
@@ -405,6 +417,17 @@ export function createServer(
           if (url.pathname === "/api/auth/magic-link/verify" && request.method === "GET") {
             const response = await traceRequest("GET", "/api/auth/magic-link/verify", async () => {
               return await magicLinkRoutes.verify(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
+          }
+        }
+
+        // Test routes (only in non-production environments)
+        if (testRoutes) {
+          if (url.pathname === "/api/test/magic-link-token" && request.method === "GET") {
+            const response = await traceRequest("GET", "/api/test/magic-link-token", async () => {
+              return await testRoutes.getMagicLinkToken(request);
             });
             recordRequestMetrics(response.status);
             return response;
