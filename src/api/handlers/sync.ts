@@ -2,7 +2,7 @@ import type { TenantRepository } from "@/db/repositories/tenant";
 import type { AuthMiddleware, AuthContext } from "@/api/middleware/auth";
 import type { DatabaseClient } from "@/db/client";
 import type { Config } from "@/config";
-import { runSyncAndAlerts, type SyncJobResult } from "@/jobs/sync-job";
+import { runSyncForTenant } from "@/jobs/sync-job";
 import { logger } from "@/utils/logger";
 
 export interface SyncHandlerDeps {
@@ -14,9 +14,10 @@ export interface SyncHandlerDeps {
 
 export interface ManualSyncResult {
   success: boolean;
-  productsUpdated: number;
-  alertsGenerated: number;
-  duration: number;
+  message: string;
+  productsUpdated?: number;
+  alertsGenerated?: number;
+  duration?: number;
   error?: string;
 }
 
@@ -46,29 +47,27 @@ export function createSyncRoutes(deps: SyncHandlerDeps): SyncRoutes {
           return Response.json({ error: "Tenant not found" }, { status: 404 });
         }
 
-        const startTime = Date.now();
-
-        const result: SyncJobResult = await runSyncAndAlerts(db, config);
-
-        const duration = Date.now() - startTime;
-
-        // Find the result for this specific tenant
-        const tenantResult = result.syncProgress.results.find(
-          (r) => r.tenantId === authContext.tenantId
-        );
-
-        const response: ManualSyncResult = {
-          success: tenantResult?.success ?? false,
-          productsUpdated: tenantResult?.itemsSynced ?? 0,
-          alertsGenerated: result.totalAlertsCreated,
-          duration,
-        };
-
-        if (tenantResult?.error) {
-          response.error = tenantResult.error;
+        if (!tenant.bsale_access_token) {
+          return Response.json(
+            { success: false, message: "Bsale not connected", error: "bsale_not_connected" },
+            { status: 400 }
+          );
         }
 
-        return Response.json(response);
+        // Run sync asynchronously - don't await the full sync
+        // This prevents nginx timeout issues with long-running syncs
+        runSyncForTenant(db, config, authContext.tenantId).catch((error: unknown) => {
+          logger.error("Background sync failed", error instanceof Error ? error : new Error(String(error)), {
+            tenantId: authContext.tenantId,
+          });
+        });
+
+        const response: ManualSyncResult = {
+          success: true,
+          message: "Sync started",
+        };
+
+        return Response.json(response, { status: 202 });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Sync failed";
         logger.error("Manual sync error", error instanceof Error ? error : new Error(String(error)));
@@ -76,9 +75,7 @@ export function createSyncRoutes(deps: SyncHandlerDeps): SyncRoutes {
         return Response.json(
           {
             success: false,
-            productsUpdated: 0,
-            alertsGenerated: 0,
-            duration: 0,
+            message: "Failed to start sync",
             error: errorMessage,
           } satisfies ManualSyncResult,
           { status: 500 }
