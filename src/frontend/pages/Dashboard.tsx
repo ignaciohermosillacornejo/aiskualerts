@@ -218,7 +218,7 @@ function ConnectBsaleCard() {
         <div className="empty-state-title">Conecta Bsale para sincronizar</div>
         <p>Conecta tu cuenta de Bsale para sincronizar tu inventario y recibir alertas de stock bajo.</p>
         <a href="/app/settings" className="btn btn-primary" style={{ marginTop: "1rem" }}>
-          Ir a Configuracion
+          Ir a Configuración
         </a>
       </div>
     </div>

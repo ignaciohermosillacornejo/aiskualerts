@@ -7,18 +7,19 @@ export function Products() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [bsaleConnected, setBsaleConnected] = useState<boolean | null>(null);
+  const [bsaleConnected, setBsaleConnected] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
         const [settingsData, productsData] = await Promise.all([
-          api.getSettings(),
+          api.getSettings().catch(() => ({ bsaleConnected: false })),
           api.getProducts().catch(() => ({ products: [] })),
         ]);
-        setBsaleConnected(settingsData.bsaleConnected);
-        if (settingsData.bsaleConnected) {
+        const isConnected = "bsaleConnected" in settingsData && settingsData.bsaleConnected;
+        setBsaleConnected(isConnected);
+        if (isConnected && "products" in productsData) {
           setProducts(productsData.products);
         }
       } catch (err) {
@@ -50,9 +51,9 @@ export function Products() {
         <div className="empty-state">
           <div className="empty-state-icon">cube</div>
           <div className="empty-state-title">Conecta tu cuenta de Bsale</div>
-          <p>Conecta tu cuenta de Bsale en Configuracion para ver y gestionar tus productos.</p>
+          <p>Conecta tu cuenta de Bsale en Configuración para ver y gestionar tus productos.</p>
           <a href="/app/settings" className="btn btn-primary" style={{ marginTop: "1rem" }}>
-            Ir a Configuracion
+            Ir a Configuración
           </a>
         </div>
       </div>

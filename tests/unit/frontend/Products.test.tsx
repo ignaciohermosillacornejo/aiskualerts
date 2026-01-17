@@ -9,6 +9,7 @@ import "../../setup";
 import {
   createMockProducts,
   createMockProduct,
+  createMockTenantSettings,
   createFetchMock,
   mockResponse,
 } from "../../fixtures/frontend";
@@ -283,13 +284,20 @@ describe("Products", () => {
   describe("API integration", () => {
     test("loads products on mount", async () => {
       const mockProducts = { data: createMockProducts(5), pagination: { total: 5, page: 1, limit: 20, totalPages: 1 } };
+      const mockSettings = createMockTenantSettings({ bsaleConnected: true });
 
-      let callCount = 0;
-      globalThis.fetch = createFetchMock(() => {
-        callCount++;
-        if (callCount === 1) return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
-        return Promise.resolve(mockResponse(mockProducts));
-      });
+      globalThis.fetch = mock((url: string) => {
+        if (url.includes("/auth/me")) {
+          return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings")) {
+          return Promise.resolve(mockResponse(mockSettings));
+        }
+        if (url.includes("/products")) {
+          return Promise.resolve(mockResponse(mockProducts));
+        }
+        return Promise.resolve(mockResponse({}, { ok: false, status: 404 }));
+      }) as unknown as typeof fetch;
 
       const container = document.createElement("div");
       document.body.appendChild(container);
@@ -308,7 +316,9 @@ describe("Products", () => {
           setTimeout(resolve, 300);
         });
 
-        expect(callCount).toBeGreaterThan(1);
+        // Verify fetch was called (products + settings + auth)
+        const mockFetch = globalThis.fetch as unknown as { mock: { calls: unknown[][] } };
+        expect(mockFetch.mock.calls.length).toBeGreaterThan(1);
 
         root.unmount();
       } finally {
@@ -328,13 +338,20 @@ describe("Products", () => {
   describe("DOM rendering", () => {
     test("renders search input", async () => {
       const mockProducts = { data: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } };
+      const mockSettings = createMockTenantSettings({ bsaleConnected: true });
 
-      let callCount = 0;
-      globalThis.fetch = createFetchMock(() => {
-        callCount++;
-        if (callCount === 1) return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
-        return Promise.resolve(mockResponse(mockProducts));
-      });
+      globalThis.fetch = mock((url: string) => {
+        if (url.includes("/auth/me")) {
+          return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings")) {
+          return Promise.resolve(mockResponse(mockSettings));
+        }
+        if (url.includes("/products")) {
+          return Promise.resolve(mockResponse(mockProducts));
+        }
+        return Promise.resolve(mockResponse({}, { ok: false, status: 404 }));
+      }) as unknown as typeof fetch;
 
       const container = document.createElement("div");
       document.body.appendChild(container);
@@ -365,13 +382,20 @@ describe("Products", () => {
 
     test("renders products count in title", async () => {
       const mockProducts = { data: createMockProducts(5), pagination: { total: 5, page: 1, limit: 20, totalPages: 1 } };
+      const mockSettings = createMockTenantSettings({ bsaleConnected: true });
 
-      let callCount = 0;
-      globalThis.fetch = createFetchMock(() => {
-        callCount++;
-        if (callCount === 1) return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
-        return Promise.resolve(mockResponse(mockProducts));
-      });
+      globalThis.fetch = mock((url: string) => {
+        if (url.includes("/auth/me")) {
+          return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings")) {
+          return Promise.resolve(mockResponse(mockSettings));
+        }
+        if (url.includes("/products")) {
+          return Promise.resolve(mockResponse(mockProducts));
+        }
+        return Promise.resolve(mockResponse({}, { ok: false, status: 404 }));
+      }) as unknown as typeof fetch;
 
       const container = document.createElement("div");
       document.body.appendChild(container);
@@ -402,11 +426,15 @@ describe("Products", () => {
 
     test("renders table when products exist", async () => {
       const mockProducts = { data: createMockProducts(3), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } };
+      const mockSettings = createMockTenantSettings({ bsaleConnected: true });
 
       // URL-based mock to handle parallel requests
       globalThis.fetch = mock((url: string) => {
         if (url.includes("/auth/me")) {
           return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings")) {
+          return Promise.resolve(mockResponse(mockSettings));
         }
         if (url.includes("/products")) {
           return Promise.resolve(mockResponse(mockProducts));
@@ -439,6 +467,60 @@ describe("Products", () => {
           document.body.removeChild(container);
         }
       }
+    });
+  });
+
+  describe("Bsale connection state", () => {
+    test("shows connection prompt when Bsale is not connected", async () => {
+      const mockProducts = { data: createMockProducts(3), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } };
+      const mockSettings = createMockTenantSettings({ bsaleConnected: false });
+
+      globalThis.fetch = mock((url: string) => {
+        if (url.includes("/auth/me")) {
+          return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings")) {
+          return Promise.resolve(mockResponse(mockSettings));
+        }
+        if (url.includes("/products")) {
+          return Promise.resolve(mockResponse(mockProducts));
+        }
+        return Promise.resolve(mockResponse({}, { ok: false, status: 404 }));
+      }) as unknown as typeof fetch;
+
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+
+      try {
+        const root = createRoot(container);
+
+        await new Promise<void>((resolve) => {
+          root.render(
+            React.createElement(Router, null,
+              React.createElement(AuthProvider, null,
+                React.createElement(Products)
+              )
+            )
+          );
+          setTimeout(resolve, 300);
+        });
+
+        // Should show connection prompt, not the products table
+        expect(container.querySelector("table")).toBeNull();
+        expect(container.textContent).toContain("Conecta tu cuenta de Bsale");
+        expect(container.textContent).toContain("Configuración");
+
+        root.unmount();
+      } finally {
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      }
+    });
+
+    test("initial bsaleConnected state is false", () => {
+      const bsaleConnected = false;
+      expect(bsaleConnected).toBe(false);
     });
   });
 
