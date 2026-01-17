@@ -165,6 +165,15 @@ function createMockDependencies(): MainDependencies & {
     hasActiveAccess = mock(() => Promise.resolve(true));
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Mock class for testing
+  class MockStockSnapshotRepository {}
+
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Mock class for testing
+  class MockThresholdRepository {}
+
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Mock class for testing
+  class MockAlertRepository {}
+
   return {
     loadConfig: loadConfig as unknown as MainDependencies["loadConfig"],
     getDb: getDb as unknown as MainDependencies["getDb"],
@@ -183,6 +192,9 @@ function createMockDependencies(): MainDependencies & {
     TenantRepository: MockTenantRepository as unknown as MainDependencies["TenantRepository"],
     UserRepository: MockUserRepository as unknown as MainDependencies["UserRepository"],
     MagicLinkRepository: MockMagicLinkRepository as unknown as MainDependencies["MagicLinkRepository"],
+    StockSnapshotRepository: MockStockSnapshotRepository as unknown as MainDependencies["StockSnapshotRepository"],
+    ThresholdRepository: MockThresholdRepository as unknown as MainDependencies["ThresholdRepository"],
+    AlertRepository: MockAlertRepository as unknown as MainDependencies["AlertRepository"],
     BsaleOAuthClient: MockBsaleOAuthClient as unknown as MainDependencies["BsaleOAuthClient"],
     OAuthStateStore: MockOAuthStateStore as unknown as MainDependencies["OAuthStateStore"],
     MercadoPagoClient: MockMercadoPagoClient as unknown as MainDependencies["MercadoPagoClient"],
