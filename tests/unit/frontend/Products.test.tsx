@@ -282,7 +282,7 @@ describe("Products", () => {
 
   describe("API integration", () => {
     test("loads products on mount", async () => {
-      const mockProducts = { products: createMockProducts(5), total: 5 };
+      const mockProducts = { data: createMockProducts(5), pagination: { total: 5, page: 1, limit: 20, totalPages: 1 } };
 
       let callCount = 0;
       globalThis.fetch = createFetchMock(() => {
@@ -327,7 +327,7 @@ describe("Products", () => {
 
   describe("DOM rendering", () => {
     test("renders search input", async () => {
-      const mockProducts = { products: [], total: 0 };
+      const mockProducts = { data: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } };
 
       let callCount = 0;
       globalThis.fetch = createFetchMock(() => {
@@ -364,7 +364,7 @@ describe("Products", () => {
     });
 
     test("renders products count in title", async () => {
-      const mockProducts = { products: createMockProducts(5), total: 5 };
+      const mockProducts = { data: createMockProducts(5), pagination: { total: 5, page: 1, limit: 20, totalPages: 1 } };
 
       let callCount = 0;
       globalThis.fetch = createFetchMock(() => {
@@ -401,7 +401,7 @@ describe("Products", () => {
     });
 
     test("renders table when products exist", async () => {
-      const mockProducts = { products: createMockProducts(3), total: 3 };
+      const mockProducts = { data: createMockProducts(3), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } };
 
       // URL-based mock to handle parallel requests
       globalThis.fetch = mock((url: string) => {
