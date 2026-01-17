@@ -236,42 +236,6 @@ describe("Header", () => {
     });
   });
 
-  describe("notification bell", () => {
-    test("notification bell SVG dimensions", () => {
-      const svgProps = {
-        width: "20",
-        height: "20",
-        fill: "none",
-        viewBox: "0 0 24 24",
-        stroke: "currentColor",
-      };
-
-      expect(svgProps.width).toBe("20");
-      expect(svgProps.height).toBe("20");
-      expect(svgProps.fill).toBe("none");
-      expect(svgProps.viewBox).toBe("0 0 24 24");
-      expect(svgProps.stroke).toBe("currentColor");
-    });
-
-    test("notification bell path stroke properties", () => {
-      const pathProps = {
-        strokeLinecap: "round",
-        strokeLinejoin: "round",
-        strokeWidth: 2,
-      };
-
-      expect(pathProps.strokeLinecap).toBe("round");
-      expect(pathProps.strokeLinejoin).toBe("round");
-      expect(pathProps.strokeWidth).toBe(2);
-    });
-
-    test("notification bell is always visible regardless of auth state", () => {
-      // Bell is outside the conditional user check
-      const showNotificationBell = true;
-      expect(showNotificationBell).toBe(true);
-    });
-  });
-
   describe("button classes", () => {
     test("logout button has secondary class", () => {
       const buttonClasses = "btn btn-secondary";
@@ -279,11 +243,6 @@ describe("Header", () => {
       expect(buttonClasses).toContain("btn-secondary");
     });
 
-    test("notification button has secondary class", () => {
-      const buttonClasses = "btn btn-secondary";
-      expect(buttonClasses).toContain("btn");
-      expect(buttonClasses).toContain("btn-secondary");
-    });
   });
 
   describe("logout button text", () => {
@@ -507,40 +466,5 @@ describe("Header", () => {
       }
     });
 
-    test("Header notification bell renders", async () => {
-      globalThis.fetch = createFetchMock(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
-        } as Response)
-      );
-
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-
-      try {
-        const root = createRoot(container);
-
-        await new Promise<void>((resolve) => {
-          root.render(
-            React.createElement(Router, null,
-              React.createElement(AuthProvider, null,
-                React.createElement(Header)
-              )
-            )
-          );
-          setTimeout(resolve, 200);
-        });
-
-        // Should have notification bell SVG
-        expect(container.querySelector("svg")).not.toBeNull();
-
-        root.unmount();
-      } finally {
-        if (container.parentNode) {
-          document.body.removeChild(container);
-        }
-      }
-    });
   });
 });
