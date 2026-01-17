@@ -49,8 +49,8 @@ BSALE_API_BASE_URL=https://api.bsale.io
 
 # Bsale OAuth Configuration (Production - Approved)
 BSALE_APP_ID=op://Dev/BSALE_APP_ID/credential
-BSALE_APP_TOKEN=op://Dev/BSALE_APP_TOKEN/credential
-BSALE_REDIRECT_URI=https://aiskualerts.com/api/auth/bsale/callback
+BSALE_INTEGRATOR_TOKEN=op://Dev/BSALE_INTEGRATOR_TOKEN/credential
+BSALE_REDIRECT_URI=https://aiskualerts.com/api/bsale/callback
 BSALE_OAUTH_BASE_URL=https://oauth.bsale.io
 
 # ===========================================
