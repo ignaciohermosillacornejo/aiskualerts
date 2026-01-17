@@ -153,7 +153,7 @@ describe("Server Routes - Extended Coverage", () => {
       expect(Array.isArray(body.data)).toBe(true);
       expect(body.pagination).toBeDefined();
       expect(body.pagination.page).toBe(1);
-      expect(body.pagination.limit).toBe(20);
+      expect(body.pagination.limit).toBe(100);
       expect(typeof body.pagination.total).toBe("number");
       expect(typeof body.pagination.totalPages).toBe("number");
     });
@@ -170,15 +170,15 @@ describe("Server Routes - Extended Coverage", () => {
       expect(body.pagination.limit).toBe(2);
     });
 
-    test("caps limit at 100", async () => {
-      const response = await fetch(`${baseUrl}/api/products?limit=200`);
+    test("caps limit at 1000", async () => {
+      const response = await fetch(`${baseUrl}/api/products?limit=2000`);
       const body = (await response.json()) as {
         data: unknown[];
         pagination: { page: number; limit: number };
       };
 
       expect(response.status).toBe(200);
-      expect(body.pagination.limit).toBe(100);
+      expect(body.pagination.limit).toBe(1000);
     });
 
     test("handles invalid page parameter", async () => {
@@ -232,7 +232,7 @@ describe("Server Routes - Extended Coverage", () => {
       expect(Array.isArray(body.data)).toBe(true);
       expect(body.pagination).toBeDefined();
       expect(body.pagination.page).toBe(1);
-      expect(body.pagination.limit).toBe(20);
+      expect(body.pagination.limit).toBe(100);
       expect(typeof body.pagination.total).toBe("number");
       expect(typeof body.pagination.totalPages).toBe("number");
     });
@@ -249,15 +249,15 @@ describe("Server Routes - Extended Coverage", () => {
       expect(body.pagination.limit).toBe(10);
     });
 
-    test("caps limit at 100", async () => {
-      const response = await fetch(`${baseUrl}/api/thresholds?limit=150`);
+    test("caps limit at 1000", async () => {
+      const response = await fetch(`${baseUrl}/api/thresholds?limit=1500`);
       const body = (await response.json()) as {
         data: unknown[];
         pagination: { limit: number };
       };
 
       expect(response.status).toBe(200);
-      expect(body.pagination.limit).toBe(100);
+      expect(body.pagination.limit).toBe(1000);
     });
   });
 
