@@ -481,8 +481,8 @@ describe("Thresholds", () => {
 
   describe("API integration", () => {
     test("loads thresholds and products on mount", async () => {
-      const mockThresholds = { thresholds: createMockThresholds(3), total: 3 };
-      const mockProducts = { products: createMockProducts(5), total: 5 };
+      const mockThresholds = { data: createMockThresholds(3), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } };
+      const mockProducts = { data: createMockProducts(5), pagination: { total: 5, page: 1, limit: 20, totalPages: 1 } };
 
       let callCount = 0;
       globalThis.fetch = createFetchMock(() => {
@@ -520,23 +520,23 @@ describe("Thresholds", () => {
     });
 
     test("Promise.all fetches thresholds and products in parallel", async () => {
-      const mockThresholds = { thresholds: createMockThresholds(3), total: 3 };
-      const mockProducts = { products: createMockProducts(5), total: 5 };
+      const mockThresholds = { data: createMockThresholds(3), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } };
+      const mockProducts = { data: createMockProducts(5), pagination: { total: 5, page: 1, limit: 20, totalPages: 1 } };
 
       const [thresholdsResult, productsResult] = await Promise.all([
         Promise.resolve(mockThresholds),
         Promise.resolve(mockProducts),
       ]);
 
-      expect(thresholdsResult.thresholds.length).toBe(3);
-      expect(productsResult.products.length).toBe(5);
+      expect(thresholdsResult.data.length).toBe(3);
+      expect(productsResult.data.length).toBe(5);
     });
   });
 
   describe("DOM rendering", () => {
     test("renders page title with threshold count", async () => {
-      const mockThresholds = { thresholds: createMockThresholds(5), total: 5 };
-      const mockProducts = { products: [], total: 0 };
+      const mockThresholds = { data: createMockThresholds(5), pagination: { total: 5, page: 1, limit: 20, totalPages: 1 } };
+      const mockProducts = { data: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } };
 
       let callCount = 0;
       globalThis.fetch = createFetchMock(() => {
@@ -574,8 +574,8 @@ describe("Thresholds", () => {
     });
 
     test("renders table when thresholds exist", async () => {
-      const mockThresholds = { thresholds: createMockThresholds(3), total: 3 };
-      const mockProducts = { products: createMockProducts(3), total: 3 };
+      const mockThresholds = { data: createMockThresholds(3), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } };
+      const mockProducts = { data: createMockProducts(3), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } };
 
       // URL-based mock to handle parallel requests
       globalThis.fetch = mock((url: string) => {

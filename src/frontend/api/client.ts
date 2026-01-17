@@ -147,8 +147,17 @@ interface GetProductsResponse {
   total: number;
 }
 
+interface ApiProductsResponse {
+  data: Product[];
+  pagination: { total: number; page: number; limit: number; totalPages: number };
+}
+
 async function getProducts(): Promise<GetProductsResponse> {
-  return request<GetProductsResponse>("/products");
+  const response = await request<ApiProductsResponse>("/products");
+  return {
+    products: response.data,
+    total: response.pagination.total,
+  };
 }
 
 async function getProduct(productId: string): Promise<Product> {
@@ -161,13 +170,22 @@ interface GetThresholdsResponse {
   total: number;
 }
 
+interface ApiThresholdsResponse {
+  data: Threshold[];
+  pagination: { total: number; page: number; limit: number; totalPages: number };
+}
+
 interface ThresholdInput {
   productId: string;
   minQuantity: number;
 }
 
 async function getThresholds(): Promise<GetThresholdsResponse> {
-  return request<GetThresholdsResponse>("/thresholds");
+  const response = await request<ApiThresholdsResponse>("/thresholds");
+  return {
+    thresholds: response.data,
+    total: response.pagination.total,
+  };
 }
 
 async function createThreshold(data: ThresholdInput): Promise<Threshold> {
