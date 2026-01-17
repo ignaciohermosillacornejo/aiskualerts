@@ -9,6 +9,9 @@ import type { AuthMiddleware } from "../middleware/auth";
 import type { CSRFMiddleware } from "../middleware/csrf";
 import { logger } from "@/utils/logger";
 
+// Cookie name for storing OAuth state (Bsale doesn't return state in callback)
+const BSALE_STATE_COOKIE = "bsale_oauth_state";
+
 export interface BsaleConnectionRoutesConfig {
   authMiddleware: AuthMiddleware;
   csrfMiddleware?: CSRFMiddleware;
@@ -38,14 +41,29 @@ export function createBsaleConnectionRoutes(
           );
         }
 
-        const { authorizationUrl } = handleBsaleConnectStart(
+        const { authorizationUrl, state } = handleBsaleConnectStart(
           { tenantId: authContext.tenantId, clientCode },
           deps
         );
 
+        // Store state in cookie since Bsale doesn't return it in callback
+        // Use httpOnly, secure, sameSite=lax for security
+        const isProduction = process.env.NODE_ENV === "production";
+        const cookieOptions = [
+          `${BSALE_STATE_COOKIE}=${state}`,
+          "Path=/",
+          "HttpOnly",
+          "SameSite=Lax",
+          "Max-Age=600", // 10 minutes expiry
+          ...(isProduction ? ["Secure"] : []),
+        ].join("; ");
+
         return new Response(null, {
           status: 302,
-          headers: { Location: authorizationUrl },
+          headers: {
+            Location: authorizationUrl,
+            "Set-Cookie": cookieOptions,
+          },
         });
       } catch (error) {
         if (error instanceof Error && error.message === "Not authenticated") {
@@ -67,26 +85,51 @@ export function createBsaleConnectionRoutes(
     },
 
     /**
-     * GET /api/bsale/callback?code=xxx&state=xxx
+     * GET /api/bsale/callback?code=xxx
      * Handle Bsale OAuth callback for connection flow
+     * Note: Bsale doesn't return state in URL, we read it from cookie
      */
     async callback(request: Request): Promise<Response> {
+      // Helper to clear the state cookie
+      const clearStateCookie = () => {
+        const isProduction = process.env.NODE_ENV === "production";
+        return [
+          `${BSALE_STATE_COOKIE}=`,
+          "Path=/",
+          "HttpOnly",
+          "SameSite=Lax",
+          "Max-Age=0", // Expire immediately
+          ...(isProduction ? ["Secure"] : []),
+        ].join("; ");
+      };
+
       try {
         const url = new URL(request.url);
         const code = url.searchParams.get("code");
-        const state = url.searchParams.get("state");
+
+        // Read state from cookie (Bsale doesn't return it in URL)
+        const cookies = request.headers.get("Cookie") ?? "";
+        const stateRegex = new RegExp(`${BSALE_STATE_COOKIE}=([^;]+)`);
+        const stateMatch = stateRegex.exec(cookies);
+        const state = stateMatch?.[1];
 
         if (!code) {
           return new Response(null, {
             status: 302,
-            headers: { Location: "/app/settings?error=missing_code" },
+            headers: {
+              Location: "/app/settings?error=missing_code",
+              "Set-Cookie": clearStateCookie(),
+            },
           });
         }
 
         if (!state) {
           return new Response(null, {
             status: 302,
-            headers: { Location: "/app/settings?error=missing_state" },
+            headers: {
+              Location: "/app/settings?error=missing_state",
+              "Set-Cookie": clearStateCookie(),
+            },
           });
         }
 
@@ -94,7 +137,10 @@ export function createBsaleConnectionRoutes(
 
         return new Response(null, {
           status: 302,
-          headers: { Location: "/app/settings?connected=true" },
+          headers: {
+            Location: "/app/settings?connected=true",
+            "Set-Cookie": clearStateCookie(),
+          },
         });
       } catch (error) {
         if (error instanceof BsaleConnectionError) {
@@ -102,7 +148,10 @@ export function createBsaleConnectionRoutes(
           const encodedError = encodeURIComponent(error.message);
           return new Response(null, {
             status: 302,
-            headers: { Location: `/app/settings?error=${encodedError}` },
+            headers: {
+              Location: `/app/settings?error=${encodedError}`,
+              "Set-Cookie": clearStateCookie(),
+            },
           });
         }
 
@@ -112,7 +161,10 @@ export function createBsaleConnectionRoutes(
         );
         return new Response(null, {
           status: 302,
-          headers: { Location: "/app/settings?error=connection_failed" },
+          headers: {
+            Location: "/app/settings?error=connection_failed",
+            "Set-Cookie": clearStateCookie(),
+          },
         });
       }
     },
