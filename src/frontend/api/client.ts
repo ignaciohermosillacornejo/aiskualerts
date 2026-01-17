@@ -118,6 +118,7 @@ async function getDashboardStats(): Promise<DashboardStats> {
 // Alerts
 interface GetAlertsOptions {
   type?: "threshold_breach" | "low_velocity";
+  status?: "pending" | "sent" | "dismissed";
   limit?: number;
   offset?: number;
 }
@@ -130,6 +131,7 @@ interface GetAlertsResponse {
 async function getAlerts(options: GetAlertsOptions = {}): Promise<GetAlertsResponse> {
   const params = new URLSearchParams();
   if (options.type) params.set("type", options.type);
+  if (options.status) params.set("status", options.status);
   if (options.limit) params.set("limit", String(options.limit));
   if (options.offset) params.set("offset", String(options.offset));
 
