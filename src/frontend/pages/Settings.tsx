@@ -127,7 +127,7 @@ export function Settings() {
 
   const handleConnectBsale = useCallback(() => {
     if (!clientCode.trim()) {
-      setError("Por favor ingresa tu codigo de cliente de Bsale");
+      setError("Por favor ingresa el RUT/RUC/RFC de tu empresa");
       return;
     }
     setBsaleLoading(true);
@@ -254,17 +254,17 @@ export function Settings() {
             {showConnectForm ? (
               <div>
                 <div className="form-group">
-                  <label className="form-label">Codigo de Cliente Bsale</label>
+                  <label className="form-label">RUT / RUC / RFC de tu empresa</label>
                   <input
                     type="text"
                     className="form-input"
                     value={clientCode}
                     onChange={(e) => setClientCode(e.target.value)}
-                    placeholder="ej: miempresa"
+                    placeholder="ej: 12.345.678-9"
                     disabled={bsaleLoading}
                   />
                   <p style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.5rem" }}>
-                    Tu codigo de cliente es el subdominio de tu tienda Bsale (ej: si tu URL es miempresa.bsale.cl, tu codigo es "miempresa")
+                    Ingresa el identificador tributario de tu empresa registrado en Bsale (RUT en Chile, RUC en Peru, RFC en Mexico).
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
