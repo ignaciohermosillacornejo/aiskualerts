@@ -25,10 +25,9 @@ BSALE_API_BASE_URL=https://api.bsale.io
 
 # Bsale OAuth Configuration
 BSALE_APP_ID=op://Dev/BSALE_APP_ID/credential
-BSALE_APP_TOKEN=op://Dev/BSALE_APP_TOKEN/credential
-BSALE_INTEGRATOR_TOKEN=op://Dev/BSALE_APP_TOKEN/credential
+BSALE_INTEGRATOR_TOKEN=op://Dev/BSALE_INTEGRATOR_TOKEN/credential
 # Note: Will be updated once ngrok is started
-BSALE_REDIRECT_URI=http://localhost:3000/api/auth/bsale/callback
+BSALE_REDIRECT_URI=http://localhost:3000/api/bsale/callback
 BSALE_OAUTH_BASE_URL=https://oauth.bsale.io
 
 # ===========================================
