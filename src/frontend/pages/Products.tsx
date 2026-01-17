@@ -7,20 +7,28 @@ export function Products() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [bsaleConnected, setBsaleConnected] = useState(false);
 
   useEffect(() => {
-    async function loadProducts() {
+    async function loadData() {
       try {
         setLoading(true);
-        const data = await api.getProducts();
-        setProducts(data.products);
+        const [settingsData, productsData] = await Promise.all([
+          api.getSettings().catch(() => ({ bsaleConnected: false })),
+          api.getProducts().catch(() => ({ products: [] })),
+        ]);
+        const isConnected = "bsaleConnected" in settingsData && settingsData.bsaleConnected;
+        setBsaleConnected(isConnected);
+        if (isConnected && "products" in productsData) {
+          setProducts(productsData.products);
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al cargar productos");
+        setError(err instanceof Error ? err.message : "Error al cargar datos");
       } finally {
         setLoading(false);
       }
     }
-    loadProducts();
+    loadData();
   }, []);
 
   const filteredProducts = products.filter(
@@ -33,6 +41,21 @@ export function Products() {
     return (
       <div className="loading">
         <div className="spinner" />
+      </div>
+    );
+  }
+
+  if (!bsaleConnected) {
+    return (
+      <div className="card">
+        <div className="empty-state">
+          <div className="empty-state-icon">cube</div>
+          <div className="empty-state-title">Conecta tu cuenta de Bsale</div>
+          <p>Conecta tu cuenta de Bsale en Configuración para ver y gestionar tus productos.</p>
+          <a href="/app/settings" className="btn btn-primary" style={{ marginTop: "1rem" }}>
+            Ir a Configuración
+          </a>
+        </div>
       </div>
     );
   }
