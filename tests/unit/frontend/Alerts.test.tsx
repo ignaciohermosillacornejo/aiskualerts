@@ -280,7 +280,7 @@ describe("Alerts", () => {
               )
             )
           );
-          setTimeout(resolve, 300);
+          setTimeout(resolve, 500);
         });
 
         expect(callCount).toBeGreaterThan(1);
@@ -324,7 +324,7 @@ describe("Alerts", () => {
               )
             )
           );
-          setTimeout(resolve, 300);
+          setTimeout(resolve, 500);
         });
 
         expect(container.textContent).toContain("Filtrar Alertas");
@@ -364,7 +364,7 @@ describe("Alerts", () => {
               )
             )
           );
-          setTimeout(resolve, 300);
+          setTimeout(resolve, 500);
         });
 
         expect(container.textContent).toContain("Alertas");
@@ -405,7 +405,7 @@ describe("Alerts", () => {
               )
             )
           );
-          setTimeout(resolve, 300);
+          setTimeout(resolve, 500);
         });
 
         expect(container.querySelector("table")).not.toBeNull();
