@@ -1,11 +1,19 @@
 import { z } from "zod";
 import { jsonWithCors, createValidationErrorResponse } from "./utils";
+import type { SessionRepository } from "@/db/repositories/session";
+import type { UserRepository } from "@/db/repositories/user";
+import { extractSessionToken } from "@/utils/cookies";
 
 // Zod schema for login
 export const LoginSchema = z.object({
   email: z.email("Invalid email format"),
   password: z.string().min(1, "Password is required"),
 });
+
+export interface AuthRouteDeps {
+  sessionRepo?: SessionRepository | undefined;
+  userRepo?: UserRepository | undefined;
+}
 
 export interface AuthRoutes {
   "/api/auth/login": {
@@ -15,11 +23,11 @@ export interface AuthRoutes {
     POST: (req: Request) => Response;
   };
   "/api/auth/me": {
-    GET: (req: Request) => Response;
+    GET: (req: Request) => Promise<Response>;
   };
 }
 
-export function createAuthRoutes(): AuthRoutes {
+export function createAuthRoutes(deps: AuthRouteDeps = {}): AuthRoutes {
   return {
     "/api/auth/login": {
       POST: async (req) => {
@@ -75,11 +83,37 @@ export function createAuthRoutes(): AuthRoutes {
     },
 
     "/api/auth/me": {
-      GET: (req) => {
+      GET: async (req) => {
         const cookie = req.headers.get("Cookie") ?? "";
-        if (!cookie.includes("session_token=")) {
+        const sessionToken = extractSessionToken(cookie);
+
+        if (!sessionToken) {
           return jsonWithCors({ user: null }, { status: 401 });
         }
+
+        // If we have repositories, use real session/user lookup
+        if (deps.sessionRepo && deps.userRepo) {
+          const session = await deps.sessionRepo.findByToken(sessionToken);
+          if (!session) {
+            return jsonWithCors({ user: null }, { status: 401 });
+          }
+
+          const user = await deps.userRepo.getById(session.userId);
+          if (!user) {
+            return jsonWithCors({ user: null }, { status: 401 });
+          }
+
+          return jsonWithCors({
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name ?? "Usuario",
+              role: "admin" as const,
+            },
+          });
+        }
+
+        // Fallback to mock data for testing/development without DB
         return jsonWithCors({
           user: {
             id: "u1",
