@@ -3,6 +3,7 @@ import { useSearch } from "wouter";
 import { api } from "../api/client";
 import type { TenantSettings, SyncStatus } from "../types";
 import { ApiError } from "../api/client";
+import { ConfirmModal } from "../components/ConfirmModal";
 
 // Validate MercadoPago URLs to prevent open redirect attacks
 function isValidMercadoPagoUrl(url: string): boolean {
@@ -73,6 +74,7 @@ export function Settings() {
   const [success, setSuccess] = useState<string | null>(null);
   const [clientCode, setClientCode] = useState("");
   const [showConnectForm, setShowConnectForm] = useState(false);
+  const [upgradeConfirm, setUpgradeConfirm] = useState(false);
 
   // Parse URL parameters
   const params = new URLSearchParams(searchString);
@@ -406,7 +408,7 @@ export function Settings() {
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={handleUpgrade}
+                onClick={() => setUpgradeConfirm(true)}
                 disabled={billingLoading}
               >
                 {billingLoading ? "Cargando..." : "Actualizar a Pro"}
@@ -436,6 +438,19 @@ export function Settings() {
           {saving ? "Guardando..." : "Guardar Cambios"}
         </button>
       </form>
+
+      <ConfirmModal
+        isOpen={upgradeConfirm}
+        title="Actualizar a Plan Pro"
+        message="Seras redirigido a MercadoPago para completar tu suscripcion al Plan Pro (precio mensual). ¿Deseas continuar?"
+        confirmLabel="Continuar"
+        cancelLabel="Cancelar"
+        onConfirm={() => {
+          setUpgradeConfirm(false);
+          handleUpgrade();
+        }}
+        onCancel={() => setUpgradeConfirm(false)}
+      />
     </div>
   );
 }
