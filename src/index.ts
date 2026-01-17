@@ -11,6 +11,9 @@ import { TenantRepository } from "@/db/repositories/tenant";
 import { UserRepository } from "@/db/repositories/user";
 import { SessionRepository } from "@/db/repositories/session";
 import { MagicLinkRepository } from "@/db/repositories/magic-link";
+import { StockSnapshotRepository } from "@/db/repositories/stock-snapshot";
+import { ThresholdRepository } from "@/db/repositories/threshold";
+import { AlertRepository } from "@/db/repositories/alert";
 import { OAuthStateStore } from "@/utils/oauth-state-store";
 import {
   initializeSentry,
@@ -42,6 +45,9 @@ export interface MainDependencies {
   TenantRepository: typeof TenantRepository;
   UserRepository: typeof UserRepository;
   MagicLinkRepository: typeof MagicLinkRepository;
+  StockSnapshotRepository: typeof StockSnapshotRepository;
+  ThresholdRepository: typeof ThresholdRepository;
+  AlertRepository: typeof AlertRepository;
   BsaleOAuthClient: typeof BsaleOAuthClient;
   OAuthStateStore: typeof OAuthStateStore;
   MercadoPagoClient: typeof MercadoPagoClient;
@@ -71,6 +77,9 @@ export function createMainDependencies(): MainDependencies {
     TenantRepository,
     UserRepository,
     MagicLinkRepository,
+    StockSnapshotRepository,
+    ThresholdRepository,
+    AlertRepository,
     BsaleOAuthClient,
     OAuthStateStore,
     MercadoPagoClient,
@@ -125,6 +134,9 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
   const tenantRepo = new deps.TenantRepository(db);
   const userRepo = new deps.UserRepository(db);
   const magicLinkRepo = new deps.MagicLinkRepository(db);
+  const stockSnapshotRepo = new deps.StockSnapshotRepository(db);
+  const thresholdRepo = new deps.ThresholdRepository(db);
+  const alertRepo = new deps.AlertRepository(db);
 
   // Initialize session cleanup scheduler (runs every hour)
   const sessionCleanupScheduler = deps.createSessionCleanupScheduler(
@@ -152,6 +164,9 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
     tenantRepo,
     userRepo,
     sessionRepo,
+    stockSnapshotRepo,
+    thresholdRepo,
+    alertRepo,
   };
 
   // OAuth dependencies (if configured)
