@@ -18,6 +18,34 @@ export class SyncService {
     this.options = { ...DEFAULT_SYNC_OPTIONS, ...options };
   }
 
+  async syncTenant(tenantId: string): Promise<{ success: boolean; itemsSynced: number; error?: string }> {
+    const tenant = await this.tenantRepo.getById(tenantId);
+
+    if (!tenant) {
+      return { success: false, itemsSynced: 0, error: "Tenant not found" };
+    }
+
+    if (!tenant.bsale_access_token) {
+      return { success: false, itemsSynced: 0, error: "Bsale not connected" };
+    }
+
+    const deps: TenantSyncDependencies = {
+      tenantRepo: this.tenantRepo,
+      snapshotRepo: this.snapshotRepo,
+      createBsaleClient: (accessToken: string) => new BsaleClient(accessToken),
+    };
+
+    const result = await syncTenant(tenant, deps, this.options);
+    const response: { success: boolean; itemsSynced: number; error?: string } = {
+      success: result.success,
+      itemsSynced: result.itemsSynced,
+    };
+    if (result.error) {
+      response.error = result.error;
+    }
+    return response;
+  }
+
   async syncAllTenants(): Promise<SyncProgress> {
     const tenants = await this.tenantRepo.getActiveTenants();
 

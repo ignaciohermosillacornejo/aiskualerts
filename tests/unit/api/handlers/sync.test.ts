@@ -22,6 +22,11 @@ const mockTenant: Tenant = {
   updated_at: new Date(),
 };
 
+const mockTenantWithoutBsale: Tenant = {
+  ...mockTenant,
+  bsale_access_token: null,
+};
+
 const mockConfig: Config = {
   port: 3000,
   nodeEnv: "test",
@@ -81,41 +86,19 @@ function createMocks() {
 }
 
 describe("createSyncRoutes", () => {
-  let runSyncAndAlertsMock: Mock<typeof syncJobModule.runSyncAndAlerts>;
+  let runSyncForTenantMock: Mock<typeof syncJobModule.runSyncForTenant>;
 
   beforeEach(() => {
-    runSyncAndAlertsMock = mock(() =>
-      Promise.resolve({
-        syncProgress: {
-          totalTenants: 1,
-          completedTenants: 1,
-          successCount: 1,
-          failureCount: 0,
-          results: [
-            {
-              tenantId: mockTenant.id,
-              success: true,
-              itemsSynced: 50,
-              startedAt: new Date(),
-              completedAt: new Date(),
-            },
-          ],
-        },
-        alertResults: [],
-        totalAlertsCreated: 5,
-        startedAt: new Date(),
-        completedAt: new Date(),
-      })
-    );
+    runSyncForTenantMock = mock(() => Promise.resolve());
 
     // Mock the module
     void mock.module("@/jobs/sync-job", () => ({
-      runSyncAndAlerts: runSyncAndAlertsMock,
+      runSyncForTenant: runSyncForTenantMock,
     }));
   });
 
   describe("trigger", () => {
-    test("returns sync result for authenticated user", async () => {
+    test("returns 202 Accepted and starts sync in background", async () => {
       const { deps } = createMocks();
       const routes = createSyncRoutes(deps);
 
@@ -125,13 +108,11 @@ describe("createSyncRoutes", () => {
       });
 
       const response = await routes.trigger(req);
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(202);
 
       const body = (await response.json()) as ManualSyncResult;
       expect(body.success).toBe(true);
-      expect(body.productsUpdated).toBe(50);
-      expect(body.alertsGenerated).toBe(5);
-      expect(body.duration).toBeGreaterThanOrEqual(0);
+      expect(body.message).toBe("Sync started");
     });
 
     test("returns 401 when not authenticated", async () => {
@@ -190,53 +171,9 @@ describe("createSyncRoutes", () => {
       expect(body.error).toBe("Tenant not found");
     });
 
-    test("returns 500 when sync fails", async () => {
-      const { deps } = createMocks();
-
-      runSyncAndAlertsMock.mockRejectedValue(new Error("Sync service error"));
-
-      const routes = createSyncRoutes(deps);
-
-      const req = new Request("http://localhost/api/sync/trigger", {
-        method: "POST",
-        headers: { Cookie: "session=valid-token" },
-      });
-
-      const response = await routes.trigger(req);
-      expect(response.status).toBe(500);
-
-      const body = (await response.json()) as ManualSyncResult;
-      expect(body.success).toBe(false);
-      expect(body.error).toBe("Sync service error");
-      expect(body.productsUpdated).toBe(0);
-      expect(body.alertsGenerated).toBe(0);
-    });
-
-    test("handles sync failure for specific tenant", async () => {
-      const { deps } = createMocks();
-
-      runSyncAndAlertsMock.mockResolvedValue({
-        syncProgress: {
-          totalTenants: 1,
-          completedTenants: 1,
-          successCount: 0,
-          failureCount: 1,
-          results: [
-            {
-              tenantId: mockTenant.id,
-              success: false,
-              itemsSynced: 0,
-              error: "Bsale API error",
-              startedAt: new Date(),
-              completedAt: new Date(),
-            },
-          ],
-        },
-        alertResults: [],
-        totalAlertsCreated: 0,
-        startedAt: new Date(),
-        completedAt: new Date(),
-      });
+    test("returns 400 when Bsale is not connected", async () => {
+      const { deps, tenantRepo } = createMocks();
+      tenantRepo.getById.mockResolvedValue(mockTenantWithoutBsale);
 
       const routes = createSyncRoutes(deps);
 
@@ -246,71 +183,12 @@ describe("createSyncRoutes", () => {
       });
 
       const response = await routes.trigger(req);
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(400);
 
       const body = (await response.json()) as ManualSyncResult;
       expect(body.success).toBe(false);
-      expect(body.error).toBe("Bsale API error");
-    });
-
-    test("handles missing tenant result in sync progress", async () => {
-      const { deps } = createMocks();
-
-      runSyncAndAlertsMock.mockResolvedValue({
-        syncProgress: {
-          totalTenants: 1,
-          completedTenants: 1,
-          successCount: 1,
-          failureCount: 0,
-          results: [
-            {
-              tenantId: "different-tenant-id",
-              success: true,
-              itemsSynced: 100,
-              startedAt: new Date(),
-              completedAt: new Date(),
-            },
-          ],
-        },
-        alertResults: [],
-        totalAlertsCreated: 3,
-        startedAt: new Date(),
-        completedAt: new Date(),
-      });
-
-      const routes = createSyncRoutes(deps);
-
-      const req = new Request("http://localhost/api/sync/trigger", {
-        method: "POST",
-        headers: { Cookie: "session=valid-token" },
-      });
-
-      const response = await routes.trigger(req);
-      expect(response.status).toBe(200);
-
-      const body = (await response.json()) as ManualSyncResult;
-      expect(body.success).toBe(false);
-      expect(body.productsUpdated).toBe(0);
-    });
-
-    test("handles non-Error exception in sync", async () => {
-      const { deps } = createMocks();
-
-      runSyncAndAlertsMock.mockRejectedValue("Unknown error string");
-
-      const routes = createSyncRoutes(deps);
-
-      const req = new Request("http://localhost/api/sync/trigger", {
-        method: "POST",
-        headers: { Cookie: "session=valid-token" },
-      });
-
-      const response = await routes.trigger(req);
-      expect(response.status).toBe(500);
-
-      const body = (await response.json()) as ManualSyncResult;
-      expect(body.success).toBe(false);
-      expect(body.error).toBe("Sync failed");
+      expect(body.message).toBe("Bsale not connected");
+      expect(body.error).toBe("bsale_not_connected");
     });
   });
 });
