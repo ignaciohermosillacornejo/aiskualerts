@@ -63,6 +63,7 @@ export function createAlertRoutes(deps: AlertRouteDeps): AlertRoutes {
       GET: async (req) => {
         const url = new URL(req.url);
         const type = url.searchParams.get("type");
+        const status = url.searchParams.get("status");
         const limit = parseInt(url.searchParams.get("limit") ?? "100", 10);
 
         // Try to get authenticated user context
@@ -79,6 +80,11 @@ export function createAlertRoutes(deps: AlertRouteDeps): AlertRoutes {
             filter.type = "low_velocity";
           } else if (type === "out_of_stock") {
             filter.type = "out_of_stock";
+          }
+
+          // Add status filter if provided
+          if (status === "pending" || status === "sent" || status === "dismissed") {
+            filter.status = status;
           }
 
           const result = await deps.alertRepo.findByUserWithFilter(
