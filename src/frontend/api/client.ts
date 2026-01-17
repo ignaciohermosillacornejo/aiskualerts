@@ -155,7 +155,8 @@ interface ApiProductsResponse {
 }
 
 async function getProducts(): Promise<GetProductsResponse> {
-  const response = await request<ApiProductsResponse>("/products");
+  // Request up to 1000 products to show all without pagination
+  const response = await request<ApiProductsResponse>("/products?limit=1000");
   return {
     products: response.data,
     total: response.pagination.total,

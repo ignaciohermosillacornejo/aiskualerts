@@ -144,10 +144,10 @@ describe("API Client", () => {
   });
 
   describe("getProducts", () => {
-    test("fetches products list", async () => {
+    test("fetches products list with high limit", async () => {
       mockFetch.mockImplementation(() =>
         Promise.resolve(
-          new Response(JSON.stringify({ data: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } }), {
+          new Response(JSON.stringify({ data: [], pagination: { total: 0, page: 1, limit: 1000, totalPages: 0 } }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           })
@@ -156,7 +156,7 @@ describe("API Client", () => {
 
       await api.getProducts();
 
-      expect(mockFetch).toHaveBeenCalledWith("/api/products", expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith("/api/products?limit=1000", expect.any(Object));
     });
   });
 
