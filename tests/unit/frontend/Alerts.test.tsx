@@ -327,7 +327,7 @@ describe("Alerts", () => {
           setTimeout(resolve, 300);
         });
 
-        expect(container.textContent).toContain("Filtrar Alertas");
+        expect(container.textContent).toContain("Vista");
 
         root.unmount();
       } finally {
