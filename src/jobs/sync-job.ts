@@ -51,6 +51,72 @@ export function createSyncJob(
 }
 
 /**
+ * Run sync and alert generation for a single tenant
+ * Used for manual sync triggers
+ */
+export async function runSyncForTenant(
+  db: DatabaseClient,
+  config: Config,
+  tenantId: string
+): Promise<void> {
+  logger.info("Starting manual sync for tenant", { tenantId });
+  const startedAt = new Date();
+
+  // Initialize repositories
+  const userRepo = new UserRepository(db);
+  const thresholdRepo = new ThresholdRepository(db);
+  const snapshotRepo = new StockSnapshotRepository(db);
+  const alertRepo = new AlertRepository(db);
+
+  // Step 1: Sync the single tenant
+  logger.info("Phase 1: Syncing tenant inventory data...");
+  const syncService = new SyncService(db, {
+    batchSize: config.syncBatchSize,
+    delayBetweenTenants: config.syncTenantDelay,
+  });
+  const syncResult = await syncService.syncTenant(tenantId);
+
+  if (!syncResult.success) {
+    logger.error("Manual sync failed for tenant", new Error(syncResult.error ?? "Unknown error"), {
+      tenantId,
+    });
+    return;
+  }
+
+  logger.info("Tenant synced", { tenantId, itemsSynced: syncResult.itemsSynced });
+
+  // Step 2: Generate alerts for all users in the tenant
+  logger.info("Phase 2: Generating alerts for users...");
+  let totalAlertsCreated = 0;
+
+  const users = await userRepo.getWithNotificationsEnabled(tenantId);
+
+  for (const user of users) {
+    const deps: AlertGeneratorDependencies = {
+      getThresholdsByUser: (userId: string) => thresholdRepo.getByUser(userId),
+      getStockSnapshot: (tid: string, variantId: number, officeId: number | null) =>
+        snapshotRepo.getByVariant(tid, variantId, officeId),
+      getHistoricalSnapshots: (tid: string, variantId: number, officeId: number | null, days: number) =>
+        snapshotRepo.getHistoricalSnapshots(tid, variantId, officeId, days),
+      hasPendingAlert: (userId: string, variantId: number, officeId: number | null, alertType) =>
+        alertRepo.hasPendingAlert(userId, variantId, officeId, alertType),
+      createAlerts: (alerts) => alertRepo.createBatch(alerts),
+    };
+
+    const result = await generateAlertsForUser(user.id, tenantId, deps);
+    totalAlertsCreated += result.alertsCreated;
+
+    if (result.errors.length > 0) {
+      logger.warn("Alert generation errors", { userId: user.id, errors: result.errors });
+    }
+  }
+
+  const completedAt = new Date();
+  const duration = completedAt.getTime() - startedAt.getTime();
+  logger.info("Manual sync completed", { tenantId, itemsSynced: syncResult.itemsSynced, alertsCreated: totalAlertsCreated, durationMs: duration });
+}
+
+/**
  * Run the full sync and alert generation process
  */
 export async function runSyncAndAlerts(
