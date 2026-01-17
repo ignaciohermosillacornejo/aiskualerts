@@ -147,7 +147,7 @@ describe("API Client", () => {
     test("fetches products list", async () => {
       mockFetch.mockImplementation(() =>
         Promise.resolve(
-          new Response(JSON.stringify({ products: [], total: 0 }), {
+          new Response(JSON.stringify({ data: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           })
@@ -182,7 +182,7 @@ describe("API Client", () => {
     test("fetches thresholds list", async () => {
       mockFetch.mockImplementation(() =>
         Promise.resolve(
-          new Response(JSON.stringify({ thresholds: [], total: 0 }), {
+          new Response(JSON.stringify({ data: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           })
@@ -518,7 +518,7 @@ describe("API Client", () => {
     test("includes credentials in requests", async () => {
       mockFetch.mockImplementation(() =>
         Promise.resolve(
-          new Response(JSON.stringify({ products: [], total: 0 }), {
+          new Response(JSON.stringify({ data: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           })
@@ -536,7 +536,7 @@ describe("API Client", () => {
     test("sets Content-Type header", async () => {
       mockFetch.mockImplementation(() =>
         Promise.resolve(
-          new Response(JSON.stringify({ products: [], total: 0 }), {
+          new Response(JSON.stringify({ data: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           })
