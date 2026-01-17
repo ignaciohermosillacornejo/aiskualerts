@@ -19,6 +19,7 @@ export function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [bsaleConnected, setBsaleConnected] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -31,6 +32,7 @@ export function Dashboard() {
       setStats(statsData);
       setRecentAlerts(alertsData.alerts);
       setLastSyncAt(settingsData.lastSyncAt ?? null);
+      setBsaleConnected(settingsData.bsaleConnected);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar datos");
     } finally {
@@ -108,12 +110,16 @@ export function Dashboard() {
         />
       </div>
 
-      <SyncCard
-        syncing={syncing}
-        syncResult={syncResult}
-        lastSyncAt={lastSyncAt}
-        onSync={handleSync}
-      />
+      {bsaleConnected ? (
+        <SyncCard
+          syncing={syncing}
+          syncResult={syncResult}
+          lastSyncAt={lastSyncAt}
+          onSync={handleSync}
+        />
+      ) : (
+        <ConnectBsaleCard />
+      )}
 
       <div className="card">
         <div className="card-header">
@@ -200,6 +206,21 @@ function SyncCard({ syncing, syncResult, lastSyncAt, onSync }: SyncCardProps) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ConnectBsaleCard() {
+  return (
+    <div className="card" style={{ marginBottom: "1.5rem" }}>
+      <div className="empty-state">
+        <div className="empty-state-icon">link</div>
+        <div className="empty-state-title">Conecta Bsale para sincronizar</div>
+        <p>Conecta tu cuenta de Bsale para sincronizar tu inventario y recibir alertas de stock bajo.</p>
+        <a href="/app/settings" className="btn btn-primary" style={{ marginTop: "1rem" }}>
+          Ir a Configuracion
+        </a>
+      </div>
     </div>
   );
 }
