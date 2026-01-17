@@ -302,7 +302,10 @@ export function createServer(
     authMiddleware: authMiddleware ?? undefined,
   });
 
-  const authRoutesModule = createAuthRoutes();
+  const authRoutesModule = createAuthRoutes({
+    sessionRepo: deps?.sessionRepo,
+    userRepo: deps?.userRepo,
+  });
 
   // Create test routes (only in non-production environments)
   const testRoutes =
