@@ -137,13 +137,17 @@ jobs:
 
             # Seed schema_migrations if database exists but migration tracking doesn't
             # This handles databases initialized from schema.sql before migration tracking was added
+            # NOTE: Only seed migrations whose schema is already in schema.sql
+            # New migrations should be applied by migrate.ts, not seeded here
             echo "Checking migration tracking..."
             docker compose exec -T postgres psql -U aiskualerts -d aiskualerts -c "
               CREATE TABLE IF NOT EXISTS schema_migrations (
                 version INTEGER PRIMARY KEY,
                 applied_at TIMESTAMPTZ DEFAULT NOW()
               );
-              INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4)
+              -- Seed versions 1-6 (their schema is in schema.sql)
+              -- New migrations will be applied by migrate.ts
+              INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5), (6)
               ON CONFLICT (version) DO NOTHING;
             "
             echo "✅ Migration tracking initialized"
