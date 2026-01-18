@@ -45,6 +45,7 @@ CREATE TABLE stock_snapshots (
     quantity INTEGER NOT NULL,                -- Physical quantity
     quantity_reserved INTEGER DEFAULT 0,      -- Reserved in pending docs
     quantity_available INTEGER NOT NULL,      -- Available for sale
+    unit_price DECIMAL(12, 2) DEFAULT NULL,   -- Price from Bsale (migration 006)
     snapshot_date DATE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(tenant_id, bsale_variant_id, bsale_office_id, snapshot_date)

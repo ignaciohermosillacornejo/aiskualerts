@@ -402,6 +402,90 @@ docker compose exec nginx nginx -t
 tail -f /var/log/letsencrypt/letsencrypt.log
 ```
 
+## Quick SSH Access with 1Password SSH Agent
+
+For secure SSH access without exposing secrets, use the 1Password SSH Agent. This allows you (or AI tools like Claude Code) to SSH into the server without extracting private keys to files.
+
+### Prerequisites
+
+1. **1Password Desktop App** installed and signed in
+2. **1Password SSH Agent** enabled in 1Password settings
+3. **SSH key** stored in 1Password vault (Dev/HETZNER_SSH_KEY)
+
+### Setup 1Password SSH Agent
+
+1. Open 1Password Desktop App → Settings → Developer
+2. Enable "Use the SSH Agent"
+3. Enable "Integrate with 1Password CLI"
+
+### Configure ~/.ssh/config
+
+Add to your `~/.ssh/config`:
+
+```ssh-config
+Host aiskualerts-prod
+    HostName 46.62.158.249
+    User root
+    IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+```
+
+Now you can simply run:
+
+```bash
+ssh aiskualerts-prod
+```
+
+The 1Password agent handles authentication - you may be prompted via biometrics (Touch ID/Apple Watch) to approve the key usage.
+
+### Quick Debugging Commands
+
+Once connected:
+
+```bash
+# Navigate to app directory
+cd /opt/aiskualerts
+
+# View app logs
+docker compose logs -f app
+
+# View last 100 lines
+docker compose logs --tail=100 app
+
+# Check container status
+docker compose ps
+
+# Query database
+docker compose exec -T postgres psql -U aiskualerts -d aiskualerts -c "SELECT * FROM schema_migrations;"
+
+# Run migrations manually
+docker compose exec -T app bun src/db/migrate.ts
+
+# Check specific table data
+docker compose exec -T postgres psql -U aiskualerts -d aiskualerts -c "SELECT bsale_variant_id, sku, product_name, unit_price FROM stock_snapshots LIMIT 5;"
+```
+
+### Using with Claude Code
+
+When Claude Code needs to debug the production server:
+
+1. Ensure 1Password SSH Agent is running (1Password desktop app open)
+2. Claude Code can run:
+   ```bash
+   ssh aiskualerts-prod "cd /opt/aiskualerts && docker compose logs --tail=50 app"
+   ```
+
+The 1Password agent prompts for approval on first use, then caches authorization for the session.
+
+### Alternative: One-liner with op CLI (if SSH agent not configured)
+
+If you need to SSH without the agent configured:
+
+```bash
+op run --env-file=.env.tpl -- ssh -i ~/.ssh/hetzner_aiskualerts root@46.62.158.249
+```
+
+This requires the SSH key to be at `~/.ssh/hetzner_aiskualerts` and uses `op run` to inject any needed environment variables.
+
 ## Next Steps
 
 - Set up automated backups
