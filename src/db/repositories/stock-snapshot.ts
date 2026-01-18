@@ -29,9 +29,9 @@ export class StockSnapshotRepository {
     const placeholders: string[] = [];
 
     snapshots.forEach((s, i) => {
-      const offset = i * 10;
+      const offset = i * 11;
       placeholders.push(
-        `($${String(offset + 1)}, $${String(offset + 2)}, $${String(offset + 3)}, $${String(offset + 4)}, $${String(offset + 5)}, $${String(offset + 6)}, $${String(offset + 7)}, $${String(offset + 8)}, $${String(offset + 9)}, $${String(offset + 10)})`
+        `($${String(offset + 1)}, $${String(offset + 2)}, $${String(offset + 3)}, $${String(offset + 4)}, $${String(offset + 5)}, $${String(offset + 6)}, $${String(offset + 7)}, $${String(offset + 8)}, $${String(offset + 9)}, $${String(offset + 10)}, $${String(offset + 11)})`
       );
       values.push(
         s.tenant_id,
@@ -43,6 +43,7 @@ export class StockSnapshotRepository {
         s.quantity,
         s.quantity_reserved,
         s.quantity_available,
+        s.unit_price,
         s.snapshot_date.toISOString().substring(0, 10)
       );
     });
@@ -50,7 +51,7 @@ export class StockSnapshotRepository {
     const query = `
       INSERT INTO stock_snapshots (
         tenant_id, bsale_variant_id, bsale_office_id, sku, barcode,
-        product_name, quantity, quantity_reserved, quantity_available, snapshot_date
+        product_name, quantity, quantity_reserved, quantity_available, unit_price, snapshot_date
       )
       VALUES ${placeholders.join(", ")}
       ON CONFLICT (tenant_id, bsale_variant_id, bsale_office_id, snapshot_date)
@@ -60,7 +61,8 @@ export class StockSnapshotRepository {
         product_name = EXCLUDED.product_name,
         quantity = EXCLUDED.quantity,
         quantity_reserved = EXCLUDED.quantity_reserved,
-        quantity_available = EXCLUDED.quantity_available
+        quantity_available = EXCLUDED.quantity_available,
+        unit_price = EXCLUDED.unit_price
     `;
 
     await this.db.execute(query, values);

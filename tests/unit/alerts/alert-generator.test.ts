@@ -31,6 +31,7 @@ const mockSnapshot: StockSnapshot = {
   quantity: 5,
   quantity_reserved: 0,
   quantity_available: 5,
+  unit_price: null,
   snapshot_date: new Date(),
   created_at: new Date(),
 };

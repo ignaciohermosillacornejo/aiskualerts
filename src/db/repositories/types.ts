@@ -51,6 +51,7 @@ export interface StockSnapshot {
   quantity: number;
   quantity_reserved: number;
   quantity_available: number;
+  unit_price: number | null;
   snapshot_date: Date;
   created_at: Date;
 }
@@ -65,6 +66,7 @@ export interface StockSnapshotInput {
   quantity: number;
   quantity_reserved: number;
   quantity_available: number;
+  unit_price: number | null;
   snapshot_date: Date;
 }
 
