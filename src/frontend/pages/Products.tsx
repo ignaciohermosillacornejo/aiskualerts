@@ -110,10 +110,11 @@ export function Products() {
                       </code>
                     </td>
                     <td>
-                      <strong>{product.currentStock.toLocaleString()}</strong>
+                      {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive: API may return undefined */}
+                      <strong>{(product.currentStock ?? 0).toLocaleString()}</strong>
                     </td>
                     <td>
-                      {product.unitPrice !== null
+                      {product.unitPrice != null
                         ? `$ ${product.unitPrice.toLocaleString("es-CL")}`
                         : "-"}
                     </td>
