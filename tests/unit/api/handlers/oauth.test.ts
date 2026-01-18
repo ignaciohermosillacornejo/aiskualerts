@@ -262,7 +262,7 @@ describe("OAuth Handlers", () => {
       ).rejects.toThrow("invalid or expired state parameter");
     });
 
-    test("creates session with 30-day expiry", async () => {
+    test("creates session with 7-day expiry (sliding window will extend)", async () => {
       await handleOAuthCallback(
         { code: "auth-code-123", state: "valid-state" },
         deps
@@ -279,8 +279,8 @@ describe("OAuth Handlers", () => {
       expect(sessionData.token.length).toBe(64); // 32 bytes hex
       expect(sessionData.expiresAt).toBeInstanceOf(Date);
 
-      // Check expiry is approximately 30 days from now (use range to avoid race condition)
-      const expectedExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      // Check expiry is approximately 7 days from now (sliding window will extend)
+      const expectedExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       expect(sessionData.expiresAt.getTime()).toBeGreaterThanOrEqual(
         expectedExpiry.getTime() - 5000
       );

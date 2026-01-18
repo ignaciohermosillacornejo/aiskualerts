@@ -143,4 +143,32 @@ describe("SessionRepository", () => {
       expect(result).toBe(0);
     });
   });
+
+  describe("refreshSession", () => {
+    test("updates session expires_at by token", async () => {
+      const { db, mocks } = createMockDb();
+
+      const repo = new SessionRepository(db);
+      const newExpiresAt = new Date("2026-02-15");
+      await repo.refreshSession("token-abc", newExpiresAt);
+
+      expect(mocks.execute).toHaveBeenCalledWith(
+        expect.stringContaining("UPDATE sessions SET expires_at"),
+        [newExpiresAt.toISOString(), "token-abc"]
+      );
+    });
+
+    test("calls execute with correct parameters", async () => {
+      const { db, mocks } = createMockDb();
+
+      const repo = new SessionRepository(db);
+      const newExpiresAt = new Date("2026-02-20T12:00:00.000Z");
+      await repo.refreshSession("my-session-token", newExpiresAt);
+
+      expect(mocks.execute).toHaveBeenCalledWith(
+        expect.stringContaining("UPDATE sessions"),
+        expect.arrayContaining(["2026-02-20T12:00:00.000Z", "my-session-token"])
+      );
+    });
+  });
 });
