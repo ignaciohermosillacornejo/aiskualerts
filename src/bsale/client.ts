@@ -67,8 +67,9 @@ export class BsaleClient {
   }
 
   async getVariant(variantId: number): Promise<Variant> {
+    // Use expand=product to get the full product name in the response
     const response = await this.fetchWithRetry(
-      `/v1/variants/${String(variantId)}.json`
+      `/v1/variants/${String(variantId)}.json?expand=[product]`
     );
     return VariantSchema.parse(response);
   }

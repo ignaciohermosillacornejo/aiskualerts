@@ -308,10 +308,12 @@ describe("syncTenant", () => {
       expect(batchCall).toBeDefined();
       expect(batchCall?.[0]?.sku).toBe("SKU-100");
       expect(batchCall?.[0]?.barcode).toBe("BC-100");
-      expect(batchCall?.[0]?.product_name).toBe("Product 100");
+      expect(batchCall?.[0]?.product_name).toBe("Product 100 - Variant 100");
+      expect(batchCall?.[0]?.unit_price).toBeNull();
       expect(batchCall?.[1]?.sku).toBe("SKU-200");
       expect(batchCall?.[1]?.barcode).toBe("BC-200");
-      expect(batchCall?.[1]?.product_name).toBe("Product 200");
+      expect(batchCall?.[1]?.product_name).toBe("Product 200 - Variant 200");
+      expect(batchCall?.[1]?.unit_price).toBeNull();
     });
 
     test("handles missing variants gracefully", async () => {
@@ -402,6 +404,7 @@ describe("enrichSnapshotWithVariant", () => {
     quantity: 50,
     quantity_reserved: 5,
     quantity_available: 45,
+    unit_price: null,
     snapshot_date: new Date(),
   };
 
@@ -411,6 +414,7 @@ describe("enrichSnapshotWithVariant", () => {
       code: "SKU-100",
       barCode: "BC-100",
       description: "Description",
+      finalPrice: 1500,
       product: { name: "Product Name" },
     };
 
@@ -418,7 +422,9 @@ describe("enrichSnapshotWithVariant", () => {
 
     expect(enriched.sku).toBe("SKU-100");
     expect(enriched.barcode).toBe("BC-100");
-    expect(enriched.product_name).toBe("Product Name");
+    // Product name is formatted as "Product Name - Description" when both exist
+    expect(enriched.product_name).toBe("Product Name - Description");
+    expect(enriched.unit_price).toBe(1500);
   });
 
   test("returns original snapshot when variant is undefined", () => {
@@ -484,6 +490,7 @@ describe("enrichSnapshotWithVariant", () => {
 
     expect(enriched.sku).toBe("NEW-SKU");
     expect(enriched.barcode).toBe("NEW-BC");
-    expect(enriched.product_name).toBe("New Name");
+    expect(enriched.product_name).toBe("New Name - Description");
+    expect(enriched.unit_price).toBeNull();
   });
 });
