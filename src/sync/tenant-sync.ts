@@ -15,6 +15,18 @@ export interface TenantSyncDependencies {
 }
 
 /**
+ * Format product name from product name and variant description
+ * Returns "{Product Name} - {Variant Description}" if both exist,
+ * or just the product name or variant description if only one exists
+ */
+function formatProductName(productName: string | undefined, variantDescription: string | null | undefined): string | null {
+  if (productName && variantDescription) {
+    return `${productName} - ${variantDescription}`;
+  }
+  return productName ?? variantDescription ?? null;
+}
+
+/**
  * Convert Bsale stock item to StockSnapshotInput with optional variant enrichment
  */
 function stockToSnapshot(
@@ -29,10 +41,11 @@ function stockToSnapshot(
     bsale_office_id: stock.office?.id ?? null,
     sku: variant?.code ?? null,
     barcode: variant?.barCode ?? null,
-    product_name: variant?.product?.name ?? variant?.description ?? null,
+    product_name: formatProductName(variant?.product?.name, variant?.description),
     quantity: stock.quantity,
     quantity_reserved: stock.quantityReserved,
     quantity_available: stock.quantityAvailable,
+    unit_price: variant?.finalPrice ?? null,
     snapshot_date: snapshotDate,
   };
 }
@@ -51,7 +64,8 @@ export function enrichSnapshotWithVariant(
     ...snapshot,
     sku: variant.code ?? snapshot.sku,
     barcode: variant.barCode ?? snapshot.barcode,
-    product_name: variant.product?.name ?? variant.description ?? snapshot.product_name,
+    product_name: formatProductName(variant.product?.name, variant.description) ?? snapshot.product_name,
+    unit_price: variant.finalPrice ?? snapshot.unit_price,
   };
 }
 

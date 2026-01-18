@@ -36,6 +36,7 @@ export function createMockProduct(overrides: Partial<Product> = {}): Product {
     name: "Test Product",
     currentStock: 100,
     threshold: 10,
+    unitPrice: 1000,
     lastSyncAt: new Date().toISOString(),
     ...overrides,
   };

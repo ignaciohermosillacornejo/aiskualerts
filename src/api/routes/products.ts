@@ -11,11 +11,11 @@ export interface ProductRouteDeps {
 
 // Mock data for development
 const mockProducts = [
-  { id: "p1", bsaleId: 1001, sku: "SKU001", name: "Producto A", currentStock: 5, threshold: 10, lastSyncAt: new Date().toISOString() },
-  { id: "p2", bsaleId: 1002, sku: "SKU002", name: "Producto B", currentStock: 150, threshold: 20, lastSyncAt: new Date().toISOString() },
-  { id: "p3", bsaleId: 1003, sku: "SKU003", name: "Producto C", currentStock: 0, threshold: 5, lastSyncAt: new Date().toISOString() },
-  { id: "p4", bsaleId: 1004, sku: "SKU004", name: "Producto D", currentStock: 75, threshold: 15, lastSyncAt: new Date().toISOString() },
-  { id: "p5", bsaleId: 1005, sku: "SKU005", name: "Producto E", currentStock: 200, threshold: null, lastSyncAt: new Date().toISOString() },
+  { id: "p1", bsaleId: 1001, sku: "SKU001", name: "Producto A", currentStock: 5, threshold: 10, unitPrice: 1500, lastSyncAt: new Date().toISOString() },
+  { id: "p2", bsaleId: 1002, sku: "SKU002", name: "Producto B", currentStock: 150, threshold: 20, unitPrice: 2500, lastSyncAt: new Date().toISOString() },
+  { id: "p3", bsaleId: 1003, sku: "SKU003", name: "Producto C", currentStock: 0, threshold: 5, unitPrice: 990, lastSyncAt: new Date().toISOString() },
+  { id: "p4", bsaleId: 1004, sku: "SKU004", name: "Producto D", currentStock: 75, threshold: 15, unitPrice: 3200, lastSyncAt: new Date().toISOString() },
+  { id: "p5", bsaleId: 1005, sku: "SKU005", name: "Producto E", currentStock: 200, threshold: null, unitPrice: null, lastSyncAt: new Date().toISOString() },
 ];
 
 export interface ProductRoutes {
@@ -70,6 +70,7 @@ export function createProductRoutes(deps: ProductRouteDeps): ProductRoutes {
             name: s.product_name ?? `Product ${String(s.bsale_variant_id)}`,
             currentStock: s.quantity_available,
             threshold: thresholdMap.get(s.bsale_variant_id) ?? null,
+            unitPrice: s.unit_price,
             lastSyncAt: s.created_at.toISOString(),
           }));
 

@@ -94,29 +94,29 @@ export function Products() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>SKU</th>
                   <th>Nombre</th>
-                  <th>Stock Actual</th>
-                  <th>Estado</th>
-                  <th>Ultima Sync</th>
+                  <th>SKU</th>
+                  <th>Stock</th>
+                  <th>Precio Unit.</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredProducts.map((product) => (
                   <tr key={product.id}>
+                    <td>{product.name}</td>
                     <td>
                       <code style={{ backgroundColor: "#f1f5f9", padding: "0.25rem 0.5rem", borderRadius: "0.25rem" }}>
                         {product.sku}
                       </code>
                     </td>
-                    <td>{product.name}</td>
                     <td>
                       <strong>{product.currentStock.toLocaleString()}</strong>
                     </td>
                     <td>
-                      <StockBadge stock={product.currentStock} threshold={product.threshold} />
+                      {product.unitPrice !== null
+                        ? `$ ${product.unitPrice.toLocaleString("es-CL")}`
+                        : "-"}
                     </td>
-                    <td>{new Date(product.lastSyncAt).toLocaleDateString("es-CL")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -126,17 +126,4 @@ export function Products() {
       </div>
     </div>
   );
-}
-
-function StockBadge({ stock, threshold }: { stock: number; threshold: number | null }) {
-  if (threshold === null) {
-    return <span className="badge badge-info">Sin umbral</span>;
-  }
-  if (stock <= threshold) {
-    return <span className="badge badge-danger">Stock bajo</span>;
-  }
-  if (stock <= threshold * 1.5) {
-    return <span className="badge badge-warning">Precaucion</span>;
-  }
-  return <span className="badge badge-success">OK</span>;
 }

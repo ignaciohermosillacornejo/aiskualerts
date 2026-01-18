@@ -34,8 +34,13 @@ export const VariantSchema = z.object({
   code: z.string().nullable(),
   barCode: z.string().nullable(),
   description: z.string().nullable(),
+  // Price fields - finalPrice is the price including taxes
+  finalPrice: z.number().nullable().optional(),
+  // When expanded, product includes full details; otherwise just href/id reference
   product: z
     .object({
+      id: numericId.optional(),
+      href: z.string().optional(),
       name: z.string().optional(),
     })
     .nullable()

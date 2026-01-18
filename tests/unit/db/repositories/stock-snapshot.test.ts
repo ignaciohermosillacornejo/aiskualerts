@@ -14,6 +14,7 @@ const mockSnapshot: StockSnapshot = {
   quantity: 50,
   quantity_reserved: 5,
   quantity_available: 45,
+  unit_price: null,
   snapshot_date: new Date("2024-01-15"),
   created_at: new Date(),
 };
@@ -62,6 +63,7 @@ describe("StockSnapshotRepository", () => {
         quantity: 50,
         quantity_reserved: 5,
         quantity_available: 45,
+        unit_price: null,
         snapshot_date: new Date("2024-01-15"),
       };
 
@@ -86,6 +88,7 @@ describe("StockSnapshotRepository", () => {
           quantity: 10,
           quantity_reserved: 0,
           quantity_available: 10,
+          unit_price: null,
           snapshot_date: new Date("2024-01-15"),
         },
         {
@@ -98,6 +101,7 @@ describe("StockSnapshotRepository", () => {
           quantity: 20,
           quantity_reserved: 5,
           quantity_available: 15,
+          unit_price: null,
           snapshot_date: new Date("2024-01-15"),
         },
       ];

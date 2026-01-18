@@ -25,6 +25,7 @@ function createSnapshot(
     quantity: quantity,
     quantity_reserved: 0,
     quantity_available: quantity,
+    unit_price: null,
     snapshot_date: date,
     created_at: date,
     ...overrides,
