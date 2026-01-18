@@ -74,7 +74,7 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps, config?: OAuthRoutesCo
 
         // Set session cookie (HTTP-only, Secure in production, SameSite=Strict for CSRF protection)
         const isProduction = process.env.NODE_ENV === "production";
-        const maxAge = String(30 * 24 * 60 * 60);
+        const maxAge = String(7 * 24 * 60 * 60); // 7 days (sliding window will extend)
         const cookieParts = [
           `session_token=${sessionData.sessionToken}`,
           "HttpOnly",

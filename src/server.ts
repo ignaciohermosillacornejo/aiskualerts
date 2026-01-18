@@ -243,7 +243,7 @@ export function createServer(
   const csrfMiddleware: CSRFMiddleware | null = config.csrfTokenSecret
     ? createCSRFMiddleware({
         secret: config.csrfTokenSecret,
-        excludePaths: ["/api/webhooks/", "/api/auth/bsale/", "/api/auth/magic-link"],
+        excludePaths: ["/api/webhooks/", "/api/auth/bsale/", "/api/auth/magic-link", "/api/sync/trigger"],
       })
     : null;
 

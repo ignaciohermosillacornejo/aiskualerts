@@ -421,7 +421,7 @@ describe("handleMagicLinkVerify", () => {
   });
 
   describe("session creation", () => {
-    test("creates session with 30-day expiry", async () => {
+    test("creates session with 7-day expiry (sliding window will extend)", async () => {
       const { deps, sessionRepo } = createMocks();
 
       await handleMagicLinkVerify({ token: "valid-token" }, deps);
@@ -432,11 +432,11 @@ describe("handleMagicLinkVerify", () => {
         expiresAt: expect.any(Date),
       });
 
-      // Verify expiry is approximately 30 days from now
+      // Verify expiry is approximately 7 days from now (sliding window will extend)
       const createCall = sessionRepo.create.mock.calls[0] as unknown[];
       const args = createCall?.[0] as { expiresAt: Date } | undefined;
       if (args?.expiresAt) {
-        const expectedExpiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
+        const expectedExpiry = Date.now() + 7 * 24 * 60 * 60 * 1000;
         expect(args.expiresAt.getTime()).toBeGreaterThan(expectedExpiry - 60000);
         expect(args.expiresAt.getTime()).toBeLessThan(expectedExpiry + 60000);
       }
