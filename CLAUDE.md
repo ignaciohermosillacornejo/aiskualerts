@@ -1,3 +1,8 @@
+## Documentation
+
+Architecture docs in `docs/`. Read `docs/README.md` for index.
+
+---
 
 Default to using Bun instead of Node.js.
 
