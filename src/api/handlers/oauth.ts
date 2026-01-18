@@ -129,7 +129,7 @@ export async function handleOAuthCallback(
   // Create session
   const sessionToken = generateSessionToken();
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days (sliding window will extend)
 
   await deps.sessionRepo.create({
     userId: user.id,

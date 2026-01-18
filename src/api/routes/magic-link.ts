@@ -70,7 +70,7 @@ export function createMagicLinkRoutes(
 
         // Set session cookie (HTTP-only, Secure in production, SameSite=Strict)
         const isProduction = process.env.NODE_ENV === "production";
-        const maxAge = String(30 * 24 * 60 * 60);
+        const maxAge = String(7 * 24 * 60 * 60); // 7 days (sliding window will extend)
         const cookieParts = [
           `session_token=${sessionData.sessionToken}`,
           "HttpOnly",

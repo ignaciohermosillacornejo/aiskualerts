@@ -6,10 +6,12 @@ import {
 } from "../../../../src/api/middleware/auth";
 import type { SessionRepository } from "../../../../src/db/repositories/session";
 import type { UserRepository } from "../../../../src/db/repositories/user";
+import { SESSION_TTL_DAYS, SESSION_REFRESH_THRESHOLD_DAYS } from "../../../../src/utils/cookies";
 
 describe("Auth Middleware", () => {
   let mockSessionRepo: {
     findByToken: ReturnType<typeof mock>;
+    refreshSession: ReturnType<typeof mock>;
   };
   let mockUserRepo: {
     getById: ReturnType<typeof mock>;
@@ -22,9 +24,10 @@ describe("Auth Middleware", () => {
           id: "session-123",
           userId: "user-123",
           token: "valid-token",
-          expiresAt: new Date(Date.now() + 86400000),
+          expiresAt: new Date(Date.now() + 86400000 * 5), // 5 days from now (within refresh threshold)
         })
       ),
+      refreshSession: mock(() => Promise.resolve()),
     };
 
     mockUserRepo = {
@@ -200,6 +203,174 @@ describe("Auth Middleware", () => {
     test("is instance of Error", () => {
       const error = new AuthenticationError("Test");
       expect(error).toBeInstanceOf(Error);
+    });
+  });
+
+  describe("sliding window session refresh", () => {
+    test("does not include refresh when session has more than threshold days remaining", async () => {
+      // Session expires in 5 days (above 3.5 day threshold)
+      mockSessionRepo.findByToken.mockImplementation(() =>
+        Promise.resolve({
+          id: "session-123",
+          userId: "user-123",
+          token: "valid-token",
+          expiresAt: new Date(Date.now() + 86400000 * 5), // 5 days
+        })
+      );
+
+      const middleware = createAuthMiddleware(
+        mockSessionRepo as unknown as SessionRepository,
+        mockUserRepo as unknown as UserRepository
+      );
+
+      const request = new Request("http://localhost/api/test", {
+        headers: {
+          Cookie: "session_token=valid-token",
+        },
+      });
+
+      const result = await middleware.authenticate(request);
+
+      expect(result.refresh).toBeUndefined();
+      expect(mockSessionRepo.refreshSession).not.toHaveBeenCalled();
+    });
+
+    test("includes refresh when session has less than threshold days remaining", async () => {
+      // Session expires in 2 days (below 3.5 day threshold)
+      mockSessionRepo.findByToken.mockImplementation(() =>
+        Promise.resolve({
+          id: "session-123",
+          userId: "user-123",
+          token: "valid-token",
+          expiresAt: new Date(Date.now() + 86400000 * 2), // 2 days
+        })
+      );
+
+      const middleware = createAuthMiddleware(
+        mockSessionRepo as unknown as SessionRepository,
+        mockUserRepo as unknown as UserRepository
+      );
+
+      const request = new Request("http://localhost/api/test", {
+        headers: {
+          Cookie: "session_token=valid-token; csrf_token=test-csrf-token",
+        },
+      });
+
+      const result = await middleware.authenticate(request);
+
+      expect(result.refresh).toBeDefined();
+      expect(result.refresh?.sessionToken).toBe("valid-token");
+      expect(result.refresh?.csrfToken).toBe("test-csrf-token");
+      expect(mockSessionRepo.refreshSession).toHaveBeenCalled();
+    });
+
+    test("calls refreshSession with new expiry date extended by SESSION_TTL_DAYS", async () => {
+      // Session expires in 1 day
+      mockSessionRepo.findByToken.mockImplementation(() =>
+        Promise.resolve({
+          id: "session-123",
+          userId: "user-123",
+          token: "valid-token",
+          expiresAt: new Date(Date.now() + 86400000), // 1 day
+        })
+      );
+
+      const middleware = createAuthMiddleware(
+        mockSessionRepo as unknown as SessionRepository,
+        mockUserRepo as unknown as UserRepository
+      );
+
+      const request = new Request("http://localhost/api/test", {
+        headers: {
+          Cookie: "session_token=valid-token",
+        },
+      });
+
+      const beforeCall = Date.now();
+      await middleware.authenticate(request);
+      const afterCall = Date.now();
+
+      expect(mockSessionRepo.refreshSession).toHaveBeenCalledTimes(1);
+      const callArgs = mockSessionRepo.refreshSession.mock.calls[0] as [string, Date];
+      const [token, newExpiresAt] = callArgs;
+      expect(token).toBe("valid-token");
+
+      // Verify new expiry is approximately SESSION_TTL_DAYS from now
+      const expectedMinExpiry = beforeCall + SESSION_TTL_DAYS * 86400000;
+      const expectedMaxExpiry = afterCall + SESSION_TTL_DAYS * 86400000;
+      const actualExpiry = newExpiresAt.getTime();
+
+      expect(actualExpiry).toBeGreaterThanOrEqual(expectedMinExpiry - 1000);
+      expect(actualExpiry).toBeLessThanOrEqual(expectedMaxExpiry + 1000);
+    });
+
+    test("sets empty string for csrfToken when no CSRF cookie present", async () => {
+      mockSessionRepo.findByToken.mockImplementation(() =>
+        Promise.resolve({
+          id: "session-123",
+          userId: "user-123",
+          token: "valid-token",
+          expiresAt: new Date(Date.now() + 86400000), // 1 day
+        })
+      );
+
+      const middleware = createAuthMiddleware(
+        mockSessionRepo as unknown as SessionRepository,
+        mockUserRepo as unknown as UserRepository
+      );
+
+      const request = new Request("http://localhost/api/test", {
+        headers: {
+          Cookie: "session_token=valid-token",
+        },
+      });
+
+      const result = await middleware.authenticate(request);
+
+      expect(result.refresh).toBeDefined();
+      expect(result.refresh?.csrfToken).toBe("");
+    });
+
+    test("refresh includes correct expiresAt date", async () => {
+      mockSessionRepo.findByToken.mockImplementation(() =>
+        Promise.resolve({
+          id: "session-123",
+          userId: "user-123",
+          token: "valid-token",
+          expiresAt: new Date(Date.now() + 86400000 * 2), // 2 days
+        })
+      );
+
+      const middleware = createAuthMiddleware(
+        mockSessionRepo as unknown as SessionRepository,
+        mockUserRepo as unknown as UserRepository
+      );
+
+      const request = new Request("http://localhost/api/test", {
+        headers: {
+          Cookie: "session_token=valid-token",
+        },
+      });
+
+      const result = await middleware.authenticate(request);
+
+      expect(result.refresh).toBeDefined();
+      expect(result.refresh?.expiresAt).toBeInstanceOf(Date);
+
+      // Verify expiresAt is approximately 7 days from now
+      const now = Date.now();
+      const expectedExpiry = now + SESSION_TTL_DAYS * 86400000;
+      const actualExpiry = result.refresh?.expiresAt.getTime() ?? 0;
+
+      expect(actualExpiry).toBeGreaterThanOrEqual(expectedExpiry - 5000);
+      expect(actualExpiry).toBeLessThanOrEqual(expectedExpiry + 5000);
+    });
+
+    test("verifies SESSION_REFRESH_THRESHOLD_DAYS constant is used correctly", () => {
+      // This test verifies the threshold value is what we expect
+      expect(SESSION_REFRESH_THRESHOLD_DAYS).toBe(3.5);
+      expect(SESSION_TTL_DAYS).toBe(7);
     });
   });
 });

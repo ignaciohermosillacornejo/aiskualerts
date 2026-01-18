@@ -21,7 +21,7 @@ export interface CSRFConfig {
   headerName?: string;
 }
 
-const DEFAULT_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const DEFAULT_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (matches session TTL)
 const DEFAULT_COOKIE_NAME = "csrf_token";
 const DEFAULT_HEADER_NAME = "X-CSRF-Token";
 const TOKEN_BYTES = 32;

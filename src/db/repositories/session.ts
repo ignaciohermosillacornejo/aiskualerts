@@ -80,4 +80,15 @@ export class SessionRepository {
 
     return results[0]?.count ?? 0;
   }
+
+  /**
+   * Refresh session expiration (sliding window)
+   * Updates the expires_at timestamp to extend the session
+   */
+  async refreshSession(token: string, newExpiresAt: Date): Promise<void> {
+    await this.db.execute(
+      `UPDATE sessions SET expires_at = $1 WHERE token = $2`,
+      [newExpiresAt.toISOString(), token]
+    );
+  }
 }
