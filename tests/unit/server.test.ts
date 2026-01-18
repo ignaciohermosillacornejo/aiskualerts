@@ -886,10 +886,11 @@ describe("createServer with dependencies", () => {
   function createMockSession() {
     return {
       id: "session-123",
-      user_id: "user-123",
+      userId: "user-123",
       token: "test-session-token",
-      expires_at: new Date(Date.now() + 86400000),
-      created_at: new Date(),
+      // Expires in 7 days (must be > SESSION_REFRESH_THRESHOLD_DAYS=3.5 to avoid refresh path)
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      createdAt: new Date(),
     };
   }
 
@@ -933,6 +934,7 @@ describe("createServer with dependencies", () => {
         create: mock(() => Promise.resolve(mockSession)),
         deleteByToken: mock(() => Promise.resolve()),
         deleteExpired: mock(() => Promise.resolve(0)),
+        refreshSession: mock(() => Promise.resolve()),
       } as unknown as ServerDependencies["sessionRepo"],
       userRepo: {
         getById: mock(() => Promise.resolve(mockUser)),
