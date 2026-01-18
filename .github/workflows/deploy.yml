@@ -137,19 +137,27 @@ jobs:
 
             # Seed schema_migrations if database exists but migration tracking doesn't
             # This handles databases initialized from schema.sql before migration tracking was added
-            # NOTE: Only seed migrations whose schema is already in schema.sql
-            # New migrations should be applied by migrate.ts, not seeded here
+            # Auto-detects migration versions from the migration files (schema.sql should be in sync)
             echo "Checking migration tracking..."
-            docker compose exec -T postgres psql -U aiskualerts -d aiskualerts -c "
-              CREATE TABLE IF NOT EXISTS schema_migrations (
-                version INTEGER PRIMARY KEY,
-                applied_at TIMESTAMPTZ DEFAULT NOW()
-              );
-              -- Seed versions 1-6 (their schema is in schema.sql)
-              -- New migrations will be applied by migrate.ts
-              INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5), (6)
-              ON CONFLICT (version) DO NOTHING;
-            "
+
+            # Get all migration versions from filenames (e.g., 001_initial.sql -> 1)
+            # Transform to SQL VALUES format: (1), (2), (3), ...
+            VALUES_SQL=$(ls src/db/migrations/*.sql 2>/dev/null | sed 's/.*\/\([0-9]*\)_.*/\1/' | sed 's/^0*//' | sort -n | sed 's/.*/(&)/' | tr '\n' ',' | sed 's/,$//')
+
+            if [ -n "$VALUES_SQL" ]; then
+              echo "Found migrations, seeding: $VALUES_SQL"
+              docker compose exec -T postgres psql -U aiskualerts -d aiskualerts -c "
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                  version INTEGER PRIMARY KEY,
+                  applied_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                -- Auto-seed all migrations (schema.sql contains their changes)
+                INSERT INTO schema_migrations (version) VALUES $VALUES_SQL
+                ON CONFLICT (version) DO NOTHING;
+              "
+            else
+              echo "No migration files found"
+            fi
             echo "✅ Migration tracking initialized"
 
             # Run database migrations (fail deployment if migrations fail)
