@@ -190,10 +190,9 @@ function SyncCard({ syncing, syncResult, lastSyncAt, onSync }: SyncCardProps) {
         >
           {syncResult.success ? (
             <div style={{ color: "#166534" }}>
-              <strong>Sincronizacion exitosa</strong>
+              <strong>Sincronización iniciada correctamente</strong>
               <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.875rem" }}>
-                {syncResult.productsUpdated} productos actualizados, {syncResult.alertsGenerated} alertas generadas
-                ({Math.round(syncResult.duration / 1000)}s)
+                La sincronización con Bsale fue activada. Los datos se actualizarán en breve.
               </p>
             </div>
           ) : (
