@@ -115,7 +115,7 @@ export function Products() {
                     </td>
                     <td>
                       {product.unitPrice != null
-                        ? `$ ${product.unitPrice.toLocaleString("es-CL")}`
+                        ? `$ ${product.unitPrice.toLocaleString("es-CL", { maximumFractionDigits: 0 })}`
                         : "-"}
                     </td>
                   </tr>
