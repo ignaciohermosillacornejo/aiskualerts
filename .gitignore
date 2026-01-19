@@ -45,3 +45,4 @@ playwright-report
 playwright-results
 test-results
 .playwright
+.worktrees/
