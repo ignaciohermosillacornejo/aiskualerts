@@ -1,6 +1,7 @@
 import {
   StockResponseSchema,
   VariantSchema,
+  PriceListsResponseSchema,
   PriceListDetailsResponseSchema,
   type StockItem,
   type Variant,
@@ -118,12 +119,45 @@ export class BsaleClient {
   }
 
   /**
-   * Get all price details from the default price list (ID 1).
+   * Discover available price lists for the account.
+   * Returns the ID of the first active price list, or null if none found.
+   */
+  async getFirstPriceListId(): Promise<number | null> {
+    try {
+      const response = await this.fetchWithRetry("/v1/price_lists.json?limit=10");
+      const data = PriceListsResponseSchema.parse(response);
+
+      // Find first active price list (state=0 means active)
+      const activePriceList = data.items.find((pl) => pl.state === 0) ?? data.items[0];
+
+      if (activePriceList) {
+        logger.info("Found price list", { priceListId: activePriceList.id, name: activePriceList.name });
+        return activePriceList.id;
+      }
+
+      logger.warn("No price lists found in Bsale account");
+      return null;
+    } catch (error) {
+      logger.warn("Failed to fetch price lists", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Get all price details from the first available price list.
    * Returns a Map where keys are variant IDs and values are the price with taxes.
    */
   async getAllPrices(): Promise<Map<number, number>> {
     const priceMap = new Map<number, number>();
-    const priceListId = 1; // Default price list in Bsale
+
+    // First, discover available price lists
+    const priceListId = await this.getFirstPriceListId();
+    if (priceListId === null) {
+      logger.warn("No price list available, skipping price fetch");
+      return priceMap;
+    }
 
     let offset = 0;
     const limit = DEFAULT_PAGE_SIZE;
@@ -157,6 +191,7 @@ export class BsaleClient {
       }
     }
 
+    logger.info("Fetched prices from price list", { priceListId, priceCount: priceMap.size });
     return priceMap;
   }
 
