@@ -16,12 +16,19 @@ const mockGetVariantsBatch = mock<(ids: number[]) => Promise<Map<number, Variant
   () => Promise.resolve(new Map<number, Variant>())
 );
 
+const mockGetAllPrices = mock<() => Promise<Map<number, number>>>(
+  () => Promise.resolve(new Map<number, number>())
+);
+
 class MockBsaleClient {
   getAllStocks(): AsyncGenerator<StockItem> {
     return mockGetAllStocks();
   }
   getVariantsBatch(ids: number[]): Promise<Map<number, Variant>> {
     return mockGetVariantsBatch(ids);
+  }
+  getAllPrices(): Promise<Map<number, number>> {
+    return mockGetAllPrices();
   }
 }
 

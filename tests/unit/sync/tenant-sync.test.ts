@@ -23,6 +23,7 @@ interface MockDeps {
   upsertBatch: Mock<(batch: StockSnapshotInput[]) => Promise<number>>;
   getAllStocks: Mock<() => AsyncGenerator<StockItem>>;
   getVariantsBatch: Mock<(ids: number[]) => Promise<Map<number, Variant>>>;
+  getAllPrices: Mock<() => Promise<Map<number, number>>>;
 }
 
 function createMockDeps(): { deps: TenantSyncDependencies; mocks: MockDeps } {
@@ -38,6 +39,7 @@ function createMockDeps(): { deps: TenantSyncDependencies; mocks: MockDeps } {
   const getAllStocks = mock(() => emptyGenerator());
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- args captured by mock
   const getVariantsBatch = mock((_ids: number[]) => Promise.resolve(new Map<number, Variant>()));
+  const getAllPrices = mock(() => Promise.resolve(new Map<number, number>()));
 
   const deps: TenantSyncDependencies = {
     tenantRepo: {
@@ -53,10 +55,11 @@ function createMockDeps(): { deps: TenantSyncDependencies; mocks: MockDeps } {
       ({
         getAllStocks,
         getVariantsBatch,
+        getAllPrices,
       }) as unknown as ReturnType<TenantSyncDependencies["createBsaleClient"]>,
   };
 
-  return { deps, mocks: { updateSyncStatus, upsertBatch, getAllStocks, getVariantsBatch } };
+  return { deps, mocks: { updateSyncStatus, upsertBatch, getAllStocks, getVariantsBatch, getAllPrices } };
 }
 
 function createMockStock(id: number, officeId: number | null = null): StockItem {
@@ -389,6 +392,96 @@ describe("syncTenant", () => {
       expect(uniqueIds.length).toBe(variantIdsArg.length);
       expect(variantIdsArg).toContain(100);
       expect(variantIdsArg).toContain(200);
+    });
+
+    test("enriches stock snapshots with price list data", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* stockGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        yield createMockStock(100, 1);
+        yield createMockStock(200, 1);
+      }
+      mocks.getAllStocks.mockImplementation(() => stockGenerator());
+
+      const variantsMap = new Map<number, Variant>([
+        [100, { id: 100, code: "SKU-100", barCode: "BC-100", description: "Variant 100", product: { name: "Product 100" } }],
+        [200, { id: 200, code: "SKU-200", barCode: "BC-200", description: "Variant 200", product: { name: "Product 200" } }],
+      ]);
+      mocks.getVariantsBatch.mockImplementation(() => Promise.resolve(variantsMap));
+
+      // Price list provides prices for both variants
+      const pricesMap = new Map<number, number>([
+        [100, 1500],
+        [200, 2500],
+      ]);
+      mocks.getAllPrices.mockImplementation(() => Promise.resolve(pricesMap));
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(true);
+      expect(result.itemsSynced).toBe(2);
+
+      // Verify upsertBatch was called with price data from price list
+      const batchCall = mocks.upsertBatch.mock.calls[0]?.[0];
+      expect(batchCall).toBeDefined();
+      expect(batchCall?.[0]?.unit_price).toBe(1500);
+      expect(batchCall?.[1]?.unit_price).toBe(2500);
+    });
+
+    test("price list takes precedence over variant.finalPrice", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* stockGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        yield createMockStock(100, 1);
+      }
+      mocks.getAllStocks.mockImplementation(() => stockGenerator());
+
+      // Variant has finalPrice of 1000
+      const variantsMap = new Map<number, Variant>([
+        [100, { id: 100, code: "SKU-100", barCode: "BC-100", description: "Variant 100", finalPrice: 1000, product: { name: "Product 100" } }],
+      ]);
+      mocks.getVariantsBatch.mockImplementation(() => Promise.resolve(variantsMap));
+
+      // Price list has price of 1500 (should take precedence)
+      const pricesMap = new Map<number, number>([
+        [100, 1500],
+      ]);
+      mocks.getAllPrices.mockImplementation(() => Promise.resolve(pricesMap));
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(true);
+
+      const batchCall = mocks.upsertBatch.mock.calls[0]?.[0];
+      expect(batchCall?.[0]?.unit_price).toBe(1500); // Price list takes precedence
+    });
+
+    test("falls back to variant.finalPrice when price list has no entry", async () => {
+      const { deps, mocks } = createMockDeps();
+
+      async function* stockGenerator(): AsyncGenerator<StockItem> {
+        await Promise.resolve();
+        yield createMockStock(100, 1);
+      }
+      mocks.getAllStocks.mockImplementation(() => stockGenerator());
+
+      // Variant has finalPrice
+      const variantsMap = new Map<number, Variant>([
+        [100, { id: 100, code: "SKU-100", barCode: "BC-100", description: "Variant 100", finalPrice: 1000, product: { name: "Product 100" } }],
+      ]);
+      mocks.getVariantsBatch.mockImplementation(() => Promise.resolve(variantsMap));
+
+      // Price list is empty (no prices available)
+      mocks.getAllPrices.mockImplementation(() => Promise.resolve(new Map<number, number>()));
+
+      const result = await syncTenant(mockTenant, deps);
+
+      expect(result.success).toBe(true);
+
+      const batchCall = mocks.upsertBatch.mock.calls[0]?.[0];
+      expect(batchCall?.[0]?.unit_price).toBe(1000); // Falls back to variant.finalPrice
     });
   });
 });
