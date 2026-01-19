@@ -17,7 +17,7 @@ export interface Product {
   name: string;
   currentStock: number;
   threshold: number | null;
-  unitPrice: number | null;
+  unitPrice: number | string | null;
   lastSyncAt: string;
 }
 
