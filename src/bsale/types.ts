@@ -56,7 +56,27 @@ export const OAuthTokenResponseSchema = z.object({
   }),
 });
 
+export const PriceListDetailSchema = z.object({
+  id: numericId,
+  variantValue: z.number(),
+  variantValueWithTaxes: z.number(),
+  variant: z.object({
+    href: z.string(),
+    id: numericId,
+  }),
+});
+
+export const PriceListDetailsResponseSchema = z.object({
+  href: z.string(),
+  count: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+  items: z.array(PriceListDetailSchema),
+});
+
 export type StockItem = z.infer<typeof StockItemSchema>;
 export type StockResponse = z.infer<typeof StockResponseSchema>;
 export type Variant = z.infer<typeof VariantSchema>;
 export type OAuthTokenResponse = z.infer<typeof OAuthTokenResponseSchema>;
+export type PriceListDetail = z.infer<typeof PriceListDetailSchema>;
+export type PriceListDetailsResponse = z.infer<typeof PriceListDetailsResponseSchema>;

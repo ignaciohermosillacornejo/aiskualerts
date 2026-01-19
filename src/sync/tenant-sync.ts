@@ -28,12 +28,14 @@ function formatProductName(productName: string | undefined, variantDescription: 
 
 /**
  * Convert Bsale stock item to StockSnapshotInput with optional variant enrichment
+ * @param priceWithTaxes - Price from price list (takes precedence over variant.finalPrice)
  */
 function stockToSnapshot(
   stock: StockItem,
   tenantId: string,
   snapshotDate: Date,
-  variant?: Variant
+  variant?: Variant,
+  priceWithTaxes?: number
 ): StockSnapshotInput {
   return {
     tenant_id: tenantId,
@@ -45,7 +47,7 @@ function stockToSnapshot(
     quantity: stock.quantity,
     quantity_reserved: stock.quantityReserved,
     quantity_available: stock.quantityAvailable,
-    unit_price: variant?.finalPrice ?? null,
+    unit_price: priceWithTaxes ?? variant?.finalPrice ?? null,
     snapshot_date: snapshotDate,
   };
 }
@@ -103,14 +105,18 @@ export async function syncTenant(
     // Extract unique variant IDs
     const variantIds = [...new Set(stockItems.map((s) => s.variant.id))];
 
-    // Batch fetch variant details
-    const variantsMap = await client.getVariantsBatch(variantIds);
+    // Batch fetch variant details and prices in parallel
+    const [variantsMap, pricesMap] = await Promise.all([
+      client.getVariantsBatch(variantIds),
+      client.getAllPrices(),
+    ]);
 
     // Process stocks in batches with enriched data
     let batch: StockSnapshotInput[] = [];
     for (const stock of stockItems) {
       const variant = variantsMap.get(stock.variant.id);
-      const snapshot = stockToSnapshot(stock, tenant.id, snapshotDate, variant);
+      const priceWithTaxes = pricesMap.get(stock.variant.id);
+      const snapshot = stockToSnapshot(stock, tenant.id, snapshotDate, variant, priceWithTaxes);
       batch.push(snapshot);
 
       if (batch.length >= options.batchSize) {

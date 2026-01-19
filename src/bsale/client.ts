@@ -1,6 +1,7 @@
 import {
   StockResponseSchema,
   VariantSchema,
+  PriceListDetailsResponseSchema,
   type StockItem,
   type Variant,
 } from "./types";
@@ -114,6 +115,49 @@ export class BsaleClient {
     }
 
     return results;
+  }
+
+  /**
+   * Get all price details from the default price list (ID 1).
+   * Returns a Map where keys are variant IDs and values are the price with taxes.
+   */
+  async getAllPrices(): Promise<Map<number, number>> {
+    const priceMap = new Map<number, number>();
+    const priceListId = 1; // Default price list in Bsale
+
+    let offset = 0;
+    const limit = DEFAULT_PAGE_SIZE;
+    let hasMore = true;
+
+    while (hasMore) {
+      try {
+        const response = await this.fetchWithRetry(
+          `/v1/price_lists/${String(priceListId)}/details.json?limit=${String(limit)}&offset=${String(offset)}`
+        );
+        const data = PriceListDetailsResponseSchema.parse(response);
+
+        for (const item of data.items) {
+          priceMap.set(item.variant.id, item.variantValueWithTaxes);
+        }
+
+        if (data.items.length < limit) {
+          hasMore = false;
+        } else {
+          offset += limit;
+          await this.delay();
+        }
+      } catch (error) {
+        // Log but don't fail sync if price list is not accessible
+        logger.warn("Failed to fetch price list details", {
+          priceListId,
+          offset,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+        hasMore = false;
+      }
+    }
+
+    return priceMap;
   }
 
   private async fetchWithRetry(
