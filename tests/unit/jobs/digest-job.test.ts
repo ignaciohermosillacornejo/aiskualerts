@@ -78,6 +78,9 @@ const mockUser: User = {
   notification_enabled: true,
   notification_email: null,
   digest_frequency: "daily",
+  subscription_id: null,
+  subscription_status: "none",
+  subscription_ends_at: null,
   created_at: new Date("2024-01-01"),
 };
 

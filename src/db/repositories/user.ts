@@ -1,5 +1,5 @@
 import type { DatabaseClient } from "@/db/client";
-import type { User, DigestFrequency } from "./types";
+import type { User, DigestFrequency, SubscriptionStatus } from "./types";
 
 export interface CreateUserInput {
   tenant_id: string;
@@ -136,5 +136,41 @@ export class UserRepository {
          AND digest_frequency = $${String(tenantIds.length + 1)}`,
       [...tenantIds, frequency]
     );
+  }
+
+  async activateSubscription(
+    userId: string,
+    subscriptionId: string
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE users
+       SET subscription_id = $2,
+           subscription_status = $3,
+           subscription_ends_at = NULL
+       WHERE id = $1`,
+      [userId, subscriptionId, "active"]
+    );
+  }
+
+  async updateSubscriptionStatus(
+    subscriptionId: string,
+    status: SubscriptionStatus,
+    endsAt?: Date
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE users
+       SET subscription_status = $1,
+           subscription_ends_at = $2
+       WHERE subscription_id = $3`,
+      [status, endsAt ?? null, subscriptionId]
+    );
+  }
+
+  async findBySubscriptionId(subscriptionId: string): Promise<User | null> {
+    const rows = await this.db.query<User>(
+      `SELECT * FROM users WHERE subscription_id = $1`,
+      [subscriptionId]
+    );
+    return rows[0] ?? null;
   }
 }
