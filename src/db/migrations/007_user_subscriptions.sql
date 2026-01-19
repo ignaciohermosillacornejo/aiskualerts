@@ -6,9 +6,17 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_id TEXT UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'none';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ;
 
--- Add constraint for subscription_status
-ALTER TABLE users ADD CONSTRAINT users_subscription_status_check
-  CHECK (subscription_status IN ('none', 'active', 'cancelled', 'past_due'));
+-- Add constraint for subscription_status (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'users_subscription_status_check'
+  ) THEN
+    ALTER TABLE users ADD CONSTRAINT users_subscription_status_check
+      CHECK (subscription_status IN ('none', 'active', 'cancelled', 'past_due'));
+  END IF;
+END $$;
 
 -- Create index for subscription lookups
 CREATE INDEX IF NOT EXISTS idx_users_subscription ON users(subscription_id)
