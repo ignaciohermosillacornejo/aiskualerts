@@ -56,7 +56,7 @@ export class DashboardPage {
     this.syncCard = page.locator(".card", { hasText: "Sincronizacion" });
     this.syncButton = page.locator('button:has-text("Sincronizar Ahora")');
     this.lastSyncTime = page.locator('text=/Ultima sincronizacion:/');
-    this.syncSuccessMessage = page.locator('text=Sincronizacion exitosa');
+    this.syncSuccessMessage = page.locator('text=Sincronización iniciada correctamente');
     this.syncErrorMessage = page.locator('text=Error en sincronizacion');
 
     // Alerts section
