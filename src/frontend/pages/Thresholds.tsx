@@ -229,17 +229,25 @@ export function Thresholds() {
                 {thresholds.map((threshold) => {
                   const product = products.find((p) => p.id === threshold.productId);
                   const isBelowThreshold = product && product.currentStock <= threshold.minQuantity;
+                  const isInactive = !threshold.isActive;
+
                   return (
-                    <tr key={threshold.id}>
+                    <tr key={threshold.id} style={isInactive ? { opacity: 0.6 } : undefined}>
                       <td>{sanitizeText(threshold.productName)}</td>
                       <td>
                         <strong>{threshold.minQuantity.toLocaleString()}</strong>
                       </td>
                       <td>{product?.currentStock.toLocaleString() ?? "-"}</td>
                       <td>
-                        <span className={`badge ${isBelowThreshold ? "badge-danger" : "badge-success"}`}>
-                          {isBelowThreshold ? "Alerta" : "OK"}
-                        </span>
+                        {isInactive ? (
+                          <span className="badge badge-secondary" title="Actualiza a Pro para activar">
+                            Inactivo
+                          </span>
+                        ) : (
+                          <span className={`badge ${isBelowThreshold ? "badge-danger" : "badge-success"}`}>
+                            {isBelowThreshold ? "Alerta" : "OK"}
+                          </span>
+                        )}
                       </td>
                       <td>
                         <div style={{ display: "flex", gap: "0.5rem" }}>
