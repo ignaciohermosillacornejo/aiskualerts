@@ -50,6 +50,7 @@ export function createMockThreshold(overrides: Partial<Threshold> = {}): Thresho
     minQuantity: 10,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    isActive: true,
     ...overrides,
   };
 }

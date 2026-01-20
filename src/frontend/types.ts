@@ -28,6 +28,7 @@ export interface Threshold {
   minQuantity: number;
   createdAt: string;
   updatedAt: string;
+  isActive: boolean;
 }
 
 export interface DashboardStats {
@@ -76,4 +77,14 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+export interface LimitInfo {
+  plan: "FREE" | "PRO";
+  thresholds: {
+    current: number;
+    max: number | null; // null = unlimited
+    remaining: number | null;
+    isOverLimit: boolean;
+  };
 }
