@@ -280,6 +280,7 @@ export function Thresholds() {
         <ThresholdModal
           threshold={editingThreshold}
           products={products}
+          limits={limits}
           onSave={handleSave}
           onClose={() => setShowModal(false)}
         />
@@ -307,11 +308,12 @@ interface ThresholdFormData {
 interface ThresholdModalProps {
   threshold: Threshold | null;
   products: Product[];
+  limits: LimitInfo | null;
   onSave: (data: ThresholdFormData) => void;
   onClose: () => void;
 }
 
-function ThresholdModal({ threshold, products, onSave, onClose }: ThresholdModalProps) {
+function ThresholdModal({ threshold, products, limits, onSave, onClose }: ThresholdModalProps) {
   const [productId, setProductId] = useState(threshold?.productId ?? "");
   const [minQuantity, setMinQuantity] = useState(threshold?.minQuantity ?? 10);
 
@@ -337,6 +339,19 @@ function ThresholdModal({ threshold, products, onSave, onClose }: ThresholdModal
           <button className="btn btn-secondary" onClick={onClose} type="button">X</button>
         </div>
         <form onSubmit={handleSubmit}>
+          {/* Show warning if creating new threshold and over limit */}
+          {!threshold && limits?.thresholds.isOverLimit && (
+            <div style={{
+              backgroundColor: "#fef3c7",
+              padding: "0.75rem",
+              borderRadius: "0.375rem",
+              marginBottom: "1rem",
+              fontSize: "0.875rem",
+              color: "#92400e"
+            }}>
+              Este umbral no generara alertas hasta que actualices a Pro.
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">Producto</label>
             <select
