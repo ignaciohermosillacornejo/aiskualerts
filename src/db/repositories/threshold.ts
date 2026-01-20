@@ -178,4 +178,46 @@ export class ThresholdRepository {
       [userId]
     );
   }
+
+  async countByUserAcrossTenants(userId: string): Promise<number> {
+    const result = await this.db.queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM thresholds WHERE user_id = $1`,
+      [userId]
+    );
+    return parseInt(result?.count ?? "0", 10);
+  }
+
+  async getActiveThresholdsForUser(
+    userId: string,
+    limit?: number
+  ): Promise<Threshold[]> {
+    if (limit === undefined) {
+      return this.db.query<Threshold>(
+        `SELECT * FROM thresholds
+         WHERE user_id = $1
+         ORDER BY created_at ASC`,
+        [userId]
+      );
+    }
+    return this.db.query<Threshold>(
+      `SELECT * FROM thresholds
+       WHERE user_id = $1
+       ORDER BY created_at ASC
+       LIMIT $2`,
+      [userId, limit]
+    );
+  }
+
+  async getSkippedThresholdsForUser(
+    userId: string,
+    offset: number
+  ): Promise<Threshold[]> {
+    return this.db.query<Threshold>(
+      `SELECT * FROM thresholds
+       WHERE user_id = $1
+       ORDER BY created_at ASC
+       OFFSET $2`,
+      [userId, offset]
+    );
+  }
 }

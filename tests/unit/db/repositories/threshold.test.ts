@@ -165,4 +165,69 @@ describe("ThresholdRepository", () => {
       expect(result).toBeNull();
     });
   });
+
+  describe("cross-tenant queries", () => {
+    test("countByUserAcrossTenants counts thresholds across all tenants", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ count: "25" });
+
+      const repo = new ThresholdRepository(db);
+      const count = await repo.countByUserAcrossTenants("user-1");
+
+      expect(count).toBe(25);
+      expect(mocks.queryOne).toHaveBeenCalledWith(
+        expect.stringContaining("user_id = $1"),
+        ["user-1"]
+      );
+    });
+
+    test("getActiveThresholdsForUser returns first N thresholds ordered by created_at", async () => {
+      const mockThresholds = [
+        { ...mockThreshold, id: "t1", created_at: new Date("2026-01-01") },
+        { ...mockThreshold, id: "t2", created_at: new Date("2026-01-02") },
+      ];
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue(mockThresholds);
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.getActiveThresholdsForUser("user-1", 50);
+
+      expect(result).toEqual(mockThresholds);
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.stringContaining("ORDER BY created_at ASC"),
+        expect.arrayContaining(["user-1", 50])
+      );
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.stringContaining("LIMIT $2"),
+        expect.arrayContaining(["user-1", 50])
+      );
+    });
+
+    test("getActiveThresholdsForUser returns all when limit is undefined", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new ThresholdRepository(db);
+      await repo.getActiveThresholdsForUser("user-1", undefined);
+
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.not.stringContaining("LIMIT"),
+        ["user-1"]
+      );
+    });
+
+    test("getSkippedThresholdsForUser returns thresholds after offset", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([{ ...mockThreshold, id: "t51" }]);
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.getSkippedThresholdsForUser("user-1", 50);
+
+      expect(result).toHaveLength(1);
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.stringContaining("OFFSET $2"),
+        ["user-1", 50]
+      );
+    });
+  });
 });
