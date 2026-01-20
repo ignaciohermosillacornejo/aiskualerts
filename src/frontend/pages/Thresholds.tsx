@@ -4,6 +4,9 @@ import { ConfirmModal } from "../components/ConfirmModal";
 import { sanitizeText } from "../utils/sanitize";
 import type { Threshold, Product, LimitInfo } from "../types";
 
+const BANNER_DISMISS_KEY = "limitBannerDismissedAt";
+const BANNER_DISMISS_DAYS = 7;
+
 export function Thresholds() {
   const [thresholds, setThresholds] = useState<Threshold[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -76,6 +79,23 @@ export function Thresholds() {
     setDeleteConfirm({ isOpen: false, thresholdId: null });
   }
 
+  function shouldShowOverLimitBanner(): boolean {
+    if (!limits?.thresholds.isOverLimit) return false;
+
+    const dismissedAt = localStorage.getItem(BANNER_DISMISS_KEY);
+    if (!dismissedAt) return true;
+
+    const dismissDate = new Date(dismissedAt);
+    const daysSince = (Date.now() - dismissDate.getTime()) / (1000 * 60 * 60 * 24);
+    return daysSince >= BANNER_DISMISS_DAYS;
+  }
+
+  function handleDismissBanner() {
+    localStorage.setItem(BANNER_DISMISS_KEY, new Date().toISOString());
+    // Force re-render by updating limits state
+    setLimits(limits ? { ...limits } : null);
+  }
+
   async function handleSave(data: ThresholdFormData) {
     try {
       if (editingThreshold) {
@@ -119,6 +139,66 @@ export function Thresholds() {
             + Nuevo Umbral
           </button>
         </div>
+
+        {/* Approaching limit banner (40-49) */}
+        {limits && limits.thresholds.max !== null &&
+         limits.thresholds.current >= 40 &&
+         limits.thresholds.current < 50 && (
+          <div style={{
+            backgroundColor: "#fef3c7",
+            padding: "0.75rem 1rem",
+            borderRadius: "0.375rem",
+            marginBottom: "1rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem"
+          }}>
+            <span style={{ color: "#92400e" }}>
+              Te estas acercando a tu limite gratuito de {limits.thresholds.max} umbrales.
+            </span>
+            <a href="/settings" style={{ color: "#92400e", fontWeight: 500 }}>
+              Actualizar a Pro
+            </a>
+          </div>
+        )}
+
+        {/* Over limit banner (50+) */}
+        {shouldShowOverLimitBanner() && limits && (
+          <div style={{
+            backgroundColor: "#fee2e2",
+            padding: "0.75rem 1rem",
+            borderRadius: "0.375rem",
+            marginBottom: "1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ color: "#991b1b" }}>
+                {limits.thresholds.current - (limits.thresholds.max ?? 0)} umbrales estan inactivos.
+              </span>
+              <a href="/settings" style={{ color: "#991b1b", fontWeight: 500 }}>
+                Actualiza a Pro para alertas ilimitadas
+              </a>
+            </div>
+            <button
+              onClick={handleDismissBanner}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#991b1b",
+                fontSize: "1.25rem",
+                lineHeight: 1
+              }}
+              type="button"
+              aria-label="Cerrar"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
         {error ? (
           <div className="empty-state">
             <div className="empty-state-title">Error</div>
