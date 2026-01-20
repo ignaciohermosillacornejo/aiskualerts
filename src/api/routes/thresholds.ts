@@ -1,11 +1,13 @@
 import { z } from "zod";
 import type { ThresholdRepository } from "@/db/repositories/threshold";
 import type { AuthMiddleware, AuthContext } from "@/api/middleware/auth";
+import type { ThresholdLimitService } from "@/billing/threshold-limit-service";
 import { jsonWithCors, responseWithCors, createValidationErrorResponse, parsePaginationParams } from "./utils";
 
 export interface ThresholdRouteDeps {
   thresholdRepo?: ThresholdRepository | undefined;
   authMiddleware?: AuthMiddleware | undefined;
+  thresholdLimitService?: ThresholdLimitService | undefined;
 }
 
 // Zod schemas for API request validation
@@ -81,6 +83,19 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
             { limit, offset }
           );
 
+          // Get active threshold IDs from limit service (for freemium limits)
+          let activeThresholdIds: Set<string> | null = null;
+          if (deps.thresholdLimitService) {
+            try {
+              activeThresholdIds = await deps.thresholdLimitService.getActiveThresholdIds(
+                authContext.userId
+              );
+            } catch {
+              // If limit service fails, treat all as active for graceful degradation
+              activeThresholdIds = null;
+            }
+          }
+
           // Transform DB thresholds to API format
           const apiThresholds = paginatedThresholds.data.map((t) => ({
             id: t.id,
@@ -91,6 +106,8 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
             minQuantity: t.min_quantity,
             createdAt: t.created_at.toISOString(),
             updatedAt: t.updated_at.toISOString(),
+            // If no limit service or it failed, treat all as active
+            isActive: activeThresholdIds === null ? true : activeThresholdIds.has(t.id),
           }));
 
           return jsonWithCors({
