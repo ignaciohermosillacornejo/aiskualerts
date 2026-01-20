@@ -528,25 +528,25 @@ export function createServer(
           request.method === "GET" &&
           deps?.subscriptionService &&
           authMiddleware &&
-          deps.tenantRepo
+          deps.userRepo
         ) {
           const subscriptionService = deps.subscriptionService;
-          const tenantRepo = deps.tenantRepo;
+          const userRepo = deps.userRepo;
           const response = await traceRequest("GET", "/api/subscription/status", async () => {
             try {
               const authContext = await authMiddleware.authenticate(request);
-              const tenant = await tenantRepo.getById(authContext.tenantId);
+              const user = await userRepo.getById(authContext.userId);
 
-              if (!tenant) {
-                return jsonWithCors({ error: "Tenant not found" }, { status: 404 });
+              if (!user) {
+                return jsonWithCors({ error: "User not found" }, { status: 404 });
               }
 
-              const hasAccess = await subscriptionService.hasActiveAccess(tenant);
+              const hasAccess = await subscriptionService.hasActiveAccess(user);
 
               return jsonWithCors({
                 hasActiveAccess: hasAccess,
-                subscriptionStatus: tenant.subscription_status,
-                subscriptionEndsAt: tenant.subscription_ends_at?.toISOString() ?? null,
+                subscriptionStatus: user.subscription_status,
+                subscriptionEndsAt: user.subscription_ends_at?.toISOString() ?? null,
               });
             } catch (error) {
               if (error instanceof Error && error.name === "AuthenticationError") {

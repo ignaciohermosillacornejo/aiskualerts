@@ -223,7 +223,7 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
     // Create subscription service for access checks
     serverDeps.subscriptionService = new deps.SubscriptionService({
       mercadoPagoClient,
-      tenantRepo,
+      userRepo,
     });
 
     deps.logger.info("Billing endpoints enabled");
