@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { api } from "../api/client";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { sanitizeText } from "../utils/sanitize";
-import type { Threshold, Product } from "../types";
+import type { Threshold, Product, LimitInfo } from "../types";
 
 export function Thresholds() {
   const [thresholds, setThresholds] = useState<Threshold[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [limits, setLimits] = useState<LimitInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -26,6 +27,14 @@ export function Thresholds() {
         ]);
         setThresholds(thresholdsData.thresholds);
         setProducts(productsData.products);
+
+        // Fetch limits separately - failure shouldn't break the page
+        try {
+          const limitsData = await api.getLimits();
+          setLimits(limitsData);
+        } catch {
+          // Silently fail - limits are supplementary UI info
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar datos");
       } finally {
@@ -96,7 +105,16 @@ export function Thresholds() {
     <div>
       <div className="card">
         <div className="card-header">
-          <h2 className="card-title">Umbrales de Alerta ({thresholds.length})</h2>
+          <div>
+            <h2 className="card-title">Umbrales de Alerta</h2>
+            {limits && (
+              <p style={{ color: "#64748b", fontSize: "0.875rem", margin: 0 }}>
+                {limits.thresholds.max !== null
+                  ? `Usando ${limits.thresholds.current} de ${limits.thresholds.max} umbrales`
+                  : `Usando ${limits.thresholds.current} umbrales`}
+              </p>
+            )}
+          </div>
           <button className="btn btn-primary" onClick={handleCreate} type="button">
             + Nuevo Umbral
           </button>

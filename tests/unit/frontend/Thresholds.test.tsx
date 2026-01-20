@@ -588,6 +588,9 @@ describe("Thresholds", () => {
         if (url.includes("/products")) {
           return Promise.resolve(mockResponse(mockProducts));
         }
+        if (url.includes("/settings/limits")) {
+          return Promise.resolve(mockResponse({ thresholds: { current: 3, max: 10 }, products: { current: 3, max: 50 } }));
+        }
         return Promise.resolve(mockResponse({}, { ok: false, status: 404 }));
       }) as unknown as typeof fetch;
 
