@@ -171,6 +171,7 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
     stockSnapshotRepo,
     thresholdRepo,
     alertRepo,
+    thresholdLimitService,
   };
 
   // OAuth dependencies (if configured)

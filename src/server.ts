@@ -15,6 +15,7 @@ import {
   type SyncHandlerDeps,
 } from "@/api/handlers/sync";
 import type { SubscriptionService } from "@/billing/subscription-service";
+import type { ThresholdLimitService } from "@/billing/threshold-limit-service";
 import type { AlertRepository } from "@/db/repositories/alert";
 import type { ThresholdRepository } from "@/db/repositories/threshold";
 import type { UserRepository } from "@/db/repositories/user";
@@ -197,6 +198,7 @@ export interface ServerDependencies {
   magicLinkDeps?: MagicLinkHandlerDeps;
   bsaleConnectionDeps?: BsaleConnectionDeps;
   subscriptionService?: SubscriptionService;
+  thresholdLimitService?: ThresholdLimitService;
   // Repository dependencies for database-backed routes
   alertRepo?: AlertRepository;
   thresholdRepo?: ThresholdRepository;
@@ -300,6 +302,7 @@ export function createServer(
     userRepo: deps?.userRepo,
     tenantRepo: deps?.tenantRepo,
     authMiddleware: authMiddleware ?? undefined,
+    thresholdLimitService: deps?.thresholdLimitService,
   });
 
   const authRoutesModule = createAuthRoutes({
@@ -352,6 +355,7 @@ export function createServer(
 
       // Settings routes
       "/api/settings": settingsRoutes["/api/settings"],
+      "/api/settings/limits": settingsRoutes["/api/settings/limits"],
 
       // Auth routes
       "/api/auth/login": authRoutesModule["/api/auth/login"],

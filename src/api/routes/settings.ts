@@ -2,12 +2,14 @@ import { z } from "zod";
 import type { UserRepository } from "@/db/repositories/user";
 import type { TenantRepository } from "@/db/repositories/tenant";
 import type { AuthMiddleware, AuthContext } from "@/api/middleware/auth";
+import type { ThresholdLimitService } from "@/billing/threshold-limit-service";
 import { jsonWithCors, createValidationErrorResponse } from "./utils";
 
 export interface SettingsRouteDeps {
   userRepo?: UserRepository | undefined;
   tenantRepo?: TenantRepository | undefined;
   authMiddleware?: AuthMiddleware | undefined;
+  thresholdLimitService?: ThresholdLimitService | undefined;
 }
 
 // Zod schema for settings update
@@ -40,6 +42,9 @@ export interface SettingsRoutes {
   "/api/settings": {
     GET: (req: Request) => Promise<Response>;
     PUT: (req: Request) => Promise<Response>;
+  };
+  "/api/settings/limits": {
+    GET: (req: Request) => Promise<Response>;
   };
 }
 
@@ -146,6 +151,82 @@ export function createSettingsRoutes(deps: SettingsRouteDeps): SettingsRoutes {
         // Fallback to mock data
         Object.assign(mockSettings, body);
         return jsonWithCors(mockSettings);
+      },
+    },
+
+    "/api/settings/limits": {
+      GET: async (req) => {
+        // Authenticate request - this endpoint requires authentication
+        if (!deps.authMiddleware) {
+          return jsonWithCors(
+            {
+              plan: "FREE",
+              thresholds: {
+                current: 0,
+                max: 50,
+                remaining: 50,
+                isOverLimit: false,
+              },
+            },
+            undefined,
+            req.headers.get("Origin")
+          );
+        }
+
+        let authContext: AuthContext;
+        try {
+          authContext = await deps.authMiddleware.authenticate(req);
+        } catch {
+          return jsonWithCors(
+            { error: "Unauthorized" },
+            { status: 401 },
+            req.headers.get("Origin")
+          );
+        }
+
+        // If thresholdLimitService is available, use real data
+        if (deps.thresholdLimitService) {
+          try {
+            const limitInfo = await deps.thresholdLimitService.getUserLimitInfo(
+              authContext.userId
+            );
+
+            return jsonWithCors(
+              {
+                plan: limitInfo.plan.name,
+                thresholds: {
+                  current: limitInfo.currentCount,
+                  max: limitInfo.maxAllowed === Infinity ? null : limitInfo.maxAllowed,
+                  remaining: limitInfo.remaining === Infinity ? null : limitInfo.remaining,
+                  isOverLimit: limitInfo.isOverLimit,
+                },
+              },
+              undefined,
+              req.headers.get("Origin")
+            );
+          } catch {
+            return jsonWithCors(
+              { error: "Failed to retrieve limit info" },
+              { status: 500 },
+              req.headers.get("Origin")
+            );
+          }
+        }
+
+        // Fallback to mock data when service not configured
+        return jsonWithCors(
+          {
+            plan: "FREE",
+            thresholds: {
+              current: 0,
+              max: 50,
+              remaining: 50,
+              isOverLimit: false,
+            },
+          },
+          undefined,
+          req.headers.get("Origin")
+        );
       },
     },
   };
