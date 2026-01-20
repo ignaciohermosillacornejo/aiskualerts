@@ -304,6 +304,34 @@ describe("API Client", () => {
     });
   });
 
+  describe("getLimits", () => {
+    test("fetches limit info from /settings/limits", async () => {
+      const mockLimitInfo = {
+        plan: "FREE" as const,
+        thresholds: {
+          current: 10,
+          max: 50,
+          remaining: 40,
+          isOverLimit: false,
+        },
+      };
+
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify(mockLimitInfo), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      const result = await api.getLimits();
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/settings/limits", expect.any(Object));
+      expect(result).toEqual(mockLimitInfo);
+    });
+  });
+
   describe("updateSettings", () => {
     test("sends PUT request with validated settings", async () => {
       mockFetch.mockImplementation(() =>
