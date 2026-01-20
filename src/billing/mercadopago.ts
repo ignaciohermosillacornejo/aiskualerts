@@ -21,14 +21,14 @@ export type MercadoPagoClientConfig = z.infer<typeof ConfigSchema>;
 
 // Input validation schemas
 const CheckoutInputSchema = z.object({
-  tenantId: z.uuid(),
+  userId: z.uuid(),
   email: z.email(),
 });
 
 // Webhook event result
 export type WebhookResult =
-  | { type: "subscription_authorized"; subscriptionId: string; tenantId: string }
-  | { type: "subscription_cancelled"; subscriptionId: string; tenantId: string; endsAt: Date }
+  | { type: "subscription_authorized"; subscriptionId: string; userId: string }
+  | { type: "subscription_cancelled"; subscriptionId: string; userId: string; endsAt: Date }
   | { type: "ignored"; eventType: string };
 
 export class MercadoPagoClient {
@@ -45,9 +45,9 @@ export class MercadoPagoClient {
     this.preapproval = new PreApproval(this.client);
   }
 
-  async createSubscription(tenantId: string, email: string): Promise<string> {
+  async createSubscription(userId: string, email: string): Promise<string> {
     // Validate inputs before making API calls
-    const validated = CheckoutInputSchema.parse({ tenantId, email });
+    const validated = CheckoutInputSchema.parse({ userId, email });
     const startTime = Date.now();
 
     return withSpan(
@@ -64,7 +64,7 @@ export class MercadoPagoClient {
           const response = await this.preapproval.create({
             body: {
               reason: "AISku Alerts Pro",
-              external_reference: validated.tenantId,
+              external_reference: validated.userId,
               payer_email: validated.email,
               auto_recurring: {
                 frequency: 1,
@@ -199,9 +199,9 @@ export class MercadoPagoClient {
     }
 
     const preapproval = await this.preapproval.get({ id: dataId });
-    const tenantId = preapproval.external_reference;
+    const userId = preapproval.external_reference;
 
-    if (!tenantId) {
+    if (!userId) {
       throw new Error("Missing external_reference in preapproval");
     }
 
@@ -212,13 +212,13 @@ export class MercadoPagoClient {
     if (preapproval.status === "authorized") {
       recordBillingMetrics({
         eventType: "checkout_completed",
-        tenantId,
+        tenantId: userId,
       });
 
       return {
         type: "subscription_authorized",
         subscriptionId: preapproval.id,
-        tenantId,
+        userId,
       };
     }
 
@@ -233,7 +233,7 @@ export class MercadoPagoClient {
       return {
         type: "subscription_cancelled",
         subscriptionId: preapproval.id,
-        tenantId,
+        userId,
         endsAt,
       };
     }

@@ -212,7 +212,6 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
     serverDeps.billingDeps = {
       mercadoPagoClient,
       authMiddleware,
-      tenantRepo,
       userRepo,
     };
 
