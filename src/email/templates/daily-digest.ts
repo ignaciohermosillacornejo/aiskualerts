@@ -10,6 +10,8 @@ export interface DigestEmailParams {
   tenantName: string;
   date: Date;
   alerts: AlertSummary[];
+  skippedThresholdCount?: number;
+  upgradeUrl?: string;
 }
 
 function formatDate(date: Date): string {
@@ -43,8 +45,54 @@ function getAlertTypeRowColor(alertType: AlertSummary["alertType"]): string {
   return colors[alertType];
 }
 
+function renderSkippedThresholdsSection(
+  skippedCount: number,
+  upgradeUrl?: string
+): string {
+  if (skippedCount <= 0) {
+    return "";
+  }
+
+  const isSingular = skippedCount === 1;
+  const umbralWord = isSingular ? "umbral" : "umbrales";
+  const estaWord = isSingular ? "no esta" : "no estan";
+
+  const upgradeButton = upgradeUrl
+    ? `
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top: 12px;">
+                <tr>
+                  <td style="background-color: #f59e0b; border-radius: 4px;">
+                    <a href="${escapeHtml(upgradeUrl)}"
+                       style="display: inline-block; padding: 8px 16px;
+                              color: white; text-decoration: none;
+                              font-weight: 500; font-size: 14px;">
+                      Actualizar a Pro
+                    </a>
+                  </td>
+                </tr>
+              </table>`
+    : "";
+
+  return `
+          <!-- Skipped Thresholds Section -->
+          <tr>
+            <td style="padding: 0 32px 24px;">
+              <div style="padding: 16px; background-color: #fef3c7; border-radius: 8px;">
+                <h3 style="margin: 0 0 8px 0; color: #92400e; font-size: 14px; font-weight: 600;">
+                  Omitidos por Limite del Plan Gratuito
+                </h3>
+                <p style="margin: 0; color: #78350f; font-size: 14px;">
+                  Tienes ${String(skippedCount)} ${umbralWord} que ${estaWord} generando alertas.
+                  Actualiza a Pro para monitoreo ilimitado de umbrales.
+                </p>
+                ${upgradeButton}
+              </div>
+            </td>
+          </tr>`;
+}
+
 export function renderDailyDigestEmail(params: DigestEmailParams): string {
-  const { tenantName, date, alerts } = params;
+  const { tenantName, date, alerts, skippedThresholdCount, upgradeUrl } = params;
 
   if (alerts.length === 0) {
     return "";
@@ -140,6 +188,8 @@ export function renderDailyDigestEmail(params: DigestEmailParams): string {
               </table>
             </td>
           </tr>
+
+          ${renderSkippedThresholdsSection(skippedThresholdCount ?? 0, upgradeUrl)}
 
           <!-- CTA Button -->
           <tr>

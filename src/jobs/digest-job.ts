@@ -7,6 +7,7 @@ import { AlertRepository } from "@/db/repositories/alert";
 import { renderDailyDigestEmail, type AlertSummary } from "@/email/templates/daily-digest";
 import type { Alert, DigestFrequency, User } from "@/db/repositories/types";
 import { logger } from "@/utils/logger";
+import type { ThresholdLimitService } from "@/billing/threshold-limit-service";
 
 export interface DigestJobResult {
   tenantsProcessed: number;
@@ -22,6 +23,7 @@ export interface DigestJobDependencies {
   db: DatabaseClient;
   config: Config;
   emailClient: EmailClient;
+  thresholdLimitService: ThresholdLimitService;
 }
 
 /**
@@ -160,12 +162,28 @@ export async function runDigestJob(
           alertType: alert.alert_type,
         }));
 
+        // Get skipped threshold count for free users
+        let skippedCount = 0;
+        try {
+          skippedCount = await deps.thresholdLimitService.getSkippedCount(userId);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          errors.push(`Error getting skipped count for user ${userId}: ${message}`);
+        }
+
+        // Build upgrade URL only if user has skipped thresholds
+        const upgradeUrl = skippedCount > 0 && deps.config.appUrl
+          ? `${deps.config.appUrl}/settings/billing`
+          : null;
+
         // Render email HTML
         const tenantDisplayName = tenant.bsale_client_name ?? "Tu empresa";
         const emailHtml = renderDailyDigestEmail({
           tenantName: tenantDisplayName,
           date: new Date(),
           alerts: alertSummaries,
+          skippedThresholdCount: skippedCount,
+          ...(upgradeUrl && { upgradeUrl }),
         });
 
         if (!emailHtml) {

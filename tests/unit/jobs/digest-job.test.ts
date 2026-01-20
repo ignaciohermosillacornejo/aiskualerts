@@ -8,6 +8,7 @@ import type { DatabaseClient } from "@/db/client";
 import type { Config } from "@/config";
 import type { EmailClient, SendEmailResult } from "@/email/resend-client";
 import type { Tenant, User, Alert } from "@/db/repositories/types";
+import type { ThresholdLimitService } from "@/billing/threshold-limit-service";
 
 interface MockDb {
   query: Mock<() => Promise<unknown[]>>;
@@ -47,6 +48,21 @@ function createMockConfig(): Config {
     mercadoPagoPlanCurrency: "CLP",
     magicLinkExpiryMinutes: 15,
     magicLinkRateLimitPerHour: 5,
+    appUrl: "https://app.aiskualerts.com",
+  };
+}
+
+function createMockThresholdLimitService(skippedCount = 0): ThresholdLimitService {
+  return {
+    getUserLimitInfo: mock(() => Promise.resolve({
+      plan: { name: "FREE" as const, maxThresholds: 3 },
+      currentCount: 3,
+      maxAllowed: 3,
+      remaining: 0,
+      isOverLimit: skippedCount > 0,
+    })),
+    getActiveThresholdIds: mock(() => Promise.resolve(new Set<string>())),
+    getSkippedCount: mock(() => Promise.resolve(skippedCount)),
   };
 }
 
@@ -127,7 +143,7 @@ describe("createDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const job = createDigestJob({ db, config, emailClient });
+    const job = createDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(typeof job).toBe("function");
   });
@@ -139,7 +155,7 @@ describe("createDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const job = createDigestJob({ db, config, emailClient });
+    const job = createDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
     await job();
 
     expect(console.info).toHaveBeenCalled();
@@ -152,7 +168,7 @@ describe("createDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const job = createDigestJob({ db, config, emailClient });
+    const job = createDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     await expect(job()).rejects.toThrow("Database error");
     expect(console.error).toHaveBeenCalled();
@@ -179,7 +195,7 @@ describe("createDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient({ success: false, error: "Send failed" });
 
-    const job = createDigestJob({ db, config, emailClient });
+    const job = createDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
     await job();
 
     expect(console.warn).toHaveBeenCalled();
@@ -206,7 +222,7 @@ describe("createDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const job = createDigestJob({ db, config, emailClient });
+    const job = createDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
     await job();
 
     // Verify console.info was called (includes duration log)
@@ -222,7 +238,7 @@ describe("createDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const job = createDigestJob({ db, config, emailClient });
+    const job = createDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     await expect(job()).rejects.toBe("string error");
     // Error message should contain "Unknown error" since it's not an Error instance
@@ -258,7 +274,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.tenantsProcessed).toBe(0);
     expect(result.emailsSent).toBe(0);
@@ -284,7 +300,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.tenantsProcessed).toBe(0);
     expect(result.emailsSent).toBe(0);
@@ -311,7 +327,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.tenantsProcessed).toBe(0);
     expect(result.emailsSent).toBe(0);
@@ -341,7 +357,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.tenantsProcessed).toBe(1);
     expect(result.emailsSent).toBe(1);
@@ -374,7 +390,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    await runDigestJob({ db, config, emailClient });
+    await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     // eslint-disable-next-line @typescript-eslint/unbound-method
     const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
@@ -404,7 +420,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    await runDigestJob({ db, config, emailClient });
+    await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     // eslint-disable-next-line @typescript-eslint/unbound-method
     const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
@@ -434,7 +450,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.alertsMarkedSent).toBe(1);
     expect(mocks.execute.mock.calls.length).toBeGreaterThan(0);
@@ -461,7 +477,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient({ success: false, error: "Send failed" });
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.emailsSent).toBe(0);
     expect(result.emailsFailed).toBe(1);
@@ -498,7 +514,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.tenantsProcessed).toBe(2);
     expect(result.emailsSent).toBe(2);
@@ -527,7 +543,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.tenantsProcessed).toBe(1);
     expect(result.emailsSent).toBe(2);
@@ -561,7 +577,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.emailsSent).toBe(2);
     expect(result.alertsMarkedSent).toBe(3);
@@ -590,7 +606,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     // Tenant is processed but no emails sent because alert doesn't belong to user with digest
     expect(result.tenantsProcessed).toBe(1);
@@ -632,7 +648,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.errors.length).toBe(1);
     expect(result.errors[0]).toContain("tenant-123");
@@ -662,7 +678,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient }, "weekly");
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() }, "weekly");
 
     expect(result.emailsSent).toBe(1);
   });
@@ -688,7 +704,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    await runDigestJob({ db, config, emailClient });
+    await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     // eslint-disable-next-line @typescript-eslint/unbound-method
     const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
@@ -705,7 +721,7 @@ describe("runDigestJob", () => {
     const emailClient = createMockEmailClient();
 
     const before = new Date();
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
     const after = new Date();
 
     expect(result.startedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
@@ -739,7 +755,7 @@ describe("runDigestJob", () => {
     const config = createMockConfig();
     const emailClient = createMockEmailClient();
 
-    const result = await runDigestJob({ db, config, emailClient });
+    const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
     expect(result.alertsMarkedSent).toBe(3);
     expect(result.emailsSent).toBe(1);
@@ -774,7 +790,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.emailsSent).toBe(1);
       expect(result.alertsMarkedSent).toBe(50);
@@ -807,7 +823,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.emailsSent).toBe(1);
       expect(result.alertsMarkedSent).toBe(4);
@@ -846,7 +862,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.emailsSent).toBe(3);
       expect(result.alertsMarkedSent).toBe(5);
@@ -879,7 +895,7 @@ describe("runDigestJob", () => {
         sendEmail: mock(() => Promise.reject(new Error("SMTP connection failed"))),
       };
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       // The tenant processing catches the error
       expect(result.errors.length).toBe(1);
@@ -911,7 +927,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       // Email was sent but marking failed - error caught at tenant level
       expect(result.errors.length).toBe(1);
@@ -956,7 +972,7 @@ describe("runDigestJob", () => {
         }),
       };
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.emailsSent).toBe(1);
       expect(result.emailsFailed).toBe(1);
@@ -993,7 +1009,7 @@ describe("runDigestJob", () => {
         },
       };
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.errors.length).toBe(1);
       expect(result.errors[0]).toContain("Unknown error");
@@ -1021,7 +1037,7 @@ describe("runDigestJob", () => {
       // Return failure without error message
       const emailClient = createMockEmailClient({ success: false });
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.emailsFailed).toBe(1);
       expect(result.errors[0]).toContain("Unknown error");
@@ -1069,7 +1085,7 @@ describe("runDigestJob", () => {
         },
       };
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.errors.length).toBe(1);
       expect(result.errors[0]).toContain("Email error for tenant 1");
@@ -1107,7 +1123,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      await runDigestJob({ db, config, emailClient });
+      await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(capturedFrequency).toBe("daily");
     });
@@ -1139,7 +1155,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      await runDigestJob({ db, config, emailClient }, "weekly");
+      await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() }, "weekly");
 
       expect(capturedFrequency).toBe("weekly");
     });
@@ -1165,7 +1181,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.tenantsProcessed).toBe(0);
       expect(result.emailsSent).toBe(0);
@@ -1196,7 +1212,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const dailyResult = await runDigestJob({ db, config, emailClient }, "daily");
+      const dailyResult = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() }, "daily");
 
       expect(dailyResult.emailsSent).toBe(1);
 
@@ -1217,7 +1233,7 @@ describe("runDigestJob", () => {
         return Promise.resolve([]);
       });
 
-      const weeklyResult = await runDigestJob({ db, config, emailClient }, "weekly");
+      const weeklyResult = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() }, "weekly");
 
       expect(weeklyResult.emailsSent).toBe(1);
     });
@@ -1246,7 +1262,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.emailsSent).toBe(1);
       // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -1277,7 +1293,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.emailsSent).toBe(1);
       // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -1309,7 +1325,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.tenantsProcessed).toBe(1);
       expect(result.emailsSent).toBe(0);
@@ -1340,7 +1356,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       // Only one email sent (for user-123), user-456 has no alerts
       expect(result.emailsSent).toBe(1);
@@ -1374,7 +1390,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.emailsSent).toBe(1);
     });
@@ -1409,7 +1425,7 @@ describe("runDigestJob", () => {
       const config = createMockConfig();
       const emailClient = createMockEmailClient();
 
-      const result = await runDigestJob({ db, config, emailClient });
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService: createMockThresholdLimitService() });
 
       expect(result.emailsSent).toBe(1);
       // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -1418,6 +1434,244 @@ describe("runDigestJob", () => {
       // Verify HTML escaping
       expect(callArgs[0].html).not.toContain("<script>");
       expect(callArgs[0].html).toContain("&lt;script&gt;");
+    });
+  });
+
+  describe("skipped thresholds", () => {
+    test("includes skipped threshold count in email when user has skipped thresholds", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+      const thresholdLimitService = createMockThresholdLimitService(5);
+
+      await runDigestJob({ db, config, emailClient, thresholdLimitService });
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
+      const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
+
+      // Should contain skipped threshold section
+      expect(callArgs[0].html).toContain("Omitidos por Limite del Plan Gratuito");
+      expect(callArgs[0].html).toContain("5 umbrales");
+    });
+
+    test("includes upgrade URL when user has skipped thresholds", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+      const thresholdLimitService = createMockThresholdLimitService(3);
+
+      await runDigestJob({ db, config, emailClient, thresholdLimitService });
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
+      const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
+
+      // Should contain upgrade URL
+      expect(callArgs[0].html).toContain("https://app.aiskualerts.com/settings/billing");
+      expect(callArgs[0].html).toContain("Actualizar a Pro");
+    });
+
+    test("does not include skipped section when user has no skipped thresholds", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+      const thresholdLimitService = createMockThresholdLimitService(0);
+
+      await runDigestJob({ db, config, emailClient, thresholdLimitService });
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
+      const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
+
+      // Should NOT contain skipped threshold section
+      expect(callArgs[0].html).not.toContain("Omitidos por Limite del Plan Gratuito");
+    });
+
+    test("calls getSkippedCount for each user with alerts", async () => {
+      const { db, mocks } = createMockDb();
+      const user2 = { ...mockUser, id: "user-456", email: "user2@example.com" };
+      const alerts = [
+        { ...mockAlert, id: "alert-1", user_id: "user-123" },
+        { ...mockAlert, id: "alert-2", user_id: "user-456" },
+      ];
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser, user2]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve(alerts);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+      const thresholdLimitService = createMockThresholdLimitService(2);
+
+      await runDigestJob({ db, config, emailClient, thresholdLimitService });
+
+      // getSkippedCount should be called once per user with alerts
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const getSkippedCountMock = thresholdLimitService.getSkippedCount as Mock<(userId: string) => Promise<number>>;
+      expect(getSkippedCountMock.mock.calls.length).toBe(2);
+    });
+
+    test("handles thresholdLimitService error gracefully", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = createMockConfig();
+      const emailClient = createMockEmailClient();
+      const thresholdLimitService: ThresholdLimitService = {
+        getUserLimitInfo: mock(() => Promise.resolve({
+          plan: { name: "FREE" as const, maxThresholds: 3 },
+          currentCount: 3,
+          maxAllowed: 3,
+          remaining: 0,
+          isOverLimit: false,
+        })),
+        getActiveThresholdIds: mock(() => Promise.resolve(new Set<string>())),
+        getSkippedCount: mock(() => Promise.reject(new Error("Service unavailable"))),
+      };
+
+      const result = await runDigestJob({ db, config, emailClient, thresholdLimitService });
+
+      // Job should still complete - error recorded but email sent with 0 skipped
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain("Service unavailable");
+    });
+
+    test("uses appUrl from config for upgrade URL", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = { ...createMockConfig(), appUrl: "https://custom.domain.com" };
+      const emailClient = createMockEmailClient();
+      const thresholdLimitService = createMockThresholdLimitService(3);
+
+      await runDigestJob({ db, config, emailClient, thresholdLimitService });
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
+      const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
+
+      expect(callArgs[0].html).toContain("https://custom.domain.com/settings/billing");
+    });
+
+    test("does not include upgrade URL when appUrl is not configured", async () => {
+      const { db, mocks } = createMockDb();
+
+      let callCount = 0;
+      mocks.query.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([mockTenant]);
+        }
+        if (callCount === 2) {
+          return Promise.resolve([mockUser]);
+        }
+        if (callCount === 3) {
+          return Promise.resolve([mockAlert]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const config = { ...createMockConfig(), appUrl: undefined };
+      const emailClient = createMockEmailClient();
+      const thresholdLimitService = createMockThresholdLimitService(3);
+
+      await runDigestJob({ db, config, emailClient, thresholdLimitService });
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const sendEmailMock = emailClient.sendEmail as Mock<(params: { to: string; subject: string; html: string }) => Promise<SendEmailResult>>;
+      const callArgs = sendEmailMock.mock.calls[0] as unknown as [{ to: string; subject: string; html: string }];
+
+      // Should still show skipped section but no upgrade button
+      expect(callArgs[0].html).toContain("Omitidos por Limite del Plan Gratuito");
+      expect(callArgs[0].html).not.toContain("Actualizar a Pro");
     });
   });
 });

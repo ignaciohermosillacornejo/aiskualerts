@@ -23,6 +23,7 @@ import {
 } from "@/monitoring/sentry";
 import { MercadoPagoClient } from "@/billing/mercadopago";
 import { SubscriptionService } from "@/billing/subscription-service";
+import { createThresholdLimitService } from "@/billing/threshold-limit-service";
 import { createAuthMiddleware } from "@/api/middleware/auth";
 import { logger as defaultLogger, type Logger } from "@/utils/logger";
 
@@ -52,6 +53,7 @@ export interface MainDependencies {
   OAuthStateStore: typeof OAuthStateStore;
   MercadoPagoClient: typeof MercadoPagoClient;
   SubscriptionService: typeof SubscriptionService;
+  createThresholdLimitService: typeof createThresholdLimitService;
   logger: Logger;
   processOn: (event: string, handler: () => void) => void;
   processExit: (code: number) => never;
@@ -84,6 +86,7 @@ export function createMainDependencies(): MainDependencies {
     OAuthStateStore,
     MercadoPagoClient,
     SubscriptionService,
+    createThresholdLimitService,
     logger: defaultLogger,
     processOn: (event, handler) => {
       process.on(event, handler);
@@ -149,7 +152,8 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
 
   // Initialize digest email scheduler
   const emailClient = deps.createEmailClient(config);
-  const digestJob = deps.createDigestJob({ db, config, emailClient });
+  const thresholdLimitService = deps.createThresholdLimitService({ userRepo, thresholdRepo });
+  const digestJob = deps.createDigestJob({ db, config, emailClient, thresholdLimitService });
   const digestScheduler = new deps.Scheduler(digestJob, {
     enabled: config.digestEnabled,
     hour: config.digestHour,

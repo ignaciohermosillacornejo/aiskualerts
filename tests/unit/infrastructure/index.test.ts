@@ -199,6 +199,17 @@ function createMockDependencies(): MainDependencies & {
     OAuthStateStore: MockOAuthStateStore as unknown as MainDependencies["OAuthStateStore"],
     MercadoPagoClient: MockMercadoPagoClient as unknown as MainDependencies["MercadoPagoClient"],
     SubscriptionService: MockSubscriptionService as unknown as MainDependencies["SubscriptionService"],
+    createThresholdLimitService: mock(() => ({
+      getUserLimitInfo: () => Promise.resolve({
+        plan: { name: "FREE" as const, maxThresholds: 50 },
+        currentCount: 0,
+        maxAllowed: 50,
+        remaining: 50,
+        isOverLimit: false,
+      }),
+      getActiveThresholdIds: () => Promise.resolve(new Set<string>()),
+      getSkippedCount: () => Promise.resolve(0),
+    })) as unknown as MainDependencies["createThresholdLimitService"],
     logger: {
       debug: mock(() => undefined),
       info: loggerInfo,
