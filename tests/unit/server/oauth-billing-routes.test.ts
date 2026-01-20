@@ -68,36 +68,23 @@ function createMockBillingDeps(): BillingHandlerDeps {
         Promise.resolve({
           type: "subscription_authorized" as const,
           subscriptionId: "sub_123",
-          tenantId: "tenant-123",
+          userId: "user-123",
         })
       ),
     } as unknown as BillingHandlerDeps["mercadoPagoClient"],
-    tenantRepo: {
-      getById: mock(() =>
-        Promise.resolve({
-          id: "tenant-123",
-          subscription_id: "sub_123",
-          subscription_status: "none",
-          subscription_ends_at: null,
-        })
-      ),
-      activateSubscription: mock(() => Promise.resolve()),
-      findBySubscriptionId: mock(() =>
-        Promise.resolve({
-          id: "tenant-123",
-          subscription_id: "sub_123",
-        })
-      ),
-      updateSubscriptionStatus: mock(() => Promise.resolve()),
-    } as unknown as BillingHandlerDeps["tenantRepo"],
     userRepo: {
       getById: mock(() =>
         Promise.resolve({
           id: "user-123",
           email: "test@test.com",
           tenant_id: "tenant-123",
+          subscription_id: "sub_123",
+          subscription_status: "none",
+          subscription_ends_at: null,
         })
       ),
+      activateSubscription: mock(() => Promise.resolve()),
+      updateSubscriptionStatus: mock(() => Promise.resolve()),
     } as unknown as BillingHandlerDeps["userRepo"],
     authMiddleware: {
       authenticate: mock(() =>

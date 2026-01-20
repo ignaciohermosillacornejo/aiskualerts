@@ -31,6 +31,7 @@ describe("renderDailyDigestEmail", () => {
         alertType: "low_velocity",
       },
     ],
+    skippedThresholdCount: 0,
   };
 
   test("returns empty string when alerts array is empty", () => {
@@ -363,5 +364,112 @@ describe("renderDailyDigestEmail", () => {
 
     expect(result).toContain("SKU&quot;001");
     expect(result).toContain("Product &#39;Test&#39;");
+  });
+
+  describe("skipped thresholds section", () => {
+    test("does not show skipped section when skippedThresholdCount is 0", () => {
+      const params: DigestEmailParams = {
+        ...baseParams,
+        skippedThresholdCount: 0,
+      };
+
+      const result = renderDailyDigestEmail(params);
+
+      expect(result).not.toContain("Omitidos por Limite del Plan Gratuito");
+      expect(result).not.toContain("Upgrade to Pro");
+    });
+
+    test("does not show skipped section when skippedThresholdCount is undefined", () => {
+      const { skippedThresholdCount: _, ...paramsWithoutSkipped } = baseParams;
+      const params: DigestEmailParams = paramsWithoutSkipped;
+
+      const result = renderDailyDigestEmail(params);
+
+      expect(result).not.toContain("Omitidos por Limite del Plan Gratuito");
+      expect(result).not.toContain("Upgrade to Pro");
+    });
+
+    test("shows skipped section when skippedThresholdCount is greater than 0", () => {
+      const params: DigestEmailParams = {
+        ...baseParams,
+        skippedThresholdCount: 5,
+        upgradeUrl: "https://app.aiskualerts.com/settings/billing",
+      };
+
+      const result = renderDailyDigestEmail(params);
+
+      expect(result).toContain("Omitidos por Limite del Plan Gratuito");
+      expect(result).toContain("5 umbrales");
+      expect(result).toContain("no estan");
+    });
+
+    test("shows singular form when skippedThresholdCount is 1", () => {
+      const params: DigestEmailParams = {
+        ...baseParams,
+        skippedThresholdCount: 1,
+        upgradeUrl: "https://app.aiskualerts.com/settings/billing",
+      };
+
+      const result = renderDailyDigestEmail(params);
+
+      expect(result).toContain("1 umbral");
+      expect(result).toContain("no esta");
+    });
+
+    test("shows upgrade button when upgradeUrl is provided", () => {
+      const params: DigestEmailParams = {
+        ...baseParams,
+        skippedThresholdCount: 3,
+        upgradeUrl: "https://app.aiskualerts.com/settings/billing",
+      };
+
+      const result = renderDailyDigestEmail(params);
+
+      expect(result).toContain("Actualizar a Pro");
+      expect(result).toContain('href="https://app.aiskualerts.com/settings/billing"');
+    });
+
+    test("does not show upgrade button when upgradeUrl is not provided", () => {
+      const params: DigestEmailParams = {
+        ...baseParams,
+        skippedThresholdCount: 3,
+        // upgradeUrl is omitted intentionally
+      };
+
+      const result = renderDailyDigestEmail(params);
+
+      expect(result).toContain("Omitidos por Limite del Plan Gratuito");
+      expect(result).not.toContain("Actualizar a Pro");
+    });
+
+    test("escapes HTML in upgradeUrl", () => {
+      const params: DigestEmailParams = {
+        ...baseParams,
+        skippedThresholdCount: 2,
+        upgradeUrl: 'https://example.com/path?foo=bar&baz=qux"onclick="evil()',
+      };
+
+      const result = renderDailyDigestEmail(params);
+
+      // URL should be escaped to prevent XSS
+      expect(result).not.toContain('onclick="evil()');
+      expect(result).toContain("&amp;");
+    });
+
+    test("applies correct styling to skipped section", () => {
+      const params: DigestEmailParams = {
+        ...baseParams,
+        skippedThresholdCount: 2,
+        upgradeUrl: "https://app.aiskualerts.com/settings/billing",
+      };
+
+      const result = renderDailyDigestEmail(params);
+
+      // Check for amber/warning color scheme
+      expect(result).toContain("#fef3c7"); // Background color
+      expect(result).toContain("#92400e"); // Header color
+      expect(result).toContain("#78350f"); // Text color
+      expect(result).toContain("#f59e0b"); // Button color
+    });
   });
 });

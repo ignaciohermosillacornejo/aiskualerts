@@ -1,13 +1,11 @@
 import type { MercadoPagoClient } from "@/billing/mercadopago";
-import type { TenantRepository } from "@/db/repositories/tenant";
 import type { UserRepository } from "@/db/repositories/user";
 import type { AuthMiddleware } from "@/api/middleware/auth";
-import { isTenantPaid } from "@/db/repositories/types";
+import { isUserPaid } from "@/billing/plans";
 import { logger } from "@/utils/logger";
 
 export interface BillingHandlerDeps {
   mercadoPagoClient: MercadoPagoClient;
-  tenantRepo: TenantRepository;
   userRepo: UserRepository;
   authMiddleware: AuthMiddleware;
 }
@@ -19,7 +17,7 @@ export interface BillingRoutes {
 }
 
 export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
-  const { mercadoPagoClient, tenantRepo, userRepo, authMiddleware } = deps;
+  const { mercadoPagoClient, userRepo, authMiddleware } = deps;
 
   return {
     async checkout(req: Request): Promise<Response> {
@@ -31,13 +29,7 @@ export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
           return Response.json({ error: "User not found" }, { status: 404 });
         }
 
-        const tenant = await tenantRepo.getById(authContext.tenantId);
-
-        if (!tenant) {
-          return Response.json({ error: "Tenant not found" }, { status: 404 });
-        }
-
-        if (isTenantPaid(tenant)) {
+        if (isUserPaid(user)) {
           return Response.json(
             { error: "Already subscribed" },
             { status: 400 }
@@ -45,7 +37,7 @@ export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
         }
 
         const checkoutUrl = await mercadoPagoClient.createSubscription(
-          authContext.tenantId,
+          authContext.userId,
           user.email
         );
 
@@ -65,13 +57,13 @@ export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
     async cancel(req: Request): Promise<Response> {
       try {
         const authContext = await authMiddleware.authenticate(req);
-        const tenant = await tenantRepo.getById(authContext.tenantId);
+        const user = await userRepo.getById(authContext.userId);
 
-        if (!tenant) {
-          return Response.json({ error: "Tenant not found" }, { status: 404 });
+        if (!user) {
+          return Response.json({ error: "User not found" }, { status: 404 });
         }
 
-        if (!tenant.subscription_id) {
+        if (!user.subscription_id) {
           return Response.json(
             { error: "No active subscription" },
             { status: 400 }
@@ -79,11 +71,11 @@ export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
         }
 
         const endsAt = await mercadoPagoClient.cancelSubscription(
-          tenant.subscription_id
+          user.subscription_id
         );
 
-        await tenantRepo.updateSubscriptionStatus(
-          tenant.subscription_id,
+        await userRepo.updateSubscriptionStatus(
+          user.subscription_id,
           "cancelled",
           endsAt
         );
@@ -146,14 +138,14 @@ export function createBillingRoutes(deps: BillingHandlerDeps): BillingRoutes {
 
         switch (result.type) {
           case "subscription_authorized":
-            await tenantRepo.activateSubscription(
-              result.tenantId,
+            await userRepo.activateSubscription(
+              result.userId,
               result.subscriptionId
             );
             break;
 
           case "subscription_cancelled":
-            await tenantRepo.updateSubscriptionStatus(
+            await userRepo.updateSubscriptionStatus(
               result.subscriptionId,
               "cancelled",
               result.endsAt

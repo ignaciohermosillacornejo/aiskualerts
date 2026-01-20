@@ -23,7 +23,7 @@ const mockCreate = mock<() => Promise<Partial<PreApprovalResponse>>>(() =>
 const mockGet = mock<() => Promise<PreApprovalResponse>>(() =>
   Promise.resolve({
     id: "preapproval_123",
-    external_reference: "tenant-uuid-123",
+    external_reference: "user-uuid-123",
     status: "authorized",
     next_payment_date: "2024-02-15T00:00:00.000Z",
   })
@@ -120,42 +120,42 @@ describe("MercadoPagoClient", () => {
         init_point: "https://mercadopago.com/checkout/abc123",
       });
 
-      const tenantId = "550e8400-e29b-41d4-a716-446655440000";
+      const userId = "550e8400-e29b-41d4-a716-446655440000";
       const email = "user@example.com";
 
-      const result = await client.createSubscription(tenantId, email);
+      const result = await client.createSubscription(userId, email);
 
       expect(result).toBe("https://mercadopago.com/checkout/abc123");
     });
 
-    test("validates tenant UUID format", async () => {
+    test("validates user UUID format", async () => {
       const promise = client.createSubscription("invalid-uuid", "user@example.com");
       await expect(promise).rejects.toThrow();
     });
 
     test("validates email format", async () => {
-      const tenantId = "550e8400-e29b-41d4-a716-446655440000";
-      const promise = client.createSubscription(tenantId, "invalid-email");
+      const userId = "550e8400-e29b-41d4-a716-446655440000";
+      const promise = client.createSubscription(userId, "invalid-email");
       await expect(promise).rejects.toThrow();
     });
 
     test("throws when MercadoPago returns no checkout URL", async () => {
       mockCreate.mockResolvedValueOnce({ init_point: null });
 
-      const tenantId = "550e8400-e29b-41d4-a716-446655440000";
+      const userId = "550e8400-e29b-41d4-a716-446655440000";
       const email = "user@example.com";
 
-      const promise = client.createSubscription(tenantId, email);
+      const promise = client.createSubscription(userId, email);
       await expect(promise).rejects.toThrow("MercadoPago did not return checkout URL");
     });
 
     test("propagates API errors", async () => {
       mockCreate.mockRejectedValueOnce(new Error("API Error: rate limited"));
 
-      const tenantId = "550e8400-e29b-41d4-a716-446655440000";
+      const userId = "550e8400-e29b-41d4-a716-446655440000";
       const email = "user@example.com";
 
-      const promise = client.createSubscription(tenantId, email);
+      const promise = client.createSubscription(userId, email);
       await expect(promise).rejects.toThrow("API Error: rate limited");
     });
   });
@@ -165,7 +165,7 @@ describe("MercadoPagoClient", () => {
       const expectedDate = new Date("2024-02-15T00:00:00.000Z");
       mockGet.mockResolvedValueOnce({
         id: "preapproval_123",
-        external_reference: "tenant-uuid-123",
+        external_reference: "user-uuid-123",
         next_payment_date: "2024-02-15T00:00:00.000Z",
         status: "authorized",
       });
@@ -184,7 +184,7 @@ describe("MercadoPagoClient", () => {
       const beforeCall = Date.now();
       mockGet.mockResolvedValueOnce({
         id: "preapproval_123",
-        external_reference: "tenant-uuid-123",
+        external_reference: "user-uuid-123",
         next_payment_date: null,
         status: "authorized",
       });
@@ -278,7 +278,7 @@ describe("MercadoPagoClient", () => {
     test("returns subscription_authorized for authorized preapproval", async () => {
       mockGet.mockResolvedValueOnce({
         id: "preapproval_123",
-        external_reference: "tenant-uuid-456",
+        external_reference: "user-uuid-456",
         status: "authorized",
         next_payment_date: "2024-02-15T00:00:00.000Z",
       });
@@ -291,14 +291,14 @@ describe("MercadoPagoClient", () => {
       expect(result).toEqual({
         type: "subscription_authorized",
         subscriptionId: "preapproval_123",
-        tenantId: "tenant-uuid-456",
+        userId: "user-uuid-456",
       } satisfies WebhookResult);
     });
 
     test("returns subscription_cancelled for cancelled preapproval", async () => {
       mockGet.mockResolvedValueOnce({
         id: "preapproval_789",
-        external_reference: "tenant-uuid-abc",
+        external_reference: "user-uuid-abc",
         status: "cancelled",
         next_payment_date: "2024-02-15T00:00:00.000Z",
       });
@@ -311,7 +311,7 @@ describe("MercadoPagoClient", () => {
       expect(result).toEqual({
         type: "subscription_cancelled",
         subscriptionId: "preapproval_789",
-        tenantId: "tenant-uuid-abc",
+        userId: "user-uuid-abc",
         endsAt: new Date("2024-02-15T00:00:00.000Z"),
       } satisfies WebhookResult);
     });
@@ -319,7 +319,7 @@ describe("MercadoPagoClient", () => {
     test("returns subscription_cancelled for paused preapproval", async () => {
       mockGet.mockResolvedValueOnce({
         id: "preapproval_pause",
-        external_reference: "tenant-uuid-pause",
+        external_reference: "user-uuid-pause",
         status: "paused",
         next_payment_date: "2024-02-15T00:00:00.000Z",
       });
@@ -332,7 +332,7 @@ describe("MercadoPagoClient", () => {
       expect(result).toEqual({
         type: "subscription_cancelled",
         subscriptionId: "preapproval_pause",
-        tenantId: "tenant-uuid-pause",
+        userId: "user-uuid-pause",
         endsAt: new Date("2024-02-15T00:00:00.000Z"),
       } satisfies WebhookResult);
     });
@@ -340,7 +340,7 @@ describe("MercadoPagoClient", () => {
     test("returns ignored for pending preapproval status", async () => {
       mockGet.mockResolvedValueOnce({
         id: "preapproval_pending",
-        external_reference: "tenant-uuid-pending",
+        external_reference: "user-uuid-pending",
         status: "pending",
         next_payment_date: "2024-02-15T00:00:00.000Z",
       });
@@ -381,7 +381,7 @@ describe("MercadoPagoClient", () => {
     test("throws when preapproval id is missing", async () => {
       mockGet.mockResolvedValueOnce({
         id: null,
-        external_reference: "tenant-uuid",
+        external_reference: "user-uuid",
         status: "authorized",
         next_payment_date: "2024-02-15T00:00:00.000Z",
       });
@@ -393,7 +393,7 @@ describe("MercadoPagoClient", () => {
     test("returns ignored for unknown status", async () => {
       mockGet.mockResolvedValueOnce({
         id: "preapproval_unknown",
-        external_reference: "tenant-uuid",
+        external_reference: "user-uuid",
         status: "unknown_status",
         next_payment_date: "2024-02-15T00:00:00.000Z",
       });

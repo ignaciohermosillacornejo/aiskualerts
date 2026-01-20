@@ -37,6 +37,10 @@ export interface User {
   notification_enabled: boolean;
   notification_email: string | null;
   digest_frequency: DigestFrequency;
+  // Subscription (user-level)
+  subscription_id: string | null;
+  subscription_status: SubscriptionStatus;
+  subscription_ends_at: Date | null;
   created_at: Date;
 }
 

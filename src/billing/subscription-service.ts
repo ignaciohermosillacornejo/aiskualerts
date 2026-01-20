@@ -1,11 +1,11 @@
 import type { MercadoPagoClient } from "./mercadopago";
-import type { TenantRepository } from "@/db/repositories/tenant";
-import type { Tenant } from "@/db/repositories/types";
+import type { UserRepository } from "@/db/repositories/user";
+import type { User } from "@/db/repositories/types";
 import { logger } from "@/utils/logger";
 
 export interface SubscriptionServiceDeps {
   mercadoPagoClient: MercadoPagoClient;
-  tenantRepo: TenantRepository;
+  userRepo: UserRepository;
 }
 
 /**
@@ -16,34 +16,34 @@ export class SubscriptionService {
   constructor(private deps: SubscriptionServiceDeps) {}
 
   /**
-   * Checks if tenant has active subscription access.
+   * Checks if user has active subscription access.
    * If subscription_ends_at has passed, polls MercadoPago for current status.
    *
-   * @returns true if tenant should have access, false otherwise
+   * @returns true if user should have access, false otherwise
    */
-  async hasActiveAccess(tenant: Tenant): Promise<boolean> {
+  async hasActiveAccess(user: User): Promise<boolean> {
     // No subscription ever
-    if (!tenant.subscription_id) {
+    if (!user.subscription_id) {
       return false;
     }
 
     // Active subscription - always has access
-    if (tenant.subscription_status === "active") {
+    if (user.subscription_status === "active") {
       return true;
     }
 
     // Cancelled but still within paid period
     if (
-      tenant.subscription_status === "cancelled" &&
-      tenant.subscription_ends_at
+      user.subscription_status === "cancelled" &&
+      user.subscription_ends_at
     ) {
       const now = new Date();
-      if (tenant.subscription_ends_at > now) {
+      if (user.subscription_ends_at > now) {
         return true;
       }
 
       // Grace period expired - check if user resubscribed
-      return this.refreshAndCheckAccess(tenant);
+      return this.refreshAndCheckAccess(user);
     }
 
     // No active subscription
@@ -54,38 +54,38 @@ export class SubscriptionService {
    * Polls MercadoPago for current subscription status and updates database.
    * Called when subscription_ends_at has passed to check for resubscription.
    */
-  private async refreshAndCheckAccess(tenant: Tenant): Promise<boolean> {
-    if (!tenant.subscription_id) {
+  private async refreshAndCheckAccess(user: User): Promise<boolean> {
+    if (!user.subscription_id) {
       return false;
     }
 
     try {
       logger.info("Refreshing subscription status from MercadoPago", {
-        tenantId: tenant.id,
-        subscriptionId: tenant.subscription_id,
+        userId: user.id,
+        subscriptionId: user.subscription_id,
       });
 
       const status = await this.deps.mercadoPagoClient.getSubscriptionStatus(
-        tenant.subscription_id
+        user.subscription_id
       );
 
       if (status.isActive) {
         // User resubscribed! Update database
-        await this.deps.tenantRepo.activateSubscription(
-          tenant.id,
-          tenant.subscription_id
+        await this.deps.userRepo.activateSubscription(
+          user.id,
+          user.subscription_id
         );
         logger.info("Subscription reactivated", {
-          tenantId: tenant.id,
-          subscriptionId: tenant.subscription_id,
+          userId: user.id,
+          subscriptionId: user.subscription_id,
         });
         return true;
       }
 
       // Still cancelled - update ends_at if we have new info
       if (status.nextPaymentDate) {
-        await this.deps.tenantRepo.updateSubscriptionStatus(
-          tenant.subscription_id,
+        await this.deps.userRepo.updateSubscriptionStatus(
+          user.subscription_id,
           "cancelled",
           status.nextPaymentDate
         );

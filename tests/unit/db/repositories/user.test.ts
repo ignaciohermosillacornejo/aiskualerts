@@ -12,6 +12,9 @@ const mockUser: User = {
   notification_enabled: true,
   notification_email: null,
   digest_frequency: "daily",
+  subscription_id: null,
+  subscription_status: "none",
+  subscription_ends_at: null,
   created_at: new Date("2024-01-01"),
 };
 
@@ -411,6 +414,62 @@ describe("UserRepository", () => {
       });
 
       expect(result.digest_frequency).toBe("none");
+    });
+  });
+
+  describe("subscription methods", () => {
+    test("activateSubscription sets subscription columns", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([{ id: "user-1" }]);
+
+      const repo = new UserRepository(db);
+      await repo.activateSubscription("user-1", "sub_123");
+
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.stringContaining("subscription_id"),
+        expect.arrayContaining(["user-1", "sub_123", "active"])
+      );
+    });
+
+    test("updateSubscriptionStatus updates status and ends_at", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([{ id: "user-1" }]);
+
+      const repo = new UserRepository(db);
+      const endsAt = new Date("2026-02-01");
+
+      await repo.updateSubscriptionStatus("sub_123", "cancelled", endsAt);
+
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.stringContaining("subscription_status"),
+        expect.arrayContaining(["cancelled", endsAt, "sub_123"])
+      );
+    });
+
+    test("findBySubscriptionId returns user with subscription", async () => {
+      const mockUserWithSubscription = {
+        ...mockUser,
+        subscription_id: "sub_123",
+        subscription_status: "active" as const,
+        subscription_ends_at: null,
+      };
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockUserWithSubscription]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.findBySubscriptionId("sub_123");
+
+      expect(result).toEqual(mockUserWithSubscription);
+    });
+
+    test("findBySubscriptionId returns null when not found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new UserRepository(db);
+      const result = await repo.findBySubscriptionId("nonexistent");
+
+      expect(result).toBeNull();
     });
   });
 });

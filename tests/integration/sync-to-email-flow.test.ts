@@ -14,12 +14,28 @@ import { syncTenant, type TenantSyncDependencies } from "@/sync/tenant-sync";
 import { generateAlertsForUser } from "@/alerts/alert-generator";
 import type { AlertGeneratorDependencies } from "@/alerts/types";
 import { runDigestJob, type DigestJobDependencies } from "@/jobs/digest-job";
+import type { ThresholdLimitService } from "@/billing/threshold-limit-service";
 import {
   createTestDb,
   cleanDatabase,
   dropAllTables,
   waitForDatabase,
 } from "./db/helpers";
+
+// Mock ThresholdLimitService for integration tests
+function createMockThresholdLimitService(): ThresholdLimitService {
+  return {
+    getUserLimitInfo: () => Promise.resolve({
+      plan: { name: "PRO" as const, maxThresholds: Infinity },
+      currentCount: 0,
+      maxAllowed: Infinity,
+      remaining: Infinity,
+      isOverLimit: false,
+    }),
+    getActiveThresholdIds: () => Promise.resolve(new Set<string>()),
+    getSkippedCount: () => Promise.resolve(0),
+  };
+}
 
 /**
  * Integration Test: Sync -> Alerts -> Email Flow
@@ -279,6 +295,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
         db,
         config,
         emailClient: mockEmailClient,
+        thresholdLimitService: createMockThresholdLimitService(),
       };
 
       const digestResult = await runDigestJob(digestDeps, "daily");
@@ -527,6 +544,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
         db,
         config: createTestConfig(),
         emailClient: mockEmailClient,
+        thresholdLimitService: createMockThresholdLimitService(),
       };
 
       await runDigestJob(digestDeps, "daily");
@@ -607,6 +625,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
         db,
         config: createTestConfig(),
         emailClient: mockEmailClient,
+        thresholdLimitService: createMockThresholdLimitService(),
       };
 
       const digestResult = await runDigestJob(digestDeps, "daily");
