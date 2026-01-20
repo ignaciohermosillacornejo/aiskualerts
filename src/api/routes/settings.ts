@@ -86,8 +86,8 @@ export function createSettingsRoutes(deps: SettingsRouteDeps): SettingsRoutes {
             notificationEmail: user.notification_email,
             syncFrequency: "daily" as const, // Default, could be stored in a settings table
             digestFrequency: user.digest_frequency,
-            subscriptionStatus: tenant.subscription_status,
-            subscriptionEndsAt: tenant.subscription_ends_at?.toISOString() ?? null,
+            subscriptionStatus: user.subscription_status,
+            subscriptionEndsAt: user.subscription_ends_at?.toISOString() ?? null,
           });
         }
 
@@ -143,8 +143,8 @@ export function createSettingsRoutes(deps: SettingsRouteDeps): SettingsRoutes {
             notificationEmail: updatedUser.notification_email,
             syncFrequency: body.syncFrequency ?? "daily",
             digestFrequency: updatedUser.digest_frequency,
-            subscriptionStatus: tenant?.subscription_status ?? "none",
-            subscriptionEndsAt: tenant?.subscription_ends_at?.toISOString() ?? null,
+            subscriptionStatus: updatedUser.subscription_status,
+            subscriptionEndsAt: updatedUser.subscription_ends_at?.toISOString() ?? null,
           });
         }
 
