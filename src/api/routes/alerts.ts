@@ -148,7 +148,7 @@ export function createAlertRoutes(deps: AlertRouteDeps): AlertRoutes {
           if (alert.user_id !== authContext.userId) {
             return jsonWithCors({ error: "Alert not found" }, { status: 404 });
           }
-          await deps.alertRepo.markAsDismissed(id);
+          await deps.alertRepo.markAsDismissed(id, authContext.userId);
           return jsonWithCors({ success: true });
         }
 

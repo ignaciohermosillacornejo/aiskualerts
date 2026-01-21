@@ -166,6 +166,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
     test("should create alerts for low stock and send digest email", async () => {
       // 1. Setup: Create test tenant
       const tenant = await tenantRepo.create({
+        owner_id: "00000000-0000-0000-0000-000000000000", // Placeholder for test
         bsale_client_code: "TEST-001",
         bsale_client_name: "Test Company",
         bsale_access_token: "mock-token",
@@ -184,7 +185,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
       // Threshold 1: min_quantity = 20 for variant 1001
       await thresholdRepo.create({
         tenant_id: tenant.id,
-        user_id: user.id,
+        created_by: user.id,
         bsale_variant_id: 1001,
         bsale_office_id: null,
         min_quantity: 20,
@@ -194,7 +195,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
       // Threshold 2: min_quantity = 50 for variant 1002
       await thresholdRepo.create({
         tenant_id: tenant.id,
-        user_id: user.id,
+        created_by: user.id,
         bsale_variant_id: 1002,
         bsale_office_id: null,
         min_quantity: 50,
@@ -204,7 +205,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
       // Threshold 3: min_quantity = 10 for variant 1003 (will NOT trigger alert)
       await thresholdRepo.create({
         tenant_id: tenant.id,
-        user_id: user.id,
+        created_by: user.id,
         bsale_variant_id: 1003,
         bsale_office_id: null,
         min_quantity: 10,
@@ -332,6 +333,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
     test("should create out_of_stock alert when quantity is zero", async () => {
       // Setup tenant and user
       const tenant = await tenantRepo.create({
+        owner_id: "00000000-0000-0000-0000-000000000000", // Placeholder for test
         bsale_client_code: "TEST-002",
         bsale_client_name: "Zero Stock Company",
         bsale_access_token: "mock-token",
@@ -347,7 +349,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
       // Create threshold for variant that will be out of stock
       await thresholdRepo.create({
         tenant_id: tenant.id,
-        user_id: user.id,
+        created_by: user.id,
         bsale_variant_id: 2001,
         bsale_office_id: null,
         min_quantity: 10,
@@ -406,6 +408,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
     test("should not duplicate alerts when run multiple times", async () => {
       // Setup
       const tenant = await tenantRepo.create({
+        owner_id: "00000000-0000-0000-0000-000000000000", // Placeholder for test
         bsale_client_code: "TEST-003",
         bsale_client_name: "Duplicate Test",
         bsale_access_token: "mock-token",
@@ -420,7 +423,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
 
       await thresholdRepo.create({
         tenant_id: tenant.id,
-        user_id: user.id,
+        created_by: user.id,
         bsale_variant_id: 3001,
         bsale_office_id: null,
         min_quantity: 50,
@@ -479,6 +482,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
 
     test("should use notification_email when set", async () => {
       const tenant = await tenantRepo.create({
+        owner_id: "00000000-0000-0000-0000-000000000000", // Placeholder for test
         bsale_client_code: "TEST-004",
         bsale_client_name: "Notification Email Test",
         bsale_access_token: "mock-token",
@@ -494,7 +498,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
 
       await thresholdRepo.create({
         tenant_id: tenant.id,
-        user_id: user.id,
+        created_by: user.id,
         bsale_variant_id: 4001,
         bsale_office_id: null,
         min_quantity: 100,
@@ -557,6 +561,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
 
     test("should skip users with digest_frequency=none", async () => {
       const tenant = await tenantRepo.create({
+        owner_id: "00000000-0000-0000-0000-000000000000", // Placeholder for test
         bsale_client_code: "TEST-005",
         bsale_client_name: "Digest Disabled Test",
         bsale_access_token: "mock-token",
@@ -571,7 +576,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
 
       await thresholdRepo.create({
         tenant_id: tenant.id,
-        user_id: user.id,
+        created_by: user.id,
         bsale_variant_id: 5001,
         bsale_office_id: null,
         min_quantity: 100,
@@ -641,6 +646,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
 
     test("should handle office-specific thresholds", async () => {
       const tenant = await tenantRepo.create({
+        owner_id: "00000000-0000-0000-0000-000000000000", // Placeholder for test
         bsale_client_code: "TEST-006",
         bsale_client_name: "Office Test",
         bsale_access_token: "mock-token",
@@ -656,7 +662,7 @@ describe("Sync -> Alerts -> Email Integration Flow", () => {
       // Threshold for specific office
       await thresholdRepo.create({
         tenant_id: tenant.id,
-        user_id: user.id,
+        created_by: user.id,
         bsale_variant_id: 6001,
         bsale_office_id: 10, // Specific office
         min_quantity: 50,

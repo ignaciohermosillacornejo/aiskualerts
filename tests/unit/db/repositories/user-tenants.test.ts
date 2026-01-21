@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression */
 import { describe, test, expect, mock, beforeEach } from "bun:test";
 import { UserTenantsRepository } from "../../../../src/db/repositories/user-tenants";
 import type { DatabaseClient } from "../../../../src/db/client";
@@ -96,14 +97,15 @@ describe("UserTenantsRepository", () => {
   describe("getTenantsForUser", () => {
     test("returns all tenants for user with tenant details", async () => {
       const tenantsWithDetails = [
-        { ...mockUserTenant, tenant_name: "Store A", bsale_client_code: "12345", sync_status: "success" },
+        { ...mockUserTenant, tenant_name: "Store A", bsale_client_code: "12345", sync_status: "success" as const },
       ];
       mocks.query.mockResolvedValueOnce(tenantsWithDetails);
 
       const result = await repo.getTenantsForUser("user-123");
 
       expect(result).toEqual(tenantsWithDetails);
-      expect(mocks.query.mock.calls[0]?.[0]).toContain("JOIN tenants");
+      const call = mocks.query.mock.calls[0] as unknown[];
+      expect(call?.[0]).toContain("JOIN tenants");
     });
 
     test("returns empty array if user has no tenants", async () => {

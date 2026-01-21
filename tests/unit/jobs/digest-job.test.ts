@@ -74,6 +74,7 @@ function createMockEmailClient(sendResult: SendEmailResult = { success: true, id
 
 const mockTenant: Tenant = {
   id: "tenant-123",
+  owner_id: "user-owner-123",
   bsale_client_code: "12345678-9",
   bsale_client_name: "Test Company SpA",
   bsale_access_token: "token123",
@@ -91,6 +92,7 @@ const mockUser: User = {
   tenant_id: "tenant-123",
   email: "user@example.com",
   name: "Test User",
+  last_tenant_id: "tenant-123",
   notification_enabled: true,
   notification_email: null,
   digest_frequency: "daily",
@@ -114,6 +116,7 @@ const mockAlert: Alert = {
   days_to_stockout: null,
   status: "pending",
   sent_at: null,
+  dismissed_by: null,
   created_at: new Date("2024-01-01"),
 };
 

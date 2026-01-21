@@ -7,6 +7,7 @@ const mockThreshold: Threshold = {
   id: "123e4567-e89b-12d3-a456-426614174000",
   tenant_id: "tenant-123",
   user_id: "user-456",
+  created_by: "user-456",
   bsale_variant_id: 100,
   bsale_office_id: 1,
   min_quantity: 10,
@@ -44,6 +45,86 @@ describe("ThresholdRepository", () => {
 
       expect(result).toEqual([mockThreshold]);
       expect(mocks.query).toHaveBeenCalled();
+    });
+  });
+
+  describe("countByTenant", () => {
+    test("returns count of thresholds for tenant", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ count: "15" });
+
+      const repo = new ThresholdRepository(db);
+      const count = await repo.countByTenant("tenant-123");
+
+      expect(count).toBe(15);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+
+    test("returns 0 when no thresholds exist", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ count: "0" });
+
+      const repo = new ThresholdRepository(db);
+      const count = await repo.countByTenant("tenant-123");
+
+      expect(count).toBe(0);
+    });
+  });
+
+  describe("getByTenantPaginated", () => {
+    test("returns paginated thresholds with metadata", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockThreshold]);
+      mocks.queryOne.mockResolvedValue({ count: "25" });
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.getByTenantPaginated("tenant-123", { limit: 10, offset: 0 });
+
+      expect(result.data).toEqual([mockThreshold]);
+      expect(result.pagination.page).toBe(1);
+      expect(result.pagination.limit).toBe(10);
+      expect(result.pagination.total).toBe(25);
+      expect(result.pagination.totalPages).toBe(3);
+    });
+
+    test("calculates correct page from offset", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockThreshold]);
+      mocks.queryOne.mockResolvedValue({ count: "50" });
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.getByTenantPaginated("tenant-123", { limit: 20, offset: 40 });
+
+      expect(result.pagination.page).toBe(3);
+      expect(result.pagination.totalPages).toBe(3);
+    });
+  });
+
+  describe("getDefaultThresholdForTenant", () => {
+    test("returns default threshold for tenant", async () => {
+      const { db, mocks } = createMockDb();
+      const defaultThreshold: Threshold = {
+        ...mockThreshold,
+        bsale_variant_id: null,
+        bsale_office_id: null,
+      };
+      mocks.queryOne.mockResolvedValue(defaultThreshold);
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.getDefaultThresholdForTenant("tenant-123");
+
+      expect(result).toEqual(defaultThreshold);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+
+    test("returns null when no default threshold exists", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.getDefaultThresholdForTenant("tenant-123");
+
+      expect(result).toBeNull();
     });
   });
 

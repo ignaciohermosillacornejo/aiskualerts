@@ -217,7 +217,8 @@ describe("SessionRepository", () => {
       const result = await repo.updateCurrentTenant("token-abc", "tenant-456");
 
       expect(result?.currentTenantId).toBe("tenant-456");
-      expect(mocks.queryOne.mock.calls[0]?.[0]).toContain("UPDATE sessions");
+      const call = mocks.queryOne.mock.calls[0] as unknown[];
+      expect(call?.[0]).toContain("UPDATE sessions");
     });
 
     test("returns null if session not found", async () => {

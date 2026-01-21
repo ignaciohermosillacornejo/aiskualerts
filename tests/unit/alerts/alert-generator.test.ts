@@ -12,6 +12,7 @@ const mockThreshold: Threshold = {
   id: "threshold-123",
   tenant_id: "tenant-123",
   user_id: "user-456",
+  created_by: "user-456",
   bsale_variant_id: 100,
   bsale_office_id: 1,
   min_quantity: 10,

@@ -6,6 +6,7 @@ import type { Tenant } from "@/db/repositories/types";
 
 const mockTenant: Tenant = {
   id: "123e4567-e89b-12d3-a456-426614174000",
+  owner_id: "user-owner-123",
   bsale_client_code: "12345678-9",
   bsale_client_name: "Test Company",
   bsale_access_token: "test-token",
@@ -44,6 +45,7 @@ describe("TenantRepository", () => {
 
       const repo = new TenantRepository(db);
       const result = await repo.create({
+        owner_id: "user-owner-123",
         bsale_client_code: "12345678-9",
         bsale_client_name: "Test Company",
         bsale_access_token: "test-token",
@@ -61,6 +63,7 @@ describe("TenantRepository", () => {
 
       await expect(
         repo.create({
+          owner_id: "user-owner-123",
           bsale_client_code: "12345678-9",
           bsale_client_name: "Test Company",
           bsale_access_token: "test-token",
@@ -328,6 +331,65 @@ describe("TenantRepository", () => {
       await repo.updateSubscriptionStatus("sub_123", "cancelled", endsAt);
 
       expect(mocks.execute).toHaveBeenCalled();
+    });
+  });
+
+  describe("getByOwnerId", () => {
+    test("returns tenants owned by user", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockTenant, { ...mockTenant, id: "second-tenant" }]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.getByOwnerId("user-owner-123");
+
+      expect(result.length).toBe(2);
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("returns empty array when no tenants owned", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.getByOwnerId("user-no-tenants");
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("createForMagicLink", () => {
+    test("creates tenant with owner_id and without Bsale connection", async () => {
+      const { db, mocks } = createMockDb();
+      const magicLinkTenant = {
+        ...mockTenant,
+        bsale_client_code: null,
+        bsale_access_token: null,
+        sync_status: "not_connected",
+      };
+      mocks.query.mockResolvedValue([magicLinkTenant]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.createForMagicLink("user-owner-123", "test@example.com", "Test Name");
+
+      expect(result.owner_id).toBe("user-owner-123");
+      expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("uses email as name when name not provided", async () => {
+      const { db, mocks } = createMockDb();
+      const magicLinkTenant = {
+        ...mockTenant,
+        bsale_client_code: null,
+        bsale_client_name: "test@example.com",
+        bsale_access_token: null,
+        sync_status: "not_connected",
+      };
+      mocks.query.mockResolvedValue([magicLinkTenant]);
+
+      const repo = new TenantRepository(db);
+      const result = await repo.createForMagicLink("user-owner-123", "test@example.com");
+
+      expect(result.bsale_client_name).toBe("test@example.com");
     });
   });
 });

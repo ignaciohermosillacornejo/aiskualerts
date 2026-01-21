@@ -2,7 +2,7 @@ import { test, expect, describe, beforeAll, beforeEach, afterEach, mock, spyOn }
 import React from "react";
 import { renderToString } from "react-dom/server";
 import "../../setup";
-import type { User } from "../../../src/frontend/types";
+import type { User, AuthMeResponse, CurrentTenant, TenantMembership, UserTenantRole } from "../../../src/frontend/types";
 
 // Store original fetch
 const originalFetch = globalThis.fetch;
@@ -23,15 +23,22 @@ function clearModuleCache(modulePath: string): void {
 // Auth context value interface (matches AuthContext.tsx)
 interface AuthContextValue {
   user: User | null;
+  currentTenant: CurrentTenant | null;
+  tenants: TenantMembership[];
+  role: UserTenantRole | null;
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  switchTenant: (tenantId: string) => Promise<void>;
 }
 
 // Mock user data
-const mockUser: User = { id: "1", email: "test@test.com", name: "Test User", role: "admin" };
+const mockUser: User = { id: "1", email: "test@test.com", name: "Test User", subscriptionStatus: "none" };
+const mockTenant: CurrentTenant = { id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", syncStatus: "success" };
+const mockTenantMembership: TenantMembership = { id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", role: "owner", syncStatus: "success" };
+const mockAuthMeResponse: AuthMeResponse = { user: mockUser, currentTenant: mockTenant, tenants: [mockTenantMembership], role: "owner" };
 
 // Noop function for mocking
 function noop(): void {
@@ -176,14 +183,14 @@ describe("AuthContext", () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve(mockAuthMeResponse),
         } as Response)
       );
 
       const { api } = await import("../../../src/frontend/api/client");
-      const user = await api.getCurrentUser();
+      const response = await api.getCurrentUser();
 
-      expect(user).toEqual(mockUser);
+      expect(response).toEqual(mockAuthMeResponse);
     });
 
     test("failed session check clears user without error", async () => {
@@ -213,17 +220,19 @@ describe("AuthContext", () => {
 
   describe("login function", () => {
     test("successful login sets user state", async () => {
+      // Login response has a different shape than AuthMeResponse
+      const loginResponseUser = { id: "1", email: "test@test.com", name: "Test User", role: "admin" as const };
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve({ user: loginResponseUser }),
         } as Response)
       );
 
       const { api } = await import("../../../src/frontend/api/client");
       const response = await api.login({ email: "test@test.com", password: "password123" });
 
-      expect(response.user).toEqual(mockUser);
+      expect(response.user).toEqual(loginResponseUser);
     });
 
     test("failed login throws error", async () => {
@@ -1095,14 +1104,14 @@ describe("AuthContext", () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve(mockAuthMeResponse),
         } as Response)
       );
 
       const { api } = await import("../../../src/frontend/api/client");
       const result = await api.getCurrentUser();
 
-      expect(result).toEqual(mockUser);
+      expect(result).toEqual(mockAuthMeResponse);
     });
   });
 
@@ -1391,13 +1400,17 @@ describe("AuthContext", () => {
       expect(mockUser.name).toBe("Test User");
     });
 
-    test("authenticated user has role", () => {
-      expect(mockUser.role).toBe("admin");
+    test("authenticated user has subscriptionStatus", () => {
+      expect(mockUser.subscriptionStatus).toBe("none");
     });
 
-    test("viewer role is valid", () => {
-      const viewerUser = { ...mockUser, role: "viewer" as const };
-      expect(viewerUser.role).toBe("viewer");
+    test("tenant membership has role", () => {
+      expect(mockTenantMembership.role).toBe("owner");
+    });
+
+    test("member role is valid", () => {
+      const memberTenant: TenantMembership = { ...mockTenantMembership, role: "member" };
+      expect(memberTenant.role).toBe("member");
     });
   });
 
@@ -1744,15 +1757,15 @@ describe("AuthContext", () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve(mockAuthMeResponse),
         } as Response)
       );
 
       // Simulating checkSession logic
       setState(prev => ({ ...prev, loading: true, error: null }));
       const { api } = await import("../../../src/frontend/api/client");
-      const user = await api.getCurrentUser();
-      setState({ user, loading: false, error: null });
+      const response = await api.getCurrentUser();
+      setState({ user: response?.user ?? null, loading: false, error: null });
 
       expect(state.user).toEqual(mockUser);
       expect(state.loading).toBe(false);
@@ -1785,8 +1798,8 @@ describe("AuthContext", () => {
       setState(prev => ({ ...prev, loading: true, error: null }));
       const { api } = await import("../../../src/frontend/api/client");
       try {
-        const user = await api.getCurrentUser();
-        setState({ user, loading: false, error: null });
+        const response = await api.getCurrentUser();
+        setState({ user: response?.user ?? null, loading: false, error: null });
       } catch {
         setState({ user: null, loading: false, error: null });
       }
@@ -1875,23 +1888,30 @@ describe("AuthContext", () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve(mockAuthMeResponse),
         } as Response)
       );
 
       const { api } = await import("../../../src/frontend/api/client");
 
       // refreshUser calls checkSession which calls api.getCurrentUser
-      const user = await api.getCurrentUser();
+      const response = await api.getCurrentUser();
 
-      expect(user).toEqual(mockUser);
+      expect(response).toEqual(mockAuthMeResponse);
     });
 
     test("login implementation - full success flow", async () => {
       clearModuleCache("../../../src/frontend/api/client");
 
+      // LoginResponse user type is different from User type (has role instead of subscriptionStatus)
+      interface LoginResponseUser {
+        id: string;
+        email: string;
+        name: string;
+        role: "admin" | "viewer";
+      }
       interface State {
-        user: typeof mockUser | null;
+        user: LoginResponseUser | null;
         loading: boolean;
         error: string | null;
       }
@@ -1904,10 +1924,11 @@ describe("AuthContext", () => {
         }
       };
 
+      const loginResponseUser: LoginResponseUser = { id: "1", email: "test@test.com", name: "Test User", role: "admin" };
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve({ user: loginResponseUser }),
         } as Response)
       );
 
@@ -1917,7 +1938,7 @@ describe("AuthContext", () => {
       const response = await api.login({ email: "test@test.com", password: "password123" });
       setState({ user: response.user, loading: false, error: null });
 
-      expect(state.user).toEqual(mockUser);
+      expect(state.user).toEqual(loginResponseUser);
       expect(state.loading).toBe(false);
       expect(state.error).toBeNull();
     });
@@ -1925,8 +1946,15 @@ describe("AuthContext", () => {
     test("login implementation - full error flow", async () => {
       clearModuleCache("../../../src/frontend/api/client");
 
+      // LoginResponse user type is different from User type (has role instead of subscriptionStatus)
+      interface LoginResponseUser {
+        id: string;
+        email: string;
+        name: string;
+        role: "admin" | "viewer";
+      }
       interface State {
-        user: User | null;
+        user: LoginResponseUser | null;
         loading: boolean;
         error: string | null;
       }

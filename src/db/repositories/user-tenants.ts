@@ -94,15 +94,15 @@ export class UserTenantsRepository {
     let paramIndex = 3;
 
     if (settings.notification_enabled !== undefined) {
-      updates.push(`notification_enabled = $${paramIndex++}`);
+      updates.push(`notification_enabled = $${String(paramIndex++)}`);
       values.push(settings.notification_enabled);
     }
     if (settings.notification_email !== undefined) {
-      updates.push(`notification_email = $${paramIndex++}`);
+      updates.push(`notification_email = $${String(paramIndex++)}`);
       values.push(settings.notification_email);
     }
     if (settings.digest_frequency !== undefined) {
-      updates.push(`digest_frequency = $${paramIndex++}`);
+      updates.push(`digest_frequency = $${String(paramIndex++)}`);
       values.push(settings.digest_frequency);
     }
 

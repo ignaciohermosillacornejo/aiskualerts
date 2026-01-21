@@ -43,6 +43,7 @@ const { SyncService } = await import("@/sync/sync-service");
 // Mock tenants
 const mockTenant1: Tenant = {
   id: "tenant-1",
+  owner_id: "user-owner-1",
   bsale_client_code: "11111111-1",
   bsale_client_name: "Test Company 1",
   bsale_access_token: "token-1",
@@ -57,6 +58,7 @@ const mockTenant1: Tenant = {
 
 const mockTenant2: Tenant = {
   id: "tenant-2",
+  owner_id: "user-owner-2",
   bsale_client_code: "22222222-2",
   bsale_client_name: "Test Company 2",
   bsale_access_token: "token-2",
@@ -71,6 +73,7 @@ const mockTenant2: Tenant = {
 
 const mockTenant3: Tenant = {
   id: "tenant-3",
+  owner_id: "user-owner-3",
   bsale_client_code: "33333333-3",
   bsale_client_name: "Test Company 3",
   bsale_access_token: "token-3",

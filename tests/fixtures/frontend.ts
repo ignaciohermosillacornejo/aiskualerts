@@ -10,7 +10,7 @@ export function createMockUser(overrides: Partial<User> = {}): User {
     id: "user-1",
     email: "test@example.com",
     name: "Test User",
-    role: "admin",
+    subscriptionStatus: "none",
     ...overrides,
   } satisfies User;
 }

@@ -434,17 +434,20 @@ describe("API Client", () => {
         Promise.resolve(
           new Response(
             JSON.stringify({
-              user: { id: "u1", email: "test@test.com", name: "Test", role: "admin" },
+              user: { id: "u1", email: "test@test.com", name: "Test", subscriptionStatus: "none" },
+              currentTenant: { id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", syncStatus: "success" },
+              tenants: [{ id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", role: "owner", syncStatus: "success" }],
+              role: "owner",
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
           )
         )
       );
 
-      const user = await api.getCurrentUser();
+      const response = await api.getCurrentUser();
 
-      expect(user).not.toBeNull();
-      expect(user?.email).toBe("test@test.com");
+      expect(response).not.toBeNull();
+      expect(response?.user.email).toBe("test@test.com");
     });
 
     test("returns null when not authenticated", async () => {

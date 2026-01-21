@@ -507,8 +507,9 @@ describe("UserRepository", () => {
       const result = await repo.updateLastTenant("user-123", "tenant-789");
 
       expect(result?.last_tenant_id).toBe("tenant-789");
-      expect(mocks.queryOne.mock.calls[0]?.[0]).toContain("UPDATE users");
-      expect(mocks.queryOne.mock.calls[0]?.[0]).toContain("last_tenant_id");
+      const call = mocks.queryOne.mock.calls[0] as unknown[];
+      expect(call?.[0]).toContain("UPDATE users");
+      expect(call?.[0]).toContain("last_tenant_id");
     });
 
     test("returns null if user not found", async () => {

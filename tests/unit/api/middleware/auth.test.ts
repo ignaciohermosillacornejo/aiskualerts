@@ -6,6 +6,7 @@ import {
 } from "../../../../src/api/middleware/auth";
 import type { SessionRepository } from "../../../../src/db/repositories/session";
 import type { UserRepository } from "../../../../src/db/repositories/user";
+import type { UserTenantsRepository } from "../../../../src/db/repositories/user-tenants";
 import { SESSION_TTL_DAYS, SESSION_REFRESH_THRESHOLD_DAYS } from "../../../../src/utils/cookies";
 
 describe("Auth Middleware", () => {
@@ -16,6 +17,16 @@ describe("Auth Middleware", () => {
   let mockUserRepo: {
     getById: ReturnType<typeof mock>;
   };
+  let mockUserTenantsRepo: {
+    getRole: ReturnType<typeof mock>;
+  };
+
+  const createMiddleware = () =>
+    createAuthMiddleware(
+      mockSessionRepo as unknown as SessionRepository,
+      mockUserRepo as unknown as UserRepository,
+      mockUserTenantsRepo as unknown as UserTenantsRepository
+    );
 
   beforeEach(() => {
     mockSessionRepo = {
@@ -23,6 +34,7 @@ describe("Auth Middleware", () => {
         Promise.resolve({
           id: "session-123",
           userId: "user-123",
+          currentTenantId: "tenant-456",
           token: "valid-token",
           expiresAt: new Date(Date.now() + 86400000 * 5), // 5 days from now (within refresh threshold)
         })
@@ -40,14 +52,15 @@ describe("Auth Middleware", () => {
         })
       ),
     };
+
+    mockUserTenantsRepo = {
+      getRole: mock(() => Promise.resolve("member" as const)),
+    };
   });
 
   describe("authenticate", () => {
     test("returns auth context for valid session", async () => {
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -59,13 +72,12 @@ describe("Auth Middleware", () => {
 
       expect(result.userId).toBe("user-123");
       expect(result.tenantId).toBe("tenant-456");
+      expect(result.currentTenantId).toBe("tenant-456");
+      expect(result.role).toBe("member");
     });
 
     test("throws AuthenticationError for missing cookie header", async () => {
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test");
 
@@ -78,10 +90,7 @@ describe("Auth Middleware", () => {
     });
 
     test("throws AuthenticationError for invalid cookie format", async () => {
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -100,10 +109,7 @@ describe("Auth Middleware", () => {
     test("throws AuthenticationError for expired/invalid session", async () => {
       mockSessionRepo.findByToken.mockImplementation(() => Promise.resolve(null));
 
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -122,10 +128,7 @@ describe("Auth Middleware", () => {
     test("throws AuthenticationError when user not found", async () => {
       mockUserRepo.getById.mockImplementation(() => Promise.resolve(null));
 
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -142,10 +145,7 @@ describe("Auth Middleware", () => {
     });
 
     test("calls sessionRepo.findByToken with correct token", async () => {
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -159,10 +159,7 @@ describe("Auth Middleware", () => {
     });
 
     test("calls userRepo.getById with userId from session", async () => {
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -176,10 +173,7 @@ describe("Auth Middleware", () => {
     });
 
     test("handles cookies with multiple values", async () => {
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -190,6 +184,62 @@ describe("Auth Middleware", () => {
       await middleware.authenticate(request);
 
       expect(mockSessionRepo.findByToken).toHaveBeenCalledWith("multi-cookie-token");
+    });
+
+    test("returns null role when user has no currentTenantId", async () => {
+      mockSessionRepo.findByToken.mockImplementation(() =>
+        Promise.resolve({
+          id: "session-123",
+          userId: "user-123",
+          currentTenantId: null,
+          token: "valid-token",
+          expiresAt: new Date(Date.now() + 86400000 * 5),
+        })
+      );
+
+      const middleware = createMiddleware();
+
+      const request = new Request("http://localhost/api/test", {
+        headers: {
+          Cookie: "session_token=valid-token",
+        },
+      });
+
+      const result = await middleware.authenticate(request);
+
+      expect(result.currentTenantId).toBeNull();
+      expect(result.role).toBeNull();
+      expect(mockUserTenantsRepo.getRole).not.toHaveBeenCalled();
+    });
+
+    test("calls userTenantsRepo.getRole when currentTenantId exists", async () => {
+      const middleware = createMiddleware();
+
+      const request = new Request("http://localhost/api/test", {
+        headers: {
+          Cookie: "session_token=valid-token",
+        },
+      });
+
+      await middleware.authenticate(request);
+
+      expect(mockUserTenantsRepo.getRole).toHaveBeenCalledWith("user-123", "tenant-456");
+    });
+
+    test("returns null role when userTenantsRepo.getRole returns null", async () => {
+      mockUserTenantsRepo.getRole.mockImplementation(() => Promise.resolve(null));
+
+      const middleware = createMiddleware();
+
+      const request = new Request("http://localhost/api/test", {
+        headers: {
+          Cookie: "session_token=valid-token",
+        },
+      });
+
+      const result = await middleware.authenticate(request);
+
+      expect(result.role).toBeNull();
     });
   });
 
@@ -213,15 +263,13 @@ describe("Auth Middleware", () => {
         Promise.resolve({
           id: "session-123",
           userId: "user-123",
+          currentTenantId: "tenant-456",
           token: "valid-token",
           expiresAt: new Date(Date.now() + 86400000 * 5), // 5 days
         })
       );
 
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -241,15 +289,13 @@ describe("Auth Middleware", () => {
         Promise.resolve({
           id: "session-123",
           userId: "user-123",
+          currentTenantId: "tenant-456",
           token: "valid-token",
           expiresAt: new Date(Date.now() + 86400000 * 2), // 2 days
         })
       );
 
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -271,15 +317,13 @@ describe("Auth Middleware", () => {
         Promise.resolve({
           id: "session-123",
           userId: "user-123",
+          currentTenantId: "tenant-456",
           token: "valid-token",
           expiresAt: new Date(Date.now() + 86400000), // 1 day
         })
       );
 
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -310,15 +354,13 @@ describe("Auth Middleware", () => {
         Promise.resolve({
           id: "session-123",
           userId: "user-123",
+          currentTenantId: "tenant-456",
           token: "valid-token",
           expiresAt: new Date(Date.now() + 86400000), // 1 day
         })
       );
 
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {
@@ -337,15 +379,13 @@ describe("Auth Middleware", () => {
         Promise.resolve({
           id: "session-123",
           userId: "user-123",
+          currentTenantId: "tenant-456",
           token: "valid-token",
           expiresAt: new Date(Date.now() + 86400000 * 2), // 2 days
         })
       );
 
-      const middleware = createAuthMiddleware(
-        mockSessionRepo as unknown as SessionRepository,
-        mockUserRepo as unknown as UserRepository
-      );
+      const middleware = createMiddleware();
 
       const request = new Request("http://localhost/api/test", {
         headers: {

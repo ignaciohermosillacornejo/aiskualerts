@@ -6,7 +6,7 @@ import { Router } from "wouter";
 import { AuthProvider } from "../../../src/frontend/contexts/AuthContext";
 import { Header } from "../../../src/frontend/components/Header";
 import "../../setup";
-import type { User } from "../../../src/frontend/types";
+import type { User, AuthMeResponse, CurrentTenant, TenantMembership } from "../../../src/frontend/types";
 
 // Store original fetch
 const originalFetch = globalThis.fetch;
@@ -18,7 +18,10 @@ function createFetchMock(handler: () => Promise<Response>) {
 }
 
 // Mock user data
-const mockUser: User = { id: "1", email: "test@test.com", name: "Test User", role: "admin" };
+const mockUser: User = { id: "1", email: "test@test.com", name: "Test User", subscriptionStatus: "none" };
+const mockTenant: CurrentTenant = { id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", syncStatus: "success" };
+const mockTenantMembership: TenantMembership = { id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", role: "owner", syncStatus: "success" };
+const mockAuthMeResponse: AuthMeResponse = { user: mockUser, currentTenant: mockTenant, tenants: [mockTenantMembership], role: "owner" };
 
 // Test Header logic without React Testing Library rendering
 // This tests the business logic and state management
@@ -290,7 +293,7 @@ describe("Header", () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve(mockAuthMeResponse),
         } as Response)
       );
 
@@ -311,7 +314,7 @@ describe("Header", () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve(mockAuthMeResponse),
         } as Response)
       );
 
@@ -388,7 +391,7 @@ describe("Header", () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve(mockAuthMeResponse),
         } as Response)
       );
 
@@ -426,7 +429,7 @@ describe("Header", () => {
       globalThis.fetch = createFetchMock(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ user: mockUser }),
+          json: () => Promise.resolve(mockAuthMeResponse),
         } as Response)
       );
 

@@ -362,7 +362,11 @@ describe("handleMagicLinkVerify", () => {
 
       await handleMagicLinkVerify({ token: "valid-token" }, deps);
 
-      expect(tenantRepo.createForMagicLink).toHaveBeenCalledWith("test@example.com");
+      // First arg is placeholder owner_id, second is email
+      expect(tenantRepo.createForMagicLink).toHaveBeenCalledWith(
+        "00000000-0000-0000-0000-000000000000",
+        "test@example.com"
+      );
       expect(userRepo.create).toHaveBeenCalled();
     });
 

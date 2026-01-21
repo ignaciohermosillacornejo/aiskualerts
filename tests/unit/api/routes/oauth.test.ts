@@ -208,7 +208,7 @@ describe("OAuth Routes", () => {
       expect(body.error).toBe("state parameter is required");
     });
 
-    test("returns 500 on OAuth error", async () => {
+    test("redirects to settings with error on OAuth error", async () => {
       mockStateStore.consume.mockImplementation(() => null);
 
       const request = new Request(
@@ -216,19 +216,22 @@ describe("OAuth Routes", () => {
       );
       const response = await routes.callback(request);
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(302);
+      const location = response.headers.get("Location");
+      expect(location).toContain("/app/settings?error=");
     });
 
-    test("returns error message on OAuth error", async () => {
+    test("includes error message in redirect URL on OAuth error", async () => {
       mockStateStore.consume.mockImplementation(() => null);
 
       const request = new Request(
         "http://localhost/api/auth/bsale/callback?code=auth-code&state=invalid-state"
       );
       const response = await routes.callback(request);
-      const body = await response.json() as { error: string };
+      const location = response.headers.get("Location") ?? "";
 
-      expect(body.error).toBe("Failed to complete OAuth flow");
+      // Error message is URL encoded
+      expect(location).toContain("invalid%20or%20expired%20state%20parameter");
     });
 
     test("includes Secure and SameSite in production", async () => {

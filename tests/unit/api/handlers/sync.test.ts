@@ -10,6 +10,7 @@ import * as syncJobModule from "@/jobs/sync-job";
 
 const mockTenant: Tenant = {
   id: "123e4567-e89b-12d3-a456-426614174000",
+  owner_id: "user-owner-123",
   bsale_client_code: "12345678-9",
   bsale_client_name: "Test Company",
   bsale_access_token: "test-token",
@@ -69,6 +70,8 @@ function createMocks() {
       Promise.resolve({
         userId: "user-123",
         tenantId: mockTenant.id,
+        currentTenantId: mockTenant.id,
+        role: "owner" as const,
       })
     ),
   };
