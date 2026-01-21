@@ -105,8 +105,8 @@ test.describe("Complete User Lifecycle Journey", () => {
         // Click connect button
         await page.click('button:has-text("Conectar")');
 
-        // Wait a moment for the redirect to be intercepted
-        await page.waitForTimeout(500);
+        // Wait for network to settle after interception
+        await page.waitForLoadState("networkidle");
 
         // Simulate OAuth callback with the captured state
         const state = getState();
@@ -159,8 +159,8 @@ test.describe("Complete User Lifecycle Journey", () => {
       // Save
       await page.click('button:has-text("Guardar")');
 
-      // Wait for modal to close or success
-      await page.waitForTimeout(1000);
+      // Wait for modal to close
+      await page.waitForLoadState("networkidle");
     });
 
     // 3.3 Navigate to alerts
@@ -199,8 +199,8 @@ test.describe("Complete User Lifecycle Journey", () => {
         // Submit
         await page.click('[data-testid="add-account-submit"]');
 
-        // Wait for redirect interception
-        await page.waitForTimeout(500);
+        // Wait for network to settle after interception
+        await page.waitForLoadState("networkidle");
 
         // Simulate callback
         const state = getState();
@@ -452,8 +452,8 @@ test.describe("Complete User Lifecycle Journey", () => {
         if (await dismissBtn.isVisible()) {
           await dismissBtn.click();
 
-          // Wait for alert to be removed
-          await page.waitForTimeout(1000);
+          // Wait for network request to complete (alert dismissal)
+          await page.waitForLoadState("networkidle");
 
           // Count should decrease
           const newCount = await alertsPage.getAlertCount();
