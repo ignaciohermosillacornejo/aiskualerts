@@ -21,6 +21,12 @@ function isValidMercadoPagoUrl(url: string): boolean {
   }
 }
 
+// Format tenant ID (RUT/RUC/RFC): remove dots and spaces, keep hyphen before verifying digit
+// "77.634.430-3" -> "77634430-3"
+function formatTenantId(value: string): string {
+  return value.replace(/[.\s]/g, "");
+}
+
 // Sanitize error messages for user display
 function getSafeErrorMessage(err: unknown, defaultMessage: string): string {
   if (err instanceof ApiError) {
@@ -270,8 +276,8 @@ export function Settings() {
                     type="text"
                     className="form-input"
                     value={addAccountClientCode}
-                    onChange={(e) => setAddAccountClientCode(e.target.value)}
-                    placeholder="ej: 12.345.678-9"
+                    onChange={(e) => setAddAccountClientCode(formatTenantId(e.target.value))}
+                    placeholder="ej: 12345678-9"
                     disabled={bsaleLoading}
                   />
                   <p style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.5rem" }}>
@@ -337,8 +343,8 @@ export function Settings() {
                     type="text"
                     className="form-input"
                     value={clientCode}
-                    onChange={(e) => setClientCode(e.target.value)}
-                    placeholder="ej: 12.345.678-9"
+                    onChange={(e) => setClientCode(formatTenantId(e.target.value))}
+                    placeholder="ej: 12345678-9"
                     disabled={bsaleLoading}
                   />
                   <p style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.5rem" }}>
