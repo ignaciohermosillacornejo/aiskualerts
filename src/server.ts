@@ -59,6 +59,7 @@ import { createSettingsRoutes, UpdateSettingsSchema } from "@/api/routes/setting
 import { createAuthRoutes, LoginSchema } from "@/api/routes/auth";
 import { createTestRoutes } from "@/api/routes/test";
 import type { MagicLinkRepository } from "@/db/repositories/magic-link";
+import type { UserTenantsRepository } from "@/db/repositories/user-tenants";
 
 // Re-export utilities for backward compatibility
 export {
@@ -207,6 +208,7 @@ export interface ServerDependencies {
   stockSnapshotRepo?: StockSnapshotRepository;
   sessionRepo?: SessionRepository;
   magicLinkRepo?: MagicLinkRepository;
+  userTenantsRepo?: UserTenantsRepository;
 }
 
 export function createHealthResponse(): HealthResponse {
@@ -309,6 +311,8 @@ export function createServer(
   const authRoutesModule = createAuthRoutes({
     sessionRepo: deps?.sessionRepo,
     userRepo: deps?.userRepo,
+    tenantRepo: deps?.tenantRepo,
+    userTenantsRepo: deps?.userTenantsRepo,
   });
 
   // Create test routes (only in non-production environments)

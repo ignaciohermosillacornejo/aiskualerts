@@ -14,6 +14,7 @@ import { MagicLinkRepository } from "@/db/repositories/magic-link";
 import { StockSnapshotRepository } from "@/db/repositories/stock-snapshot";
 import { ThresholdRepository } from "@/db/repositories/threshold";
 import { AlertRepository } from "@/db/repositories/alert";
+import { UserTenantsRepository } from "@/db/repositories/user-tenants";
 import { OAuthStateStore } from "@/utils/oauth-state-store";
 import {
   initializeSentry,
@@ -49,6 +50,7 @@ export interface MainDependencies {
   StockSnapshotRepository: typeof StockSnapshotRepository;
   ThresholdRepository: typeof ThresholdRepository;
   AlertRepository: typeof AlertRepository;
+  UserTenantsRepository: typeof UserTenantsRepository;
   BsaleOAuthClient: typeof BsaleOAuthClient;
   OAuthStateStore: typeof OAuthStateStore;
   MercadoPagoClient: typeof MercadoPagoClient;
@@ -82,6 +84,7 @@ export function createMainDependencies(): MainDependencies {
     StockSnapshotRepository,
     ThresholdRepository,
     AlertRepository,
+    UserTenantsRepository,
     BsaleOAuthClient,
     OAuthStateStore,
     MercadoPagoClient,
@@ -140,6 +143,7 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
   const stockSnapshotRepo = new deps.StockSnapshotRepository(db);
   const thresholdRepo = new deps.ThresholdRepository(db);
   const alertRepo = new deps.AlertRepository(db);
+  const userTenantsRepo = new deps.UserTenantsRepository(db);
 
   // Initialize session cleanup scheduler (runs every hour)
   const sessionCleanupScheduler = deps.createSessionCleanupScheduler(
@@ -171,6 +175,8 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
     stockSnapshotRepo,
     thresholdRepo,
     alertRepo,
+    magicLinkRepo,
+    userTenantsRepo,
     thresholdLimitService,
   };
 
@@ -197,6 +203,7 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
       userRepo,
       sessionRepo,
       stateStore,
+      userTenantsRepo,
     };
 
     deps.logger.info("OAuth endpoints enabled");

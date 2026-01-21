@@ -174,6 +174,9 @@ function createMockDependencies(): MainDependencies & {
   // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Mock class for testing
   class MockAlertRepository {}
 
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Mock class for testing
+  class MockUserTenantsRepository {}
+
   return {
     loadConfig: loadConfig as unknown as MainDependencies["loadConfig"],
     getDb: getDb as unknown as MainDependencies["getDb"],
@@ -195,6 +198,7 @@ function createMockDependencies(): MainDependencies & {
     StockSnapshotRepository: MockStockSnapshotRepository as unknown as MainDependencies["StockSnapshotRepository"],
     ThresholdRepository: MockThresholdRepository as unknown as MainDependencies["ThresholdRepository"],
     AlertRepository: MockAlertRepository as unknown as MainDependencies["AlertRepository"],
+    UserTenantsRepository: MockUserTenantsRepository as unknown as MainDependencies["UserTenantsRepository"],
     BsaleOAuthClient: MockBsaleOAuthClient as unknown as MainDependencies["BsaleOAuthClient"],
     OAuthStateStore: MockOAuthStateStore as unknown as MainDependencies["OAuthStateStore"],
     MercadoPagoClient: MockMercadoPagoClient as unknown as MainDependencies["MercadoPagoClient"],
