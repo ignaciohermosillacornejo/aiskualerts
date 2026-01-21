@@ -36,11 +36,11 @@ export class LoginPage {
     this.emailInput = page.locator('input[type="email"]');
     this.submitButton = page.locator('button[type="submit"]');
 
-    // Error message (red background)
-    this.errorMessage = page.locator('[style*="background-color: rgb(254, 226, 226)"]');
+    // Error message
+    this.errorMessage = page.locator('[data-testid="error-message"]');
 
-    // Success state elements (green background)
-    this.successMessage = page.locator('[style*="background-color: rgb(220, 252, 231)"]');
+    // Success state elements
+    this.successMessage = page.locator('[data-testid="success-message"]');
     this.successHeading = page.locator("h2", { hasText: "Revisa tu correo" });
     this.successEmailDisplay = page.locator("strong");
     this.expiryNotice = page.locator("text=El enlace expira en 15 minutos");
