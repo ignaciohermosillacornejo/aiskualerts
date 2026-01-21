@@ -524,7 +524,7 @@ export function Settings() {
           )}
           {settings.subscriptionStatus !== "active" && (
             <p style={{ marginTop: "1rem", color: "#64748b", fontSize: "0.875rem" }}>
-              Actualiza a Pro para acceder a alertas ilimitadas, sincronizacion cada hora y soporte prioritario.
+              Actualiza a Pro para acceder a alertas ilimitadas.
             </p>
           )}
         </div>
