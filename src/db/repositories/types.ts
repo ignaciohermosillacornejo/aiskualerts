@@ -1,13 +1,33 @@
 export type SubscriptionStatus = "none" | "active" | "cancelled" | "past_due";
 
+export type UserTenantRole = "owner" | "admin" | "member";
+
+export interface UserTenant {
+  id: string;
+  user_id: string;
+  tenant_id: string;
+  role: UserTenantRole;
+  notification_enabled: boolean;
+  notification_email: string | null;
+  digest_frequency: DigestFrequency;
+  created_at: Date;
+}
+
+export interface UserTenantWithTenant extends UserTenant {
+  tenant_name: string | null;
+  bsale_client_code: string | null;
+  sync_status: SyncStatus;
+}
+
 export interface Tenant {
   id: string;
+  owner_id: string | null;             // User who owns this tenant (null during migration)
   bsale_client_code: string | null;    // NULL if not connected to Bsale
   bsale_client_name: string | null;    // NULL if not connected to Bsale
   bsale_access_token: string | null;   // NULL if not connected to Bsale (encrypted at rest)
   sync_status: SyncStatus;
   last_sync_at: Date | null;
-  // Billing (provider-agnostic)
+  // Billing (provider-agnostic) - kept for backwards compatibility
   subscription_id: string | null;
   subscription_status: SubscriptionStatus;
   subscription_ends_at: Date | null;
@@ -31,12 +51,13 @@ export type DigestFrequency = "daily" | "weekly" | "none";
 
 export interface User {
   id: string;
-  tenant_id: string;
+  tenant_id: string;                    // Kept for backwards compatibility
   email: string;
   name: string | null;
-  notification_enabled: boolean;
-  notification_email: string | null;
-  digest_frequency: DigestFrequency;
+  last_tenant_id: string | null;        // Last tenant user was viewing
+  notification_enabled: boolean;        // Kept for backwards compatibility (now in user_tenants)
+  notification_email: string | null;    // Kept for backwards compatibility (now in user_tenants)
+  digest_frequency: DigestFrequency;    // Kept for backwards compatibility (now in user_tenants)
   // Subscription (user-level)
   subscription_id: string | null;
   subscription_status: SubscriptionStatus;
@@ -77,7 +98,8 @@ export interface StockSnapshotInput {
 export interface Threshold {
   id: string;
   tenant_id: string;
-  user_id: string;
+  user_id: string;                      // Kept for backwards compatibility
+  created_by: string | null;            // User who created this threshold
   bsale_variant_id: number | null;
   bsale_office_id: number | null;
   min_quantity: number;
@@ -89,7 +111,8 @@ export interface Threshold {
 export interface Alert {
   id: string;
   tenant_id: string;
-  user_id: string;
+  user_id: string;                      // Kept for backwards compatibility
+  dismissed_by: string | null;          // User who dismissed this alert
   bsale_variant_id: number;
   bsale_office_id: number | null;
   sku: string | null;
@@ -138,6 +161,7 @@ export interface PaginatedResult<T> {
 export interface Session {
   id: string;
   userId: string;
+  currentTenantId: string | null;       // Currently active tenant for this session
   token: string;
   expiresAt: Date;
   createdAt: Date;
