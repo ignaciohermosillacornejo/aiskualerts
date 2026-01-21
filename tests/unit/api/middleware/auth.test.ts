@@ -13,6 +13,7 @@ describe("Auth Middleware", () => {
   let mockSessionRepo: {
     findByToken: ReturnType<typeof mock>;
     refreshSession: ReturnType<typeof mock>;
+    updateCurrentTenant: ReturnType<typeof mock>;
   };
   let mockUserRepo: {
     getById: ReturnType<typeof mock>;
@@ -40,6 +41,7 @@ describe("Auth Middleware", () => {
         })
       ),
       refreshSession: mock(() => Promise.resolve()),
+      updateCurrentTenant: mock(() => Promise.resolve(null)),
     };
 
     mockUserRepo = {
@@ -226,7 +228,7 @@ describe("Auth Middleware", () => {
       expect(mockUserTenantsRepo.getRole).toHaveBeenCalledWith("user-123", "tenant-456");
     });
 
-    test("returns null role when userTenantsRepo.getRole returns null", async () => {
+    test("clears currentTenantId when userTenantsRepo.getRole returns null (user lost access)", async () => {
       mockUserTenantsRepo.getRole.mockImplementation(() => Promise.resolve(null));
 
       const middleware = createMiddleware();
@@ -239,7 +241,12 @@ describe("Auth Middleware", () => {
 
       const result = await middleware.authenticate(request);
 
+      // Role should be null
       expect(result.role).toBeNull();
+      // currentTenantId should be cleared since user lost access
+      expect(result.currentTenantId).toBeNull();
+      // updateCurrentTenant should have been called to clear the session's tenant
+      expect(mockSessionRepo.updateCurrentTenant).toHaveBeenCalledWith("valid-token", null);
     });
   });
 

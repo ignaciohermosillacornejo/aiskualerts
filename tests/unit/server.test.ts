@@ -887,6 +887,7 @@ describe("createServer with dependencies", () => {
     return {
       id: "session-123",
       userId: "user-123",
+      currentTenantId: "tenant-123",
       token: "test-session-token",
       // Expires in 7 days (must be > SESSION_REFRESH_THRESHOLD_DAYS=3.5 to avoid refresh path)
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -954,6 +955,28 @@ describe("createServer with dependencies", () => {
             alerts: [
               {
                 id: "alert-1",
+                tenant_id: "tenant-123",
+                user_id: "user-123",
+                bsale_variant_id: 1001,
+                sku: "SKU001",
+                product_name: "Test Product",
+                alert_type: "low_stock" as const,
+                current_quantity: 5,
+                threshold_quantity: 10,
+                status: "pending" as const,
+                sent_at: null,
+                created_at: new Date(),
+              },
+            ],
+            total: 1,
+          })
+        ),
+        findByTenantWithFilter: mock(() =>
+          Promise.resolve({
+            alerts: [
+              {
+                id: "alert-1",
+                tenant_id: "tenant-123",
                 user_id: "user-123",
                 bsale_variant_id: 1001,
                 sku: "SKU001",
@@ -973,6 +996,7 @@ describe("createServer with dependencies", () => {
         getById: mock(() =>
           Promise.resolve({
             id: "alert-1",
+            tenant_id: "tenant-123",
             user_id: "user-123",
             bsale_variant_id: 1001,
             sku: "SKU001",

@@ -55,11 +55,15 @@ export function createAuthMiddleware(
 
       // Get role if user has a current tenant selected
       let role: UserTenantRole | null = null;
-      const currentTenantId = session.currentTenantId;
+      let currentTenantId = session.currentTenantId;
       if (currentTenantId && userTenantsRepo) {
         role = await userTenantsRepo.getRole(session.userId, currentTenantId);
-        // Note: We don't throw if role is null - user may have lost access
-        // The API handlers can check role as needed
+        // If user has lost access to the tenant, clear the tenant context
+        if (role === null) {
+          // Clear the invalid tenant from session
+          await sessionRepo.updateCurrentTenant(sessionToken, null);
+          currentTenantId = null;
+        }
       }
 
       const baseContext = {

@@ -99,8 +99,9 @@ export class SessionRepository {
 
   /**
    * Update the current tenant for a session (tenant switching)
+   * Pass null to clear the current tenant (e.g., when user loses access)
    */
-  async updateCurrentTenant(token: string, tenantId: string): Promise<Session | null> {
+  async updateCurrentTenant(token: string, tenantId: string | null): Promise<Session | null> {
     const result = await this.db.queryOne<{
       id: string;
       user_id: string;

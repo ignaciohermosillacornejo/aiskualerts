@@ -17,6 +17,7 @@ describe("OAuth Routes", () => {
     findByClientCode: ReturnType<typeof mock>;
     create: ReturnType<typeof mock>;
     update: ReturnType<typeof mock>;
+    updateOwner: ReturnType<typeof mock>;
   };
   let mockUserRepo: {
     getByEmail: ReturnType<typeof mock>;
@@ -63,6 +64,15 @@ describe("OAuth Routes", () => {
           bsale_client_code: "test-client",
           bsale_client_name: "Test Company",
           bsale_access_token: "new-access-token",
+        })
+      ),
+      updateOwner: mock((tenantId: string, ownerId: string) =>
+        Promise.resolve({
+          id: tenantId,
+          owner_id: ownerId,
+          bsale_client_code: "test-client",
+          bsale_client_name: "Test Company",
+          bsale_access_token: "access-token-123",
         })
       ),
     };

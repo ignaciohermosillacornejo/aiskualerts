@@ -30,6 +30,13 @@ function createMockOAuthDeps(): OAuthHandlerDeps {
         })
       ),
       update: mock(() => Promise.resolve({})),
+      updateOwner: mock((tenantId: string, ownerId: string) =>
+        Promise.resolve({
+          id: tenantId,
+          owner_id: ownerId,
+          bsale_client_code: "client-123",
+        })
+      ),
     } as unknown as OAuthHandlerDeps["tenantRepo"],
     userRepo: {
       getByEmail: mock(() => Promise.resolve(null)),

@@ -335,4 +335,21 @@ export class TenantRepository {
     );
     return tenant ? this.processTenant(tenant) : null;
   }
+
+  /**
+   * Update the owner of a tenant (used after creating a user for a new tenant)
+   */
+  async updateOwner(tenantId: string, ownerId: string): Promise<Tenant> {
+    const tenants = await this.db.query<Tenant>(
+      `UPDATE tenants SET owner_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [ownerId, tenantId]
+    );
+
+    const tenant = tenants[0];
+    if (!tenant) {
+      throw new Error(`Tenant ${tenantId} not found`);
+    }
+
+    return this.processTenant(tenant);
+  }
 }

@@ -216,7 +216,8 @@ export async function handleOAuthCallback(
       });
       isNewTenant = true;
 
-      // TODO: Update tenant.owner_id to user.id once we add updateOwner method
+      // Update tenant's owner_id to the newly created user
+      tenant = await deps.tenantRepo.updateOwner(tenant.id, user.id);
     }
   }
 
