@@ -9,6 +9,7 @@ interface ConfirmModalProps {
   variant?: "danger" | "warning" | "default";
   onConfirm: () => void;
   onCancel: () => void;
+  "data-testid"?: string;
 }
 
 /**
@@ -24,6 +25,7 @@ export function ConfirmModal({
   variant = "default",
   onConfirm,
   onCancel,
+  "data-testid": dataTestId,
 }: ConfirmModalProps) {
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -73,6 +75,7 @@ export function ConfirmModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-modal-title"
+      data-testid={dataTestId}
     >
       <div
         className="card"
