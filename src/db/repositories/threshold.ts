@@ -3,7 +3,7 @@ import type { Threshold, PaginationParams, PaginatedResult } from "./types";
 
 export interface CreateThresholdInput {
   tenant_id: string;
-  user_id: string;
+  created_by: string;
   bsale_variant_id?: number | null;
   bsale_office_id?: number | null;
   min_quantity: number;
@@ -27,12 +27,12 @@ export class ThresholdRepository {
 
   async create(input: CreateThresholdInput): Promise<Threshold> {
     const result = await this.db.queryOne<Threshold>(
-      `INSERT INTO thresholds (tenant_id, user_id, bsale_variant_id, bsale_office_id, min_quantity, days_warning)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO thresholds (tenant_id, user_id, created_by, bsale_variant_id, bsale_office_id, min_quantity, days_warning)
+       VALUES ($1, $2, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
         input.tenant_id,
-        input.user_id,
+        input.created_by,
         input.bsale_variant_id ?? null,
         input.bsale_office_id ?? null,
         input.min_quantity,
@@ -100,6 +100,56 @@ export class ThresholdRepository {
   async getByTenant(tenantId: string): Promise<Threshold[]> {
     return this.db.query<Threshold>(
       `SELECT * FROM thresholds WHERE tenant_id = $1`,
+      [tenantId]
+    );
+  }
+
+  async countByTenant(tenantId: string): Promise<number> {
+    const result = await this.db.queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM thresholds WHERE tenant_id = $1`,
+      [tenantId]
+    );
+    return parseInt(result?.count ?? "0", 10);
+  }
+
+  async getByTenantPaginated(
+    tenantId: string,
+    pagination: PaginationParams
+  ): Promise<PaginatedResult<Threshold>> {
+    const [thresholds, countResult] = await Promise.all([
+      this.db.query<Threshold>(
+        `SELECT * FROM thresholds
+         WHERE tenant_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [tenantId, pagination.limit, pagination.offset]
+      ),
+      this.db.queryOne<{ count: string }>(
+        `SELECT COUNT(*) as count FROM thresholds WHERE tenant_id = $1`,
+        [tenantId]
+      ),
+    ]);
+
+    const total = parseInt(countResult?.count ?? "0", 10);
+    const page = Math.floor(pagination.offset / pagination.limit) + 1;
+
+    return {
+      data: thresholds,
+      pagination: {
+        page,
+        limit: pagination.limit,
+        total,
+        totalPages: Math.ceil(total / pagination.limit),
+      },
+    };
+  }
+
+  async getDefaultThresholdForTenant(tenantId: string): Promise<Threshold | null> {
+    return this.db.queryOne<Threshold>(
+      `SELECT * FROM thresholds
+       WHERE tenant_id = $1
+         AND bsale_variant_id IS NULL
+         AND bsale_office_id IS NULL`,
       [tenantId]
     );
   }

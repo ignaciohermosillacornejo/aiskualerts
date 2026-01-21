@@ -71,6 +71,12 @@ export function createAlertRoutes(deps: AlertRouteDeps): AlertRoutes {
 
         // If alertRepo available and authenticated, use real data
         if (authContext && deps.alertRepo) {
+          // Require tenant context for multi-tenant filtering
+          const tenantId = authContext.currentTenantId ?? authContext.tenantId;
+          if (!tenantId) {
+            return jsonWithCors({ error: "No tenant selected" }, { status: 400 });
+          }
+
           const filter: AlertFilter = { limit };
 
           // Map frontend alert types to database types
@@ -87,8 +93,8 @@ export function createAlertRoutes(deps: AlertRouteDeps): AlertRoutes {
             filter.status = status;
           }
 
-          const result = await deps.alertRepo.findByUserWithFilter(
-            authContext.userId,
+          const result = await deps.alertRepo.findByTenantWithFilter(
+            tenantId,
             filter
           );
 
@@ -140,15 +146,21 @@ export function createAlertRoutes(deps: AlertRouteDeps): AlertRoutes {
 
         // If alertRepo available and authenticated, use real data
         if (authContext && deps.alertRepo) {
+          // Require tenant context for multi-tenant filtering
+          const tenantId = authContext.currentTenantId ?? authContext.tenantId;
+          if (!tenantId) {
+            return jsonWithCors({ error: "No tenant selected" }, { status: 400 });
+          }
+
           const alert = await deps.alertRepo.getById(id);
           if (!alert) {
             return jsonWithCors({ error: "Alert not found" }, { status: 404 });
           }
-          // Verify user owns this alert
-          if (alert.user_id !== authContext.userId) {
+          // Verify alert belongs to current tenant (not just user)
+          if (alert.tenant_id !== tenantId) {
             return jsonWithCors({ error: "Alert not found" }, { status: 404 });
           }
-          await deps.alertRepo.markAsDismissed(id);
+          await deps.alertRepo.markAsDismissed(id, authContext.userId);
           return jsonWithCors({ success: true });
         }
 

@@ -6,6 +6,7 @@ import { BsaleAuthError, BsaleRateLimitError } from "@/lib/errors";
 
 const mockTenant: Tenant = {
   id: "tenant-123",
+  owner_id: "user-owner-123",
   bsale_client_code: "12345678-9",
   bsale_client_name: "Test Company",
   bsale_access_token: "test-token",

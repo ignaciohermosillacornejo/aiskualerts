@@ -14,6 +14,7 @@ const mockUser: User = {
   tenant_id: "123e4567-e89b-12d3-a456-426614174000",
   email: "test@example.com",
   name: "Test User",
+  last_tenant_id: "123e4567-e89b-12d3-a456-426614174000",
   notification_enabled: true,
   notification_email: null,
   digest_frequency: "daily",
@@ -75,6 +76,8 @@ function createMocks() {
       Promise.resolve({
         userId: mockUser.id,
         tenantId: mockUser.tenant_id,
+        currentTenantId: mockUser.tenant_id,
+        role: "owner" as const,
       })
     ),
   };

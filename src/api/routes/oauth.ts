@@ -49,6 +49,10 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps, config?: OAuthRoutesCo
     /**
      * GET /api/auth/bsale/callback?code=xxx&state=xxx
      * Handles OAuth callback, validates state, creates tenant/user, and sets session cookie
+     *
+     * Supports two flows:
+     * 1. New signup: User has no session, creates new user/tenant/session
+     * 2. Add tenant: User already logged in (has session), adds new tenant to existing user
      */
     async callback(request: Request): Promise<Response> {
       try {
@@ -70,7 +74,26 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps, config?: OAuthRoutesCo
           );
         }
 
-        const sessionData = await handleOAuthCallback({ code, state }, deps);
+        // Check if user is already authenticated (Add Tenant flow)
+        let authenticatedUserId: string | undefined;
+        const cookieHeader = request.headers.get("Cookie");
+        if (cookieHeader) {
+          const existingToken = extractSessionToken(cookieHeader);
+          if (existingToken) {
+            const existingSession = await deps.sessionRepo.findByToken(existingToken);
+            if (existingSession) {
+              authenticatedUserId = existingSession.userId;
+              logger.info("OAuth callback with existing session", { userId: authenticatedUserId });
+            }
+          }
+        }
+
+        const sessionData = await handleOAuthCallback(
+          authenticatedUserId
+            ? { code, state, authenticatedUserId }
+            : { code, state },
+          deps
+        );
 
         // Set session cookie (HTTP-only, Secure in production, SameSite=Strict for CSRF protection)
         const isProduction = process.env.NODE_ENV === "production";
@@ -86,8 +109,13 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps, config?: OAuthRoutesCo
           cookieParts.push("Secure", "SameSite=Strict");
         }
 
+        // Redirect to settings if adding a new tenant, otherwise to app
+        const redirectPath = authenticatedUserId
+          ? "/app/settings?connected=true"
+          : "/app";
+
         const headers = new Headers({
-          Location: "/app",
+          Location: redirectPath,
         });
 
         // Add session cookie
@@ -106,10 +134,14 @@ export function createOAuthRoutes(deps: OAuthHandlerDeps, config?: OAuthRoutesCo
         });
       } catch (error) {
         logger.error("OAuth callback error", error instanceof Error ? error : new Error(String(error)));
-        return new Response(
-          JSON.stringify({ error: "Failed to complete OAuth flow" }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
-        );
+        // Redirect to settings with error for better UX
+        const errorMessage = error instanceof Error ? error.message : "Failed to complete OAuth flow";
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: `/app/settings?error=${encodeURIComponent(errorMessage)}`,
+          },
+        });
       }
     },
 

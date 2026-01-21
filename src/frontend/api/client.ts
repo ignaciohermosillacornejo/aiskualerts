@@ -7,6 +7,8 @@ import type {
   TenantSettings,
   LoginCredentials,
   LimitInfo,
+  AuthMeResponse,
+  TenantMembership,
 } from "../types";
 
 const API_BASE = "/api";
@@ -276,13 +278,29 @@ async function disconnectBsale(): Promise<{ success: boolean }> {
   return request<{ success: boolean }>("/bsale/disconnect", { method: "POST" });
 }
 
-async function getCurrentUser(): Promise<LoginResponse["user"] | null> {
+async function getCurrentUser(): Promise<AuthMeResponse | null> {
   try {
-    const response = await request<{ user: LoginResponse["user"] }>("/auth/me");
-    return response.user;
+    return await request<AuthMeResponse>("/auth/me");
   } catch {
     return null;
   }
+}
+
+// Tenants
+interface TenantsResponse {
+  tenants: TenantMembership[];
+}
+
+async function getTenants(): Promise<TenantMembership[]> {
+  const response = await request<TenantsResponse>("/tenants");
+  return response.tenants;
+}
+
+async function switchTenant(tenantId: string): Promise<void> {
+  await request("/tenants/switch", {
+    method: "POST",
+    body: JSON.stringify({ tenantId }),
+  });
 }
 
 // Billing
@@ -350,6 +368,10 @@ export const api = {
   getCurrentUser,
   requestMagicLink,
   disconnectBsale,
+
+  // Tenants
+  getTenants,
+  switchTenant,
 
   // Billing
   createCheckoutSession,

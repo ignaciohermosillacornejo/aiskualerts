@@ -74,6 +74,8 @@ export function Settings() {
   const [success, setSuccess] = useState<string | null>(null);
   const [clientCode, setClientCode] = useState("");
   const [showConnectForm, setShowConnectForm] = useState(false);
+  const [showAddAccountForm, setShowAddAccountForm] = useState(false);
+  const [addAccountClientCode, setAddAccountClientCode] = useState("");
   const [upgradeConfirm, setUpgradeConfirm] = useState(false);
   const [limits, setLimits] = useState<LimitInfo | null>(null);
 
@@ -145,6 +147,17 @@ export function Settings() {
     // Redirect to OAuth flow
     window.location.href = `/api/bsale/connect?client_code=${encodeURIComponent(clientCode.trim())}`;
   }, [clientCode]);
+
+  const handleAddAccount = useCallback(() => {
+    if (!addAccountClientCode.trim()) {
+      setError("Por favor ingresa el RUT/RUC/RFC de la empresa a agregar");
+      return;
+    }
+    setBsaleLoading(true);
+    // Redirect to OAuth flow - the callback will detect the existing session
+    // and add the new tenant to the current user instead of creating a new user
+    window.location.href = `/api/bsale/connect?client_code=${encodeURIComponent(addAccountClientCode.trim())}`;
+  }, [addAccountClientCode]);
 
   const handleDisconnectBsale = useCallback(async () => {
     if (!window.confirm("Esta seguro de desconectar Bsale? Tus datos historicos se conservaran.")) {
@@ -247,14 +260,68 @@ export function Settings() {
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleDisconnectBsale}
-              disabled={bsaleLoading}
-            >
-              {bsaleLoading ? "Desconectando..." : "Desconectar Bsale"}
-            </button>
+
+            {/* Add Account Form */}
+            {showAddAccountForm ? (
+              <div style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#f8fafc", borderRadius: "0.5rem" }}>
+                <div className="form-group" style={{ marginBottom: "0.75rem" }}>
+                  <label className="form-label">RUT / RUC / RFC de la nueva empresa</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={addAccountClientCode}
+                    onChange={(e) => setAddAccountClientCode(e.target.value)}
+                    placeholder="ej: 12.345.678-9"
+                    disabled={bsaleLoading}
+                  />
+                  <p style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.5rem" }}>
+                    Agrega otra empresa o sucursal conectada a Bsale.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleAddAccount}
+                    disabled={bsaleLoading || !addAccountClientCode.trim()}
+                  >
+                    {bsaleLoading ? "Conectando..." : "Agregar Cuenta"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowAddAccountForm(false);
+                      setAddAccountClientCode("");
+                    }}
+                    disabled={bsaleLoading}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              {!showAddAccountForm && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setShowAddAccountForm(true)}
+                  disabled={bsaleLoading}
+                >
+                  Agregar Otra Cuenta
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleDisconnectBsale}
+                disabled={bsaleLoading}
+              >
+                {bsaleLoading ? "Desconectando..." : "Desconectar Bsale"}
+              </button>
+            </div>
           </>
         ) : (
           <>

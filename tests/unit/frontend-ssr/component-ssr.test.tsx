@@ -25,6 +25,7 @@ beforeAll(() => {
   clearModuleCache("../../../src/frontend/contexts/AuthContext");
   clearModuleCache("../../../src/frontend/api/client");
   clearModuleCache("../../../src/frontend/components/Header");
+  clearModuleCache("../../../src/frontend/components/TenantSwitcher");
   clearModuleCache("../../../src/frontend/components/ProtectedRoute");
   clearModuleCache("../../../src/frontend/pages/Login");
   clearModuleCache("wouter");
@@ -43,6 +44,12 @@ function createFetchMock(handler: () => Promise<Response>) {
 
 describe("Header Component SSR", () => {
   beforeEach(() => {
+    // Clear module cache before each test to ensure mocks are applied correctly
+    clearModuleCache("../../../src/frontend/contexts/AuthContext");
+    clearModuleCache("../../../src/frontend/components/Header");
+    clearModuleCache("../../../src/frontend/components/TenantSwitcher");
+    clearModuleCache("wouter");
+
     sessionStorage.clear();
     globalThis.fetch = createFetchMock(() =>
       Promise.resolve({
@@ -57,18 +64,22 @@ describe("Header Component SSR", () => {
   });
 
   test("renders header with Dashboard title for /app route", async () => {
-    void mock.module("wouter", () => ({
+    await mock.module("wouter", () => ({
       useLocation: () => ["/app", noop] as [string, (path: string) => void],
     }));
 
-    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    await mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
-        user: { id: "1", email: "user@example.com", name: "Test User", role: "admin" as const },
+        user: { id: "1", email: "user@example.com", name: "Test User", subscriptionStatus: "none" as const },
+        currentTenant: { id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", syncStatus: "success" as const },
+        tenants: [{ id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", role: "owner" as const, syncStatus: "success" as const }],
+        role: "owner" as const,
         loading: false,
         error: null,
         login: noopAsync,
         logout: noopAsync,
         refreshUser: noopAsync,
+        switchTenant: noopAsync,
       }),
     }));
 
@@ -81,16 +92,20 @@ describe("Header Component SSR", () => {
   });
 
   test("renders header with Alertas title for /app/alerts route", async () => {
-    void mock.module("wouter", () => ({
+    await mock.module("wouter", () => ({
       useLocation: () => ["/app/alerts", noop] as [string, (path: string) => void],
     }));
 
-    void mock.module("../../../src/frontend/contexts/AuthContext", () => ({
+    await mock.module("../../../src/frontend/contexts/AuthContext", () => ({
       useAuth: () => ({
-        user: { id: "1", email: "test@test.com", name: "Test", role: "admin" as const },
+        user: { id: "1", email: "test@test.com", name: "Test", subscriptionStatus: "none" as const },
+        currentTenant: { id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", syncStatus: "success" as const },
+        tenants: [{ id: "t1", name: "Test Tenant", bsaleClientCode: "ABC123", role: "owner" as const, syncStatus: "success" as const }],
+        role: "owner" as const,
         loading: false,
         error: null,
         logout: noopAsync,
+        switchTenant: noopAsync,
       }),
     }));
 

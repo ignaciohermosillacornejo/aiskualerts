@@ -5,6 +5,7 @@ export interface CreateSessionInput {
   userId: string;
   token: string;
   expiresAt: Date;
+  currentTenantId?: string;
 }
 
 export class SessionRepository {
@@ -14,14 +15,15 @@ export class SessionRepository {
     const results = await this.db.query<{
       id: string;
       user_id: string;
+      current_tenant_id: string | null;
       token: string;
       expires_at: string;
       created_at: string;
     }>(
-      `INSERT INTO sessions (user_id, token, expires_at)
-       VALUES ($1, $2, $3)
-       RETURNING id, user_id, token, expires_at, created_at`,
-      [input.userId, input.token, input.expiresAt.toISOString()]
+      `INSERT INTO sessions (user_id, token, expires_at, current_tenant_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, user_id, current_tenant_id, token, expires_at, created_at`,
+      [input.userId, input.token, input.expiresAt.toISOString(), input.currentTenantId ?? null]
     );
 
     const result = results[0];
@@ -32,6 +34,7 @@ export class SessionRepository {
     return {
       id: result.id,
       userId: result.user_id,
+      currentTenantId: result.current_tenant_id,
       token: result.token,
       expiresAt: new Date(result.expires_at),
       createdAt: new Date(result.created_at),
@@ -42,11 +45,12 @@ export class SessionRepository {
     const result = await this.db.queryOne<{
       id: string;
       user_id: string;
+      current_tenant_id: string | null;
       token: string;
       expires_at: string;
       created_at: string;
     }>(
-      `SELECT id, user_id, token, expires_at, created_at
+      `SELECT id, user_id, current_tenant_id, token, expires_at, created_at
        FROM sessions
        WHERE token = $1 AND expires_at > NOW()`,
       [token]
@@ -59,6 +63,7 @@ export class SessionRepository {
     return {
       id: result.id,
       userId: result.user_id,
+      currentTenantId: result.current_tenant_id,
       token: result.token,
       expiresAt: new Date(result.expires_at),
       createdAt: new Date(result.created_at),
@@ -90,5 +95,37 @@ export class SessionRepository {
       `UPDATE sessions SET expires_at = $1 WHERE token = $2`,
       [newExpiresAt.toISOString(), token]
     );
+  }
+
+  /**
+   * Update the current tenant for a session (tenant switching)
+   * Pass null to clear the current tenant (e.g., when user loses access)
+   */
+  async updateCurrentTenant(token: string, tenantId: string | null): Promise<Session | null> {
+    const result = await this.db.queryOne<{
+      id: string;
+      user_id: string;
+      current_tenant_id: string | null;
+      token: string;
+      expires_at: string;
+      created_at: string;
+    }>(
+      `UPDATE sessions SET current_tenant_id = $2 WHERE token = $1
+       RETURNING id, user_id, current_tenant_id, token, expires_at, created_at`,
+      [token, tenantId]
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      id: result.id,
+      userId: result.user_id,
+      currentTenantId: result.current_tenant_id,
+      token: result.token,
+      expiresAt: new Date(result.expires_at),
+      createdAt: new Date(result.created_at),
+    };
   }
 }

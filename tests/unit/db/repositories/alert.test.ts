@@ -17,6 +17,7 @@ const mockAlert: Alert = {
   days_to_stockout: null,
   status: "pending",
   sent_at: null,
+  dismissed_by: null,
   created_at: new Date(),
 };
 
@@ -196,11 +197,11 @@ describe("AlertRepository", () => {
   });
 
   describe("markAsDismissed", () => {
-    test("updates status to dismissed", async () => {
+    test("updates status to dismissed with dismisser", async () => {
       const { db, mocks } = createMockDb();
       const repo = new AlertRepository(db);
 
-      await repo.markAsDismissed("alert-1");
+      await repo.markAsDismissed("alert-1", "user-123");
 
       expect(mocks.execute).toHaveBeenCalled();
     });
@@ -251,6 +252,90 @@ describe("AlertRepository", () => {
 
       expect(result).toBe(true);
       expect(mocks.queryOne).toHaveBeenCalled();
+    });
+  });
+
+  describe("hasPendingAlertForTenant", () => {
+    test("returns true when pending alert exists for tenant", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ exists: true });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasPendingAlertForTenant(
+        "tenant-123",
+        100,
+        1,
+        "low_stock"
+      );
+
+      expect(result).toBe(true);
+    });
+
+    test("returns false when no pending alert exists for tenant", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ exists: false });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasPendingAlertForTenant(
+        "tenant-123",
+        100,
+        1,
+        "low_stock"
+      );
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("findByTenantWithFilter", () => {
+    test("returns alerts filtered by tenant", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockAlert]);
+      mocks.queryOne.mockResolvedValue({ count: "1" });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.findByTenantWithFilter("tenant-123");
+
+      expect(result.alerts).toEqual([mockAlert]);
+      expect(result.total).toBe(1);
+    });
+
+    test("filters by type and status", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([mockAlert]);
+      mocks.queryOne.mockResolvedValue({ count: "5" });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.findByTenantWithFilter("tenant-123", {
+        type: "low_stock",
+        status: "pending",
+        limit: 10,
+      });
+
+      expect(result.alerts).toEqual([mockAlert]);
+      expect(result.total).toBe(5);
+    });
+  });
+
+  describe("countPendingByTenant", () => {
+    test("returns count of pending alerts for tenant", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ count: "15" });
+
+      const repo = new AlertRepository(db);
+      const count = await repo.countPendingByTenant("tenant-123");
+
+      expect(count).toBe(15);
+    });
+
+    test("returns 0 when no pending alerts", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ count: "0" });
+
+      const repo = new AlertRepository(db);
+      const count = await repo.countPendingByTenant("tenant-123");
+
+      expect(count).toBe(0);
     });
   });
 });

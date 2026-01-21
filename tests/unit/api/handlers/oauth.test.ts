@@ -21,6 +21,7 @@ describe("OAuth Handlers", () => {
     findByClientCode: ReturnType<typeof mock>;
     create: ReturnType<typeof mock>;
     update: ReturnType<typeof mock>;
+    updateOwner: ReturnType<typeof mock>;
   };
   let mockUserRepo: {
     getByEmail: ReturnType<typeof mock>;
@@ -65,6 +66,15 @@ describe("OAuth Handlers", () => {
           bsale_client_code: "test-client",
           bsale_client_name: "Test Company",
           bsale_access_token: "new-access-token",
+        })
+      ),
+      updateOwner: mock((tenantId: string, ownerId: string) =>
+        Promise.resolve({
+          id: tenantId,
+          owner_id: ownerId,
+          bsale_client_code: "test-client",
+          bsale_client_name: "Test Company",
+          bsale_access_token: "access-token-123",
         })
       ),
     };
@@ -287,6 +297,158 @@ describe("OAuth Handlers", () => {
       expect(sessionData.expiresAt.getTime()).toBeLessThanOrEqual(
         expectedExpiry.getTime() + 5000
       );
+    });
+  });
+
+  describe("Add Tenant Flow (authenticated user)", () => {
+    let mockUserTenantsRepo: {
+      hasAccess: ReturnType<typeof mock>;
+      create: ReturnType<typeof mock>;
+    };
+
+    beforeEach(() => {
+      mockUserTenantsRepo = {
+        hasAccess: mock(() => Promise.resolve(false)),
+        create: mock(() => Promise.resolve({})),
+      };
+
+      // Add getById to userRepo for this flow
+      (mockUserRepo as { getById?: ReturnType<typeof mock> }).getById = mock(
+        () =>
+          Promise.resolve({
+            id: "auth-user-123",
+            tenant_id: "some-tenant",
+            email: "existing@example.com",
+            name: "Existing User",
+          })
+      );
+    });
+
+    test("creates new tenant for authenticated user", async () => {
+      const depsWithUserTenants = {
+        ...deps,
+        userTenantsRepo: mockUserTenantsRepo as unknown as import("../../../../src/db/repositories/user-tenants").UserTenantsRepository,
+      };
+
+      const result = await handleOAuthCallback(
+        { code: "auth-code", state: "valid-state", authenticatedUserId: "auth-user-123" },
+        depsWithUserTenants
+      );
+
+      expect(result.userId).toBe("auth-user-123");
+      expect(result.tenantId).toBe("tenant-123");
+      expect(mockTenantRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          owner_id: "auth-user-123",
+          bsale_client_code: "test-client",
+        })
+      );
+    });
+
+    test("creates user_tenants entry for new tenant", async () => {
+      const depsWithUserTenants = {
+        ...deps,
+        userTenantsRepo: mockUserTenantsRepo as unknown as import("../../../../src/db/repositories/user-tenants").UserTenantsRepository,
+      };
+
+      await handleOAuthCallback(
+        { code: "auth-code", state: "valid-state", authenticatedUserId: "auth-user-123" },
+        depsWithUserTenants
+      );
+
+      expect(mockUserTenantsRepo.create).toHaveBeenCalledWith({
+        user_id: "auth-user-123",
+        tenant_id: "tenant-123",
+        role: "owner",
+      });
+    });
+
+    test("does not create new session for authenticated user", async () => {
+      const depsWithUserTenants = {
+        ...deps,
+        userTenantsRepo: mockUserTenantsRepo as unknown as import("../../../../src/db/repositories/user-tenants").UserTenantsRepository,
+      };
+
+      const result = await handleOAuthCallback(
+        { code: "auth-code", state: "valid-state", authenticatedUserId: "auth-user-123" },
+        depsWithUserTenants
+      );
+
+      expect(result.sessionToken).toBe("");
+      expect(mockSessionRepo.create).not.toHaveBeenCalled();
+    });
+
+    test("throws error when tenant exists with different owner", async () => {
+      mockTenantRepo.findByClientCode.mockResolvedValue({
+        id: "existing-tenant",
+        owner_id: "different-user",
+        bsale_client_code: "test-client",
+      });
+
+      const depsWithUserTenants = {
+        ...deps,
+        userTenantsRepo: mockUserTenantsRepo as unknown as import("../../../../src/db/repositories/user-tenants").UserTenantsRepository,
+      };
+
+      await expect(
+        handleOAuthCallback(
+          { code: "auth-code", state: "valid-state", authenticatedUserId: "auth-user-123" },
+          depsWithUserTenants
+        )
+      ).rejects.toThrow("This Bsale account is already connected to another user");
+    });
+
+    test("allows reconnecting if user already has access", async () => {
+      mockTenantRepo.findByClientCode.mockResolvedValue({
+        id: "existing-tenant",
+        owner_id: "different-user",
+        bsale_client_code: "test-client",
+      });
+      mockTenantRepo.update.mockResolvedValue({
+        id: "existing-tenant",
+        owner_id: "different-user",
+        bsale_client_code: "test-client",
+      });
+      mockUserTenantsRepo.hasAccess.mockResolvedValue(true);
+
+      const depsWithUserTenants = {
+        ...deps,
+        userTenantsRepo: mockUserTenantsRepo as unknown as import("../../../../src/db/repositories/user-tenants").UserTenantsRepository,
+      };
+
+      const result = await handleOAuthCallback(
+        { code: "auth-code", state: "valid-state", authenticatedUserId: "auth-user-123" },
+        depsWithUserTenants
+      );
+
+      expect(result.tenantId).toBe("existing-tenant");
+      expect(mockTenantRepo.update).toHaveBeenCalled();
+    });
+
+    test("allows owner to reconnect their own tenant", async () => {
+      mockTenantRepo.findByClientCode.mockResolvedValue({
+        id: "existing-tenant",
+        owner_id: "auth-user-123",
+        bsale_client_code: "test-client",
+      });
+      mockTenantRepo.update.mockResolvedValue({
+        id: "existing-tenant",
+        owner_id: "auth-user-123",
+        bsale_client_code: "test-client",
+      });
+
+      const depsWithUserTenants = {
+        ...deps,
+        userTenantsRepo: mockUserTenantsRepo as unknown as import("../../../../src/db/repositories/user-tenants").UserTenantsRepository,
+      };
+
+      const result = await handleOAuthCallback(
+        { code: "auth-code", state: "valid-state", authenticatedUserId: "auth-user-123" },
+        depsWithUserTenants
+      );
+
+      expect(result.tenantId).toBe("existing-tenant");
+      expect(mockTenantRepo.update).toHaveBeenCalled();
     });
   });
 

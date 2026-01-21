@@ -144,7 +144,7 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
         if (authContext && deps.thresholdRepo) {
           const threshold = await deps.thresholdRepo.create({
             tenant_id: authContext.tenantId,
-            user_id: authContext.userId,
+            created_by: authContext.userId,
             bsale_variant_id: parseInt(body.productId, 10) || null,
             min_quantity: body.minQuantity,
           });

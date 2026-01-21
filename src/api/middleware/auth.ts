@@ -1,5 +1,7 @@
 import type { SessionRepository } from "../../db/repositories/session";
 import type { UserRepository } from "../../db/repositories/user";
+import type { UserTenantsRepository } from "../../db/repositories/user-tenants";
+import type { UserTenantRole } from "../../db/repositories/types";
 import { extractSessionToken, SESSION_TTL_DAYS, SESSION_REFRESH_THRESHOLD_DAYS } from "../../utils/cookies";
 import { extractCSRFTokenFromCookie } from "../../utils/csrf";
 
@@ -11,8 +13,10 @@ export interface SessionRefresh {
 
 export interface AuthContext {
   userId: string;
-  tenantId: string;
-  refresh?: SessionRefresh;  // Present if refresh needed
+  tenantId: string;              // Legacy: from user.tenant_id (for backward compat)
+  currentTenantId: string | null; // Multi-tenant: from session.current_tenant_id
+  role: UserTenantRole | null;    // Role in current tenant
+  refresh?: SessionRefresh;       // Present if refresh needed
 }
 
 export interface AuthMiddleware {
@@ -21,7 +25,8 @@ export interface AuthMiddleware {
 
 export function createAuthMiddleware(
   sessionRepo: SessionRepository,
-  userRepo: UserRepository
+  userRepo: UserRepository,
+  userTenantsRepo?: UserTenantsRepository
 ): AuthMiddleware {
   return {
     async authenticate(request: Request): Promise<AuthContext> {
@@ -42,15 +47,30 @@ export function createAuthMiddleware(
         throw new AuthenticationError("Invalid or expired session");
       }
 
-      // Get user to retrieve tenant_id
+      // Get user to retrieve tenant_id (legacy)
       const user = await userRepo.getById(session.userId);
       if (!user) {
         throw new AuthenticationError("User not found");
       }
 
+      // Get role if user has a current tenant selected
+      let role: UserTenantRole | null = null;
+      let currentTenantId = session.currentTenantId;
+      if (currentTenantId && userTenantsRepo) {
+        role = await userTenantsRepo.getRole(session.userId, currentTenantId);
+        // If user has lost access to the tenant, clear the tenant context
+        if (role === null) {
+          // Clear the invalid tenant from session
+          await sessionRepo.updateCurrentTenant(sessionToken, null);
+          currentTenantId = null;
+        }
+      }
+
       const baseContext = {
         userId: user.id,
         tenantId: user.tenant_id,
+        currentTenantId,
+        role,
       };
 
       // Check sliding window - refresh if less than threshold days remaining

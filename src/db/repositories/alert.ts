@@ -175,10 +175,10 @@ export class AlertRepository {
     );
   }
 
-  async markAsDismissed(alertId: string): Promise<void> {
+  async markAsDismissed(alertId: string, dismissedBy: string): Promise<void> {
     await this.db.execute(
-      `UPDATE alerts SET status = 'dismissed' WHERE id = $1`,
-      [alertId]
+      `UPDATE alerts SET status = 'dismissed', dismissed_by = $2 WHERE id = $1`,
+      [alertId, dismissedBy]
     );
   }
 
@@ -200,5 +200,68 @@ export class AlertRepository {
       [userId, variantId, officeId, alertType]
     );
     return result?.exists ?? false;
+  }
+
+  async hasPendingAlertForTenant(
+    tenantId: string,
+    variantId: number,
+    officeId: number | null,
+    alertType: "low_stock" | "out_of_stock" | "low_velocity"
+  ): Promise<boolean> {
+    const result = await this.db.queryOne<{ exists: boolean }>(
+      `SELECT EXISTS(
+         SELECT 1 FROM alerts
+         WHERE tenant_id = $1
+           AND bsale_variant_id = $2
+           AND (bsale_office_id = $3 OR ($3 IS NULL AND bsale_office_id IS NULL))
+           AND alert_type = $4
+           AND status = 'pending'
+       ) as exists`,
+      [tenantId, variantId, officeId, alertType]
+    );
+    return result?.exists ?? false;
+  }
+
+  async findByTenantWithFilter(
+    tenantId: string,
+    filter?: AlertFilter
+  ): Promise<{ alerts: Alert[]; total: number }> {
+    const conditions = ["tenant_id = $1"];
+    const values: unknown[] = [tenantId];
+    let paramCount = 2;
+
+    if (filter?.type) {
+      conditions.push(`alert_type = $${String(paramCount++)}`);
+      values.push(filter.type);
+    }
+
+    if (filter?.status) {
+      conditions.push(`status = $${String(paramCount++)}`);
+      values.push(filter.status);
+    }
+
+    const whereClause = conditions.join(" AND ");
+
+    const countResult = await this.db.queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM alerts WHERE ${whereClause}`,
+      values
+    );
+    const total = parseInt(countResult?.count ?? "0", 10);
+
+    const limit = filter?.limit ?? 100;
+    const alerts = await this.db.query<Alert>(
+      `SELECT * FROM alerts WHERE ${whereClause} ORDER BY created_at DESC LIMIT $${String(paramCount)}`,
+      [...values, limit]
+    );
+
+    return { alerts, total };
+  }
+
+  async countPendingByTenant(tenantId: string): Promise<number> {
+    const result = await this.db.queryOne<{ count: string }>(
+      `SELECT COUNT(*) as count FROM alerts WHERE tenant_id = $1 AND status = 'pending'`,
+      [tenantId]
+    );
+    return parseInt(result?.count ?? "0", 10);
   }
 }

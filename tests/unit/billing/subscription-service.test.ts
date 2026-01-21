@@ -10,6 +10,7 @@ describe("SubscriptionService", () => {
     tenant_id: "tenant-123",
     email: "test@example.com",
     name: "Test User",
+    last_tenant_id: "tenant-123",
     notification_enabled: true,
     notification_email: null,
     digest_frequency: "daily",

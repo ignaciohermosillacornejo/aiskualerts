@@ -59,7 +59,31 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "viewer";
+  subscriptionStatus: "none" | "active" | "cancelled" | "past_due";
+}
+
+export type UserTenantRole = "owner" | "admin" | "member";
+
+export interface TenantMembership {
+  id: string;
+  name: string | null;
+  bsaleClientCode: string | null;
+  role: UserTenantRole;
+  syncStatus: SyncStatus;
+}
+
+export interface CurrentTenant {
+  id: string;
+  name: string | null;
+  bsaleClientCode: string | null;
+  syncStatus: SyncStatus;
+}
+
+export interface AuthMeResponse {
+  user: User;
+  currentTenant: CurrentTenant | null;
+  tenants: TenantMembership[];
+  role: UserTenantRole | null;
 }
 
 export interface LoginCredentials {

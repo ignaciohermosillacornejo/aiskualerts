@@ -17,6 +17,7 @@ describe("OAuth Routes", () => {
     findByClientCode: ReturnType<typeof mock>;
     create: ReturnType<typeof mock>;
     update: ReturnType<typeof mock>;
+    updateOwner: ReturnType<typeof mock>;
   };
   let mockUserRepo: {
     getByEmail: ReturnType<typeof mock>;
@@ -63,6 +64,15 @@ describe("OAuth Routes", () => {
           bsale_client_code: "test-client",
           bsale_client_name: "Test Company",
           bsale_access_token: "new-access-token",
+        })
+      ),
+      updateOwner: mock((tenantId: string, ownerId: string) =>
+        Promise.resolve({
+          id: tenantId,
+          owner_id: ownerId,
+          bsale_client_code: "test-client",
+          bsale_client_name: "Test Company",
+          bsale_access_token: "access-token-123",
         })
       ),
     };
@@ -208,7 +218,7 @@ describe("OAuth Routes", () => {
       expect(body.error).toBe("state parameter is required");
     });
 
-    test("returns 500 on OAuth error", async () => {
+    test("redirects to settings with error on OAuth error", async () => {
       mockStateStore.consume.mockImplementation(() => null);
 
       const request = new Request(
@@ -216,19 +226,22 @@ describe("OAuth Routes", () => {
       );
       const response = await routes.callback(request);
 
-      expect(response.status).toBe(500);
+      expect(response.status).toBe(302);
+      const location = response.headers.get("Location");
+      expect(location).toContain("/app/settings?error=");
     });
 
-    test("returns error message on OAuth error", async () => {
+    test("includes error message in redirect URL on OAuth error", async () => {
       mockStateStore.consume.mockImplementation(() => null);
 
       const request = new Request(
         "http://localhost/api/auth/bsale/callback?code=auth-code&state=invalid-state"
       );
       const response = await routes.callback(request);
-      const body = await response.json() as { error: string };
+      const location = response.headers.get("Location") ?? "";
 
-      expect(body.error).toBe("Failed to complete OAuth flow");
+      // Error message is URL encoded
+      expect(location).toContain("invalid%20or%20expired%20state%20parameter");
     });
 
     test("includes Secure and SameSite in production", async () => {

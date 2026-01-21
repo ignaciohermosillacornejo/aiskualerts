@@ -3,6 +3,7 @@ import type { Tenant, SyncStatus, SubscriptionStatus } from "./types";
 import type { EncryptionService } from "@/utils/encryption";
 
 export interface CreateTenantInput {
+  owner_id: string;
   bsale_client_code: string;
   bsale_client_name: string;
   bsale_access_token: string;
@@ -84,10 +85,10 @@ export class TenantRepository {
     const encryptedToken = this.encryptToken(input.bsale_access_token);
 
     const tenants = await this.db.query<Tenant>(
-      `INSERT INTO tenants (bsale_client_code, bsale_client_name, bsale_access_token)
-       VALUES ($1, $2, $3)
+      `INSERT INTO tenants (owner_id, bsale_client_code, bsale_client_name, bsale_access_token)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [input.bsale_client_code, input.bsale_client_name, encryptedToken]
+      [input.owner_id, input.bsale_client_code, input.bsale_client_name, encryptedToken]
     );
 
     const tenant = tenants[0];
@@ -100,6 +101,14 @@ export class TenantRepository {
 
   async getAll(): Promise<Tenant[]> {
     const tenants = await this.db.query<Tenant>(`SELECT * FROM tenants`);
+    return this.processTenants(tenants);
+  }
+
+  async getByOwnerId(ownerId: string): Promise<Tenant[]> {
+    const tenants = await this.db.query<Tenant>(
+      `SELECT * FROM tenants WHERE owner_id = $1`,
+      [ownerId]
+    );
     return this.processTenants(tenants);
   }
 
@@ -237,12 +246,12 @@ export class TenantRepository {
   /**
    * Create a tenant for magic link users (without Bsale connection)
    */
-  async createForMagicLink(email: string, name?: string): Promise<Tenant> {
+  async createForMagicLink(ownerId: string, email: string, name?: string): Promise<Tenant> {
     const tenants = await this.db.query<Tenant>(
-      `INSERT INTO tenants (bsale_client_code, bsale_client_name, bsale_access_token, sync_status)
-       VALUES (NULL, $1, NULL, 'not_connected')
+      `INSERT INTO tenants (owner_id, bsale_client_code, bsale_client_name, bsale_access_token, sync_status)
+       VALUES ($1, NULL, $2, NULL, 'not_connected')
        RETURNING *`,
-      [name ?? email]
+      [ownerId, name ?? email]
     );
 
     const tenant = tenants[0];
@@ -325,5 +334,22 @@ export class TenantRepository {
       [email]
     );
     return tenant ? this.processTenant(tenant) : null;
+  }
+
+  /**
+   * Update the owner of a tenant (used after creating a user for a new tenant)
+   */
+  async updateOwner(tenantId: string, ownerId: string): Promise<Tenant> {
+    const tenants = await this.db.query<Tenant>(
+      `UPDATE tenants SET owner_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [ownerId, tenantId]
+    );
+
+    const tenant = tenants[0];
+    if (!tenant) {
+      throw new Error(`Tenant ${tenantId} not found`);
+    }
+
+    return this.processTenant(tenant);
   }
 }

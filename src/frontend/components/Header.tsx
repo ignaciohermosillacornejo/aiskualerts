@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { useAuth } from "../contexts/AuthContext";
+import { TenantSwitcher } from "./TenantSwitcher";
 
 const pageTitles: Record<string, string> = {
   "/app": "Dashboard",
@@ -31,6 +32,7 @@ export function Header() {
             gap: "1rem",
             marginRight: "1rem"
           }}>
+            <TenantSwitcher />
             <span style={{
               fontSize: "0.875rem",
               color: "#64748b"
