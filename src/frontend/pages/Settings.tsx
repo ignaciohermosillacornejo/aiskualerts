@@ -239,7 +239,7 @@ export function Settings() {
   return (
     <div>
       {/* Bsale Connection Card */}
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
+      <div className="card" style={{ marginBottom: "1.5rem" }} data-testid="connection-card">
         <div className="card-header">
           <h2 className="card-title">Conexion Bsale</h2>
         </div>
@@ -249,11 +249,11 @@ export function Settings() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
               <div>
                 <div className="form-label">Empresa</div>
-                <div style={{ fontWeight: 500 }}>{settings.companyName ?? "Sin nombre"}</div>
+                <div style={{ fontWeight: 500 }} data-testid="connected-tenant">{settings.companyName ?? "Sin nombre"}</div>
               </div>
               <div>
                 <div className="form-label">Estado</div>
-                <span className={`badge ${getSyncStatusBadgeClass(settings.syncStatus)}`}>
+                <span className={`badge ${getSyncStatusBadgeClass(settings.syncStatus)}`} data-testid="sync-status">
                   {getSyncStatusText(settings.syncStatus)}
                 </span>
               </div>
@@ -269,7 +269,7 @@ export function Settings() {
 
             {/* Add Account Form */}
             {showAddAccountForm ? (
-              <div style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#f8fafc", borderRadius: "0.5rem" }}>
+              <div style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#f8fafc", borderRadius: "0.5rem" }} data-testid="add-account-form">
                 <div className="form-group" style={{ marginBottom: "0.75rem" }}>
                   <label className="form-label">RUT / RUC / RFC de la nueva empresa</label>
                   <input
@@ -279,6 +279,7 @@ export function Settings() {
                     onChange={(e) => setAddAccountClientCode(formatTenantId(e.target.value))}
                     placeholder="ej: 12345678-9"
                     disabled={bsaleLoading}
+                    data-testid="add-account-code"
                   />
                   <p style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.5rem" }}>
                     Agrega otra empresa o sucursal conectada a Bsale.
@@ -290,6 +291,7 @@ export function Settings() {
                     className="btn btn-primary"
                     onClick={handleAddAccount}
                     disabled={bsaleLoading || !addAccountClientCode.trim()}
+                    data-testid="add-account-submit"
                   >
                     {bsaleLoading ? "Conectando..." : "Agregar Cuenta"}
                   </button>
@@ -336,7 +338,7 @@ export function Settings() {
             </p>
 
             {showConnectForm ? (
-              <div>
+              <div data-testid="connect-form">
                 <div className="form-group">
                   <label className="form-label">RUT / RUC / RFC de tu empresa</label>
                   <input
@@ -473,7 +475,7 @@ export function Settings() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div className="form-label">Estado</div>
-              <span className={`badge ${settings.subscriptionStatus === "active" ? "badge-success" : "badge-warning"}`}>
+              <span className={`badge ${settings.subscriptionStatus === "active" ? "badge-success" : "badge-warning"}`} data-testid="current-plan">
                 {settings.subscriptionStatus === "active" ? "Plan Pro" : "Plan Gratuito"}
               </span>
             </div>
@@ -503,7 +505,7 @@ export function Settings() {
               <div className="form-label">Uso de Umbrales</div>
               {limits.thresholds.max !== null ? (
                 <>
-                  <div style={{
+                  <div data-testid="usage-meter" style={{
                     backgroundColor: "#e2e8f0",
                     borderRadius: "9999px",
                     height: "0.5rem",
@@ -517,12 +519,12 @@ export function Settings() {
                       transition: "width 0.3s ease"
                     }} />
                   </div>
-                  <div style={{ fontSize: "0.875rem", color: "#64748b" }}>
+                  <div style={{ fontSize: "0.875rem", color: "#64748b" }} data-testid="usage-text">
                     {limits.thresholds.current} de {limits.thresholds.max} umbrales (en todas tus cuentas)
                   </div>
                 </>
               ) : (
-                <div style={{ fontSize: "0.875rem", color: "#64748b" }}>
+                <div style={{ fontSize: "0.875rem", color: "#64748b" }} data-testid="usage-text">
                   Umbrales ilimitados
                 </div>
               )}
@@ -563,6 +565,7 @@ export function Settings() {
           handleUpgrade();
         }}
         onCancel={() => setUpgradeConfirm(false)}
+        data-testid="upgrade-confirm-modal"
       />
     </div>
   );

@@ -54,11 +54,12 @@ export function TenantSwitcher() {
   }
 
   return (
-    <div ref={dropdownRef} style={{ position: "relative" }}>
+    <div ref={dropdownRef} style={{ position: "relative" }} data-testid="tenant-switcher">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={loading || switching}
+        data-testid="current-tenant"
         style={{
           display: "flex",
           alignItems: "center",
@@ -118,6 +119,7 @@ export function TenantSwitcher() {
                 type="button"
                 onClick={() => handleSwitchTenant(tenant.id)}
                 disabled={switching}
+                data-testid={`tenant-option-${tenant.id}`}
                 style={{
                   display: "flex",
                   alignItems: "center",

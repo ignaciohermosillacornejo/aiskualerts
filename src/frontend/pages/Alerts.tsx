@@ -158,6 +158,7 @@ export function Alerts() {
                           className="btn btn-secondary"
                           onClick={() => handleDismiss(alert.id)}
                           type="button"
+                          data-testid="dismiss-alert"
                         >
                           Descartar
                         </button>

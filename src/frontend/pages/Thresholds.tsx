@@ -128,7 +128,7 @@ export function Thresholds() {
           <div>
             <h2 className="card-title">Umbrales de Alerta</h2>
             {limits && (
-              <p style={{ color: "#64748b", fontSize: "0.875rem", margin: 0 }}>
+              <p data-testid="usage-counter" style={{ color: "#64748b", fontSize: "0.875rem", margin: 0 }}>
                 {limits.thresholds.max !== null
                   ? `Usando ${limits.thresholds.current} de ${limits.thresholds.max} umbrales`
                   : `Usando ${limits.thresholds.current} umbrales`}
@@ -144,7 +144,7 @@ export function Thresholds() {
         {limits && limits.thresholds.max !== null &&
          limits.thresholds.current >= 40 &&
          limits.thresholds.current < 50 && (
-          <div style={{
+          <div data-testid="approaching-limit-banner" style={{
             backgroundColor: "#fef3c7",
             padding: "0.75rem 1rem",
             borderRadius: "0.375rem",
@@ -164,7 +164,7 @@ export function Thresholds() {
 
         {/* Over limit banner (50+) */}
         {shouldShowOverLimitBanner() && limits && (
-          <div style={{
+          <div data-testid="over-limit-banner" style={{
             backgroundColor: "#fee2e2",
             padding: "0.75rem 1rem",
             borderRadius: "0.375rem",
@@ -295,6 +295,7 @@ export function Thresholds() {
         variant="danger"
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
+        data-testid="confirm-modal"
       />
     </div>
   );
@@ -333,7 +334,7 @@ function ThresholdModal({ threshold, products, limits, onSave, onClose }: Thresh
       justifyContent: "center",
       zIndex: 50,
     }}>
-      <div className="card" style={{ width: "100%", maxWidth: "400px" }}>
+      <div className="card" style={{ width: "100%", maxWidth: "400px" }} data-testid="threshold-modal">
         <div className="card-header">
           <h2 className="card-title">{threshold ? "Editar Umbral" : "Nuevo Umbral"}</h2>
           <button className="btn btn-secondary" onClick={onClose} type="button">X</button>
@@ -341,7 +342,7 @@ function ThresholdModal({ threshold, products, limits, onSave, onClose }: Thresh
         <form onSubmit={handleSubmit}>
           {/* Show warning if creating new threshold and over limit */}
           {!threshold && limits?.thresholds.isOverLimit && (
-            <div style={{
+            <div data-testid="limit-warning" style={{
               backgroundColor: "#fef3c7",
               padding: "0.75rem",
               borderRadius: "0.375rem",
@@ -359,6 +360,7 @@ function ThresholdModal({ threshold, products, limits, onSave, onClose }: Thresh
               value={productId}
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProductId(e.target.value)}
               disabled={!!threshold}
+              data-testid="product-select"
             >
               <option value="">Seleccionar producto...</option>
               {products.map((p) => (
