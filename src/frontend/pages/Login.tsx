@@ -80,14 +80,17 @@ export function Login() {
             <h1>AISku Alerts</h1>
           </div>
 
-          <div style={{
-            backgroundColor: "#dcfce7",
-            color: "#166534",
-            padding: "1rem",
-            borderRadius: "0.5rem",
-            marginBottom: "1.5rem",
-            textAlign: "center",
-          }}>
+          <div
+            data-testid="success-message"
+            style={{
+              backgroundColor: "#dcfce7",
+              color: "#166534",
+              padding: "1rem",
+              borderRadius: "0.5rem",
+              marginBottom: "1.5rem",
+              textAlign: "center",
+            }}
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="48"
@@ -151,14 +154,17 @@ export function Login() {
           </div>
 
           {error && (
-            <div style={{
-              backgroundColor: "#fee2e2",
-              color: "#991b1b",
-              padding: "0.75rem",
-              borderRadius: "0.5rem",
-              marginBottom: "1rem",
-              fontSize: "0.875rem",
-            }}>
+            <div
+              data-testid="error-message"
+              style={{
+                backgroundColor: "#fee2e2",
+                color: "#991b1b",
+                padding: "0.75rem",
+                borderRadius: "0.5rem",
+                marginBottom: "1rem",
+                fontSize: "0.875rem",
+              }}
+            >
               {error}
             </div>
           )}
