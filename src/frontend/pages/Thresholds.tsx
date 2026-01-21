@@ -2,11 +2,15 @@ import { useState, useEffect } from "react";
 import { api } from "../api/client";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { sanitizeText } from "../utils/sanitize";
-import type { Threshold, Product } from "../types";
+import type { Threshold, Product, LimitInfo } from "../types";
+
+const BANNER_DISMISS_KEY = "limitBannerDismissedAt";
+const BANNER_DISMISS_DAYS = 7;
 
 export function Thresholds() {
   const [thresholds, setThresholds] = useState<Threshold[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [limits, setLimits] = useState<LimitInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -26,6 +30,14 @@ export function Thresholds() {
         ]);
         setThresholds(thresholdsData.thresholds);
         setProducts(productsData.products);
+
+        // Fetch limits separately - failure shouldn't break the page
+        try {
+          const limitsData = await api.getLimits();
+          setLimits(limitsData);
+        } catch {
+          // Silently fail - limits are supplementary UI info
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar datos");
       } finally {
@@ -67,6 +79,23 @@ export function Thresholds() {
     setDeleteConfirm({ isOpen: false, thresholdId: null });
   }
 
+  function shouldShowOverLimitBanner(): boolean {
+    if (!limits?.thresholds.isOverLimit) return false;
+
+    const dismissedAt = localStorage.getItem(BANNER_DISMISS_KEY);
+    if (!dismissedAt) return true;
+
+    const dismissDate = new Date(dismissedAt);
+    const daysSince = (Date.now() - dismissDate.getTime()) / (1000 * 60 * 60 * 24);
+    return daysSince >= BANNER_DISMISS_DAYS;
+  }
+
+  function handleDismissBanner() {
+    localStorage.setItem(BANNER_DISMISS_KEY, new Date().toISOString());
+    // Force re-render by updating limits state
+    setLimits(limits ? { ...limits } : null);
+  }
+
   async function handleSave(data: ThresholdFormData) {
     try {
       if (editingThreshold) {
@@ -96,11 +125,80 @@ export function Thresholds() {
     <div>
       <div className="card">
         <div className="card-header">
-          <h2 className="card-title">Umbrales de Alerta ({thresholds.length})</h2>
+          <div>
+            <h2 className="card-title">Umbrales de Alerta</h2>
+            {limits && (
+              <p style={{ color: "#64748b", fontSize: "0.875rem", margin: 0 }}>
+                {limits.thresholds.max !== null
+                  ? `Usando ${limits.thresholds.current} de ${limits.thresholds.max} umbrales`
+                  : `Usando ${limits.thresholds.current} umbrales`}
+              </p>
+            )}
+          </div>
           <button className="btn btn-primary" onClick={handleCreate} type="button">
             + Nuevo Umbral
           </button>
         </div>
+
+        {/* Approaching limit banner (40-49) */}
+        {limits && limits.thresholds.max !== null &&
+         limits.thresholds.current >= 40 &&
+         limits.thresholds.current < 50 && (
+          <div style={{
+            backgroundColor: "#fef3c7",
+            padding: "0.75rem 1rem",
+            borderRadius: "0.375rem",
+            marginBottom: "1rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem"
+          }}>
+            <span style={{ color: "#92400e" }}>
+              Te estas acercando a tu limite gratuito de {limits.thresholds.max} umbrales.
+            </span>
+            <a href="/settings" style={{ color: "#92400e", fontWeight: 500 }}>
+              Actualizar a Pro
+            </a>
+          </div>
+        )}
+
+        {/* Over limit banner (50+) */}
+        {shouldShowOverLimitBanner() && limits && (
+          <div style={{
+            backgroundColor: "#fee2e2",
+            padding: "0.75rem 1rem",
+            borderRadius: "0.375rem",
+            marginBottom: "1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ color: "#991b1b" }}>
+                {limits.thresholds.current - (limits.thresholds.max ?? 0)} umbrales estan inactivos.
+              </span>
+              <a href="/settings" style={{ color: "#991b1b", fontWeight: 500 }}>
+                Actualiza a Pro para alertas ilimitadas
+              </a>
+            </div>
+            <button
+              onClick={handleDismissBanner}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#991b1b",
+                fontSize: "1.25rem",
+                lineHeight: 1
+              }}
+              type="button"
+              aria-label="Cerrar"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
         {error ? (
           <div className="empty-state">
             <div className="empty-state-title">Error</div>
@@ -131,17 +229,25 @@ export function Thresholds() {
                 {thresholds.map((threshold) => {
                   const product = products.find((p) => p.id === threshold.productId);
                   const isBelowThreshold = product && product.currentStock <= threshold.minQuantity;
+                  const isInactive = !threshold.isActive;
+
                   return (
-                    <tr key={threshold.id}>
+                    <tr key={threshold.id} style={isInactive ? { opacity: 0.6 } : undefined}>
                       <td>{sanitizeText(threshold.productName)}</td>
                       <td>
                         <strong>{threshold.minQuantity.toLocaleString()}</strong>
                       </td>
                       <td>{product?.currentStock.toLocaleString() ?? "-"}</td>
                       <td>
-                        <span className={`badge ${isBelowThreshold ? "badge-danger" : "badge-success"}`}>
-                          {isBelowThreshold ? "Alerta" : "OK"}
-                        </span>
+                        {isInactive ? (
+                          <span className="badge badge-secondary" title="Actualiza a Pro para activar">
+                            Inactivo
+                          </span>
+                        ) : (
+                          <span className={`badge ${isBelowThreshold ? "badge-danger" : "badge-success"}`}>
+                            {isBelowThreshold ? "Alerta" : "OK"}
+                          </span>
+                        )}
                       </td>
                       <td>
                         <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -174,6 +280,7 @@ export function Thresholds() {
         <ThresholdModal
           threshold={editingThreshold}
           products={products}
+          limits={limits}
           onSave={handleSave}
           onClose={() => setShowModal(false)}
         />
@@ -201,11 +308,12 @@ interface ThresholdFormData {
 interface ThresholdModalProps {
   threshold: Threshold | null;
   products: Product[];
+  limits: LimitInfo | null;
   onSave: (data: ThresholdFormData) => void;
   onClose: () => void;
 }
 
-function ThresholdModal({ threshold, products, onSave, onClose }: ThresholdModalProps) {
+function ThresholdModal({ threshold, products, limits, onSave, onClose }: ThresholdModalProps) {
   const [productId, setProductId] = useState(threshold?.productId ?? "");
   const [minQuantity, setMinQuantity] = useState(threshold?.minQuantity ?? 10);
 
@@ -231,6 +339,19 @@ function ThresholdModal({ threshold, products, onSave, onClose }: ThresholdModal
           <button className="btn btn-secondary" onClick={onClose} type="button">X</button>
         </div>
         <form onSubmit={handleSubmit}>
+          {/* Show warning if creating new threshold and over limit */}
+          {!threshold && limits?.thresholds.isOverLimit && (
+            <div style={{
+              backgroundColor: "#fef3c7",
+              padding: "0.75rem",
+              borderRadius: "0.375rem",
+              marginBottom: "1rem",
+              fontSize: "0.875rem",
+              color: "#92400e"
+            }}>
+              Este umbral no generara alertas hasta que actualices a Pro.
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">Producto</label>
             <select

@@ -296,6 +296,7 @@ export function createServer(
   const thresholdRoutes = createThresholdRoutes({
     thresholdRepo: deps?.thresholdRepo,
     authMiddleware: authMiddleware ?? undefined,
+    thresholdLimitService: deps?.thresholdLimitService,
   });
 
   const settingsRoutes = createSettingsRoutes({

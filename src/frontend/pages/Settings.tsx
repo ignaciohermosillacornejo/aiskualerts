@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearch } from "wouter";
 import { api } from "../api/client";
-import type { TenantSettings, SyncStatus } from "../types";
+import type { TenantSettings, SyncStatus, LimitInfo } from "../types";
 import { ApiError } from "../api/client";
 import { ConfirmModal } from "../components/ConfirmModal";
 
@@ -75,6 +75,7 @@ export function Settings() {
   const [clientCode, setClientCode] = useState("");
   const [showConnectForm, setShowConnectForm] = useState(false);
   const [upgradeConfirm, setUpgradeConfirm] = useState(false);
+  const [limits, setLimits] = useState<LimitInfo | null>(null);
 
   // Parse URL parameters
   const params = new URLSearchParams(searchString);
@@ -87,6 +88,14 @@ export function Settings() {
         setLoading(true);
         const data = await api.getSettings();
         setSettings(data);
+
+        // Fetch limits separately - failure shouldn't break the page
+        try {
+          const limitsData = await api.getLimits();
+          setLimits(limitsData);
+        } catch {
+          // Silently fail - limits are supplementary UI info
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar configuracion");
       } finally {
@@ -415,6 +424,37 @@ export function Settings() {
               </button>
             )}
           </div>
+          {/* Usage meter */}
+          {limits && (
+            <div style={{ marginTop: "1rem" }}>
+              <div className="form-label">Uso de Umbrales</div>
+              {limits.thresholds.max !== null ? (
+                <>
+                  <div style={{
+                    backgroundColor: "#e2e8f0",
+                    borderRadius: "9999px",
+                    height: "0.5rem",
+                    overflow: "hidden",
+                    marginBottom: "0.5rem"
+                  }}>
+                    <div style={{
+                      backgroundColor: limits.thresholds.isOverLimit ? "#ef4444" : "#3b82f6",
+                      height: "100%",
+                      width: `${Math.min((limits.thresholds.current / limits.thresholds.max) * 100, 100)}%`,
+                      transition: "width 0.3s ease"
+                    }} />
+                  </div>
+                  <div style={{ fontSize: "0.875rem", color: "#64748b" }}>
+                    {limits.thresholds.current} de {limits.thresholds.max} umbrales (en todas tus cuentas)
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: "0.875rem", color: "#64748b" }}>
+                  Umbrales ilimitados
+                </div>
+              )}
+            </div>
+          )}
           {settings.subscriptionStatus !== "active" && (
             <p style={{ marginTop: "1rem", color: "#64748b", fontSize: "0.875rem" }}>
               Actualiza a Pro para acceder a alertas ilimitadas, sincronizacion cada hora y soporte prioritario.

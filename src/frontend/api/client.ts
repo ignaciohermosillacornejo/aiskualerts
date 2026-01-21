@@ -6,6 +6,7 @@ import type {
   DashboardStats,
   TenantSettings,
   LoginCredentials,
+  LimitInfo,
 } from "../types";
 
 const API_BASE = "/api";
@@ -302,6 +303,11 @@ async function cancelSubscription(): Promise<CancelSubscriptionResponse> {
   return request<CancelSubscriptionResponse>("/billing/cancel", { method: "POST" });
 }
 
+// Limits
+async function getLimits(): Promise<LimitInfo> {
+  return request<LimitInfo>("/settings/limits");
+}
+
 // Sync
 interface SyncTriggerResponse {
   success: boolean;
@@ -348,6 +354,9 @@ export const api = {
   // Billing
   createCheckoutSession,
   cancelSubscription,
+
+  // Limits
+  getLimits,
 
   // Sync
   triggerSync,
