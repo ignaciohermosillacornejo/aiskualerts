@@ -26,6 +26,7 @@ describe("SessionRepository", () => {
   const mockSession: Session = {
     id: "session-123",
     userId: "user-456",
+    currentTenantId: null,
     token: "token-abc",
     expiresAt: new Date("2026-02-01"),
     createdAt: new Date("2026-01-01"),
@@ -38,6 +39,7 @@ describe("SessionRepository", () => {
         {
           id: mockSession.id,
           user_id: mockSession.userId,
+          current_tenant_id: mockSession.currentTenantId,
           token: mockSession.token,
           expires_at: mockSession.expiresAt.toISOString(),
           created_at: mockSession.createdAt.toISOString(),
@@ -53,6 +55,31 @@ describe("SessionRepository", () => {
 
       expect(result).toEqual(mockSession);
       expect(mocks.query).toHaveBeenCalled();
+    });
+
+    test("creates session with currentTenantId", async () => {
+      const { db, mocks } = createMockDb();
+      const sessionWithTenant = { ...mockSession, currentTenantId: "tenant-123" };
+      mocks.query.mockResolvedValue([
+        {
+          id: sessionWithTenant.id,
+          user_id: sessionWithTenant.userId,
+          current_tenant_id: sessionWithTenant.currentTenantId,
+          token: sessionWithTenant.token,
+          expires_at: sessionWithTenant.expiresAt.toISOString(),
+          created_at: sessionWithTenant.createdAt.toISOString(),
+        },
+      ]);
+
+      const repo = new SessionRepository(db);
+      const result = await repo.create({
+        userId: "user-456",
+        token: "token-abc",
+        expiresAt: new Date("2026-02-01"),
+        currentTenantId: "tenant-123",
+      });
+
+      expect(result.currentTenantId).toBe("tenant-123");
     });
 
     test("throws error when creation fails", async () => {
@@ -77,6 +104,7 @@ describe("SessionRepository", () => {
       mocks.queryOne.mockResolvedValue({
         id: mockSession.id,
         user_id: mockSession.userId,
+        current_tenant_id: mockSession.currentTenantId,
         token: mockSession.token,
         expires_at: mockSession.expiresAt.toISOString(),
         created_at: mockSession.createdAt.toISOString(),
@@ -169,6 +197,37 @@ describe("SessionRepository", () => {
         expect.stringContaining("UPDATE sessions"),
         expect.arrayContaining(["2026-02-20T12:00:00.000Z", "my-session-token"])
       );
+    });
+  });
+
+  describe("updateCurrentTenant", () => {
+    test("updates current_tenant_id", async () => {
+      const { db, mocks } = createMockDb();
+      const updated = { ...mockSession, currentTenantId: "tenant-456" };
+      mocks.queryOne.mockResolvedValue({
+        id: updated.id,
+        user_id: updated.userId,
+        current_tenant_id: updated.currentTenantId,
+        token: updated.token,
+        expires_at: updated.expiresAt.toISOString(),
+        created_at: updated.createdAt.toISOString(),
+      });
+
+      const repo = new SessionRepository(db);
+      const result = await repo.updateCurrentTenant("token-abc", "tenant-456");
+
+      expect(result?.currentTenantId).toBe("tenant-456");
+      expect(mocks.queryOne.mock.calls[0]?.[0]).toContain("UPDATE sessions");
+    });
+
+    test("returns null if session not found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new SessionRepository(db);
+      const result = await repo.updateCurrentTenant("non-existent", "tenant-456");
+
+      expect(result).toBeNull();
     });
   });
 });
