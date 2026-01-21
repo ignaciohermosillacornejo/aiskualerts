@@ -9,6 +9,7 @@ const mockUser: User = {
   tenant_id: "tenant-456",
   email: "test@example.com",
   name: "Test User",
+  last_tenant_id: null,
   notification_enabled: true,
   notification_email: null,
   digest_frequency: "daily",
@@ -468,6 +469,54 @@ describe("UserRepository", () => {
 
       const repo = new UserRepository(db);
       const result = await repo.findBySubscriptionId("nonexistent");
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("getByEmailGlobal", () => {
+    test("returns user when found by email globally", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(mockUser);
+
+      const repo = new UserRepository(db);
+      const result = await repo.getByEmailGlobal("test@example.com");
+
+      expect(result).toEqual(mockUser);
+      expect(mocks.queryOne).toHaveBeenCalled();
+    });
+
+    test("returns null when user not found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new UserRepository(db);
+      const result = await repo.getByEmailGlobal("notfound@example.com");
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("updateLastTenant", () => {
+    test("updates last_tenant_id", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedUser = { ...mockUser, last_tenant_id: "tenant-789" };
+      mocks.queryOne.mockResolvedValue(updatedUser);
+
+      const repo = new UserRepository(db);
+      const result = await repo.updateLastTenant("user-123", "tenant-789");
+
+      expect(result?.last_tenant_id).toBe("tenant-789");
+      expect(mocks.queryOne.mock.calls[0]?.[0]).toContain("UPDATE users");
+      expect(mocks.queryOne.mock.calls[0]?.[0]).toContain("last_tenant_id");
+    });
+
+    test("returns null if user not found", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new UserRepository(db);
+      const result = await repo.updateLastTenant("non-existent", "tenant-789");
 
       expect(result).toBeNull();
     });

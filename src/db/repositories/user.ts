@@ -57,6 +57,17 @@ export class UserRepository {
     );
   }
 
+  /**
+   * Find user by email globally (email is unique across all users)
+   * Used for multi-tenant login where user can belong to multiple tenants
+   */
+  async getByEmailGlobal(email: string): Promise<User | null> {
+    return this.db.queryOne<User>(
+      `SELECT * FROM users WHERE email = $1`,
+      [email]
+    );
+  }
+
   async getWithNotificationsEnabled(tenantId: string): Promise<User[]> {
     return this.db.query<User>(
       `SELECT * FROM users WHERE tenant_id = $1 AND notification_enabled = true`,
@@ -172,5 +183,15 @@ export class UserRepository {
       [subscriptionId]
     );
     return rows[0] ?? null;
+  }
+
+  /**
+   * Update the last viewed tenant for a user (used for login landing)
+   */
+  async updateLastTenant(userId: string, tenantId: string): Promise<User | null> {
+    return this.db.queryOne<User>(
+      `UPDATE users SET last_tenant_id = $2 WHERE id = $1 RETURNING *`,
+      [userId, tenantId]
+    );
   }
 }
