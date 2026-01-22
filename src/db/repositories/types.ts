@@ -125,8 +125,10 @@ export interface Alert {
   current_quantity: number;
   threshold_quantity: number | null;
   days_to_stockout: number | null;
-  status: "pending" | "sent" | "dismissed";
+  status: "pending" | "sent" | "dismissed" | "resolved";
   sent_at: Date | null;
+  dismissed_at: Date | null;            // When the alert was dismissed
+  last_notified_at: Date | null;        // Last time notification was sent
   created_at: Date;
 }
 

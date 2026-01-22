@@ -18,6 +18,8 @@ const mockAlert: Alert = {
   status: "pending",
   sent_at: null,
   dismissed_by: null,
+  dismissed_at: null,
+  last_notified_at: null,
   created_at: new Date(),
 };
 
@@ -336,6 +338,169 @@ describe("AlertRepository", () => {
       const count = await repo.countPendingByTenant("tenant-123");
 
       expect(count).toBe(0);
+    });
+  });
+
+  describe("markAsDismissed with timestamp", () => {
+    test("sets dismissed_at timestamp and dismissed_by", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new AlertRepository(db);
+
+      await repo.markAsDismissed("alert-1", "user-123");
+
+      expect(mocks.execute).toHaveBeenCalledWith(
+        expect.stringContaining("dismissed_at = now()"),
+        ["alert-1", "user-123"]
+      );
+    });
+  });
+
+  describe("findDismissedByVariant", () => {
+    test("returns dismissed alerts for variant", async () => {
+      const { db, mocks } = createMockDb();
+      const dismissedAlert = {
+        ...mockAlert,
+        status: "dismissed" as const,
+        dismissed_by: "user-789",
+        dismissed_at: new Date(),
+      };
+      mocks.query.mockResolvedValue([dismissedAlert]);
+
+      const repo = new AlertRepository(db);
+      const result = await repo.findDismissedByVariant("tenant-123", 100, 1);
+
+      expect(result).toEqual([dismissedAlert]);
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.stringContaining("status = 'dismissed'"),
+        ["tenant-123", 100, 1]
+      );
+    });
+
+    test("handles null office_id with IS NOT DISTINCT FROM", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new AlertRepository(db);
+      await repo.findDismissedByVariant("tenant-123", 100, null);
+
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.stringContaining("IS NOT DISTINCT FROM"),
+        ["tenant-123", 100, null]
+      );
+    });
+
+    test("returns empty array when no dismissed alerts", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.query.mockResolvedValue([]);
+
+      const repo = new AlertRepository(db);
+      const result = await repo.findDismissedByVariant("tenant-123", 200, 1);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("resetAlert", () => {
+    test("changes status to resolved", async () => {
+      const { db, mocks } = createMockDb();
+      const repo = new AlertRepository(db);
+
+      await repo.resetAlert("alert-1");
+
+      expect(mocks.execute).toHaveBeenCalledWith(
+        expect.stringContaining("status = 'resolved'"),
+        ["alert-1"]
+      );
+    });
+  });
+
+  describe("hasActiveOrDismissedAlert", () => {
+    test("returns correct booleans when both exist", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ has_active: true, has_dismissed: true });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasActiveOrDismissedAlert(
+        "tenant-123",
+        100,
+        1,
+        "low_stock"
+      );
+
+      expect(result).toEqual({ hasActive: true, hasDismissed: true });
+    });
+
+    test("returns false when neither exists", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ has_active: false, has_dismissed: false });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasActiveOrDismissedAlert(
+        "tenant-123",
+        100,
+        1,
+        "low_stock"
+      );
+
+      expect(result).toEqual({ hasActive: false, hasDismissed: false });
+    });
+
+    test("returns only hasActive when only active exists", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ has_active: true, has_dismissed: false });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasActiveOrDismissedAlert(
+        "tenant-123",
+        100,
+        null,
+        "out_of_stock"
+      );
+
+      expect(result).toEqual({ hasActive: true, hasDismissed: false });
+    });
+
+    test("returns only hasDismissed when only dismissed exists", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ has_active: false, has_dismissed: true });
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasActiveOrDismissedAlert(
+        "tenant-123",
+        100,
+        1,
+        "low_velocity"
+      );
+
+      expect(result).toEqual({ hasActive: false, hasDismissed: true });
+    });
+
+    test("handles null result gracefully", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new AlertRepository(db);
+      const result = await repo.hasActiveOrDismissedAlert(
+        "tenant-123",
+        100,
+        1,
+        "low_stock"
+      );
+
+      expect(result).toEqual({ hasActive: false, hasDismissed: false });
+    });
+
+    test("handles null office_id", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue({ has_active: true, has_dismissed: false });
+
+      const repo = new AlertRepository(db);
+      await repo.hasActiveOrDismissedAlert("tenant-123", 100, null, "low_stock");
+
+      expect(mocks.queryOne).toHaveBeenCalledWith(
+        expect.stringContaining("IS NOT DISTINCT FROM"),
+        ["tenant-123", 100, null, "low_stock"]
+      );
     });
   });
 });
