@@ -9,14 +9,33 @@ import type {
   LimitInfo,
   AuthMeResponse,
   TenantMembership,
+  CreateThresholdInput,
+  UpdateThresholdInput,
 } from "../types";
 
 const API_BASE = "/api";
 
 // Zod schemas for input validation
-const ThresholdInputSchema = z.object({
+const CreateThresholdInputSchema = z.object({
   productId: z.string().min(1, "Product ID is required").max(100),
-  minQuantity: z.number().int().min(0, "Quantity must be non-negative").max(1000000),
+  thresholdType: z.enum(["quantity", "days"]),
+  minQuantity: z.number().int().min(0, "Quantity must be non-negative").max(1000000).optional(),
+  minDays: z.number().int().min(1, "Days must be at least 1").max(365).optional(),
+}).refine(
+  (data) => {
+    // For quantity type, minQuantity is required
+    // For days type, minDays is required
+    return data.thresholdType === "quantity"
+      ? data.minQuantity !== undefined
+      : data.minDays !== undefined;
+  },
+  { message: "minQuantity required for quantity type, minDays required for days type" }
+);
+
+const UpdateThresholdInputSchema = z.object({
+  thresholdType: z.enum(["quantity", "days"]).optional(),
+  minQuantity: z.number().int().min(0, "Quantity must be non-negative").max(1000000).optional(),
+  minDays: z.number().int().min(1, "Days must be at least 1").max(365).optional(),
 });
 
 const LoginCredentialsSchema = z.object({
@@ -181,11 +200,6 @@ interface ApiThresholdsResponse {
   pagination: { total: number; page: number; limit: number; totalPages: number };
 }
 
-interface ThresholdInput {
-  productId: string;
-  minQuantity: number;
-}
-
 async function getThresholds(): Promise<GetThresholdsResponse> {
   const response = await request<ApiThresholdsResponse>("/thresholds");
   return {
@@ -194,9 +208,9 @@ async function getThresholds(): Promise<GetThresholdsResponse> {
   };
 }
 
-async function createThreshold(data: ThresholdInput): Promise<Threshold> {
+async function createThreshold(data: CreateThresholdInput): Promise<Threshold> {
   // Validate input before sending to server
-  const validated = ThresholdInputSchema.parse(data);
+  const validated = CreateThresholdInputSchema.parse(data);
   return request<Threshold>("/thresholds", {
     method: "POST",
     body: JSON.stringify(validated),
@@ -205,10 +219,10 @@ async function createThreshold(data: ThresholdInput): Promise<Threshold> {
 
 async function updateThreshold(
   thresholdId: string,
-  data: ThresholdInput
+  data: UpdateThresholdInput
 ): Promise<Threshold> {
   // Validate input before sending to server
-  const validated = ThresholdInputSchema.parse(data);
+  const validated = UpdateThresholdInputSchema.parse(data);
   if (!thresholdId || thresholdId.length > 100) {
     throw new Error("Invalid threshold ID");
   }

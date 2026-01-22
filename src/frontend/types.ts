@@ -10,6 +10,12 @@ export interface Alert {
   dismissedAt: string | null;
 }
 
+export interface VelocityInfo {
+  daysLeft: number | null;
+  avgDailyConsumption: number;
+  weeklyConsumption: number;
+}
+
 export interface Product {
   id: string;
   bsaleId: number;
@@ -17,6 +23,10 @@ export interface Product {
   name: string;
   currentStock: number;
   threshold: number | null;
+  thresholdType: "quantity" | "days" | null;
+  minDays: number | null;
+  velocityInfo: VelocityInfo | null;
+  alertState: "ok" | "alert" | "dismissed";
   unitPrice: number | string | null;
   lastSyncAt: string;
 }
@@ -25,10 +35,25 @@ export interface Threshold {
   id: string;
   productId: string;
   productName: string;
-  minQuantity: number;
+  thresholdType: "quantity" | "days";
+  minQuantity: number | null;
+  minDays: number | null;
   createdAt: string;
   updatedAt: string;
-  isActive: boolean;
+  isActive?: boolean;
+}
+
+export interface CreateThresholdInput {
+  productId: string;
+  thresholdType: "quantity" | "days";
+  minQuantity?: number;
+  minDays?: number;
+}
+
+export interface UpdateThresholdInput {
+  thresholdType?: "quantity" | "days";
+  minQuantity?: number;
+  minDays?: number;
 }
 
 export interface DashboardStats {
