@@ -1,17 +1,21 @@
 import type { DatabaseClient } from "@/db/client";
-import type { Threshold, PaginationParams, PaginatedResult } from "./types";
+import type { Threshold, ThresholdType, PaginationParams, PaginatedResult } from "./types";
 
 export interface CreateThresholdInput {
   tenant_id: string;
   created_by: string;
   bsale_variant_id?: number | null;
   bsale_office_id?: number | null;
-  min_quantity: number;
+  threshold_type?: ThresholdType;
+  min_quantity?: number | null;
+  min_days?: number | null;
   days_warning?: number;
 }
 
 export interface UpdateThresholdInput {
-  min_quantity?: number;
+  threshold_type?: ThresholdType;
+  min_quantity?: number | null;
+  min_days?: number | null;
   days_warning?: number;
 }
 
@@ -26,16 +30,22 @@ export class ThresholdRepository {
   }
 
   async create(input: CreateThresholdInput): Promise<Threshold> {
+    const thresholdType = input.threshold_type ?? "quantity";
+    const minQuantity = thresholdType === "quantity" ? (input.min_quantity ?? null) : null;
+    const minDays = thresholdType === "days" ? (input.min_days ?? null) : null;
+
     const result = await this.db.queryOne<Threshold>(
-      `INSERT INTO thresholds (tenant_id, user_id, created_by, bsale_variant_id, bsale_office_id, min_quantity, days_warning)
-       VALUES ($1, $2, $2, $3, $4, $5, $6)
+      `INSERT INTO thresholds (tenant_id, user_id, created_by, bsale_variant_id, bsale_office_id, threshold_type, min_quantity, min_days, days_warning)
+       VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [
         input.tenant_id,
         input.created_by,
         input.bsale_variant_id ?? null,
         input.bsale_office_id ?? null,
-        input.min_quantity,
+        thresholdType,
+        minQuantity,
+        minDays,
         input.days_warning ?? 7,
       ]
     );
@@ -50,9 +60,19 @@ export class ThresholdRepository {
     const values: unknown[] = [];
     let paramCount = 1;
 
+    if (input.threshold_type !== undefined) {
+      updates.push(`threshold_type = $${String(paramCount++)}`);
+      values.push(input.threshold_type);
+    }
+
     if (input.min_quantity !== undefined) {
       updates.push(`min_quantity = $${String(paramCount++)}`);
       values.push(input.min_quantity);
+    }
+
+    if (input.min_days !== undefined) {
+      updates.push(`min_days = $${String(paramCount++)}`);
+      values.push(input.min_days);
     }
 
     if (input.days_warning !== undefined) {

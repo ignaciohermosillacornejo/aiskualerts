@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression */
 import { test, expect, describe, mock, type Mock } from "bun:test";
 import { ThresholdRepository } from "@/db/repositories/threshold";
 import type { DatabaseClient } from "@/db/client";
@@ -10,7 +11,24 @@ const mockThreshold: Threshold = {
   created_by: "user-456",
   bsale_variant_id: 100,
   bsale_office_id: 1,
+  threshold_type: "quantity",
   min_quantity: 10,
+  min_days: null,
+  days_warning: 7,
+  created_at: new Date(),
+  updated_at: new Date(),
+};
+
+const mockDaysThreshold: Threshold = {
+  id: "223e4567-e89b-12d3-a456-426614174001",
+  tenant_id: "tenant-123",
+  user_id: "user-456",
+  created_by: "user-456",
+  bsale_variant_id: 100,
+  bsale_office_id: 1,
+  threshold_type: "days",
+  min_quantity: null,
+  min_days: 14,
   days_warning: 7,
   created_at: new Date(),
   updated_at: new Date(),
@@ -244,6 +262,115 @@ describe("ThresholdRepository", () => {
       const result = await repo.getDefaultThreshold("user-456");
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("create", () => {
+    test("creates a quantity-based threshold", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(mockThreshold);
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.create({
+        tenant_id: "tenant-123",
+        created_by: "user-456",
+        bsale_variant_id: 100,
+        bsale_office_id: 1,
+        threshold_type: "quantity",
+        min_quantity: 10,
+        days_warning: 7,
+      });
+
+      expect(result).toEqual(mockThreshold);
+      expect(mocks.queryOne).toHaveBeenCalledWith(
+        expect.stringContaining("threshold_type"),
+        expect.arrayContaining(["quantity", 10, null])
+      );
+    });
+
+    test("creates a days-based threshold", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(mockDaysThreshold);
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.create({
+        tenant_id: "tenant-123",
+        created_by: "user-456",
+        bsale_variant_id: 100,
+        bsale_office_id: 1,
+        threshold_type: "days",
+        min_days: 14,
+        days_warning: 7,
+      });
+
+      expect(result).toEqual(mockDaysThreshold);
+      expect(mocks.queryOne).toHaveBeenCalledWith(
+        expect.stringContaining("threshold_type"),
+        expect.arrayContaining(["days", null, 14])
+      );
+    });
+
+    test("defaults to quantity threshold type when not specified", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(mockThreshold);
+
+      const repo = new ThresholdRepository(db);
+      await repo.create({
+        tenant_id: "tenant-123",
+        created_by: "user-456",
+        min_quantity: 10,
+      });
+
+      expect(mocks.queryOne).toHaveBeenCalledWith(
+        expect.stringContaining("threshold_type"),
+        expect.arrayContaining(["quantity"])
+      );
+    });
+
+    test("throws error when create fails", async () => {
+      const { db, mocks } = createMockDb();
+      mocks.queryOne.mockResolvedValue(null);
+
+      const repo = new ThresholdRepository(db);
+      await expect(
+        repo.create({
+          tenant_id: "tenant-123",
+          created_by: "user-456",
+          min_quantity: 10,
+        })
+      ).rejects.toThrow("Failed to create threshold");
+    });
+  });
+
+  describe("update", () => {
+    test("updates min_days for days-based threshold", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedThreshold = { ...mockDaysThreshold, min_days: 21 };
+      mocks.queryOne.mockResolvedValue(updatedThreshold);
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.update("threshold-id", { min_days: 21 });
+
+      expect(result.min_days).toBe(21);
+      expect(mocks.queryOne).toHaveBeenCalledWith(
+        expect.stringContaining("min_days"),
+        expect.arrayContaining([21])
+      );
+    });
+
+    test("updates threshold_type", async () => {
+      const { db, mocks } = createMockDb();
+      const updatedThreshold = { ...mockThreshold, threshold_type: "days" as const, min_quantity: null, min_days: 14 };
+      mocks.queryOne.mockResolvedValue(updatedThreshold);
+
+      const repo = new ThresholdRepository(db);
+      const result = await repo.update("threshold-id", { threshold_type: "days", min_days: 14 });
+
+      expect(result.threshold_type).toBe("days");
+      expect(mocks.queryOne).toHaveBeenCalledWith(
+        expect.stringContaining("threshold_type"),
+        expect.arrayContaining(["days"])
+      );
     });
   });
 

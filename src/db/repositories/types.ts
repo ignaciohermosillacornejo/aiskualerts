@@ -95,6 +95,8 @@ export interface StockSnapshotInput {
   snapshot_date: Date;
 }
 
+export type ThresholdType = "quantity" | "days";
+
 export interface Threshold {
   id: string;
   tenant_id: string;
@@ -102,7 +104,9 @@ export interface Threshold {
   created_by: string | null;            // User who created this threshold
   bsale_variant_id: number | null;
   bsale_office_id: number | null;
-  min_quantity: number;
+  threshold_type: ThresholdType;        // Type of threshold: quantity or days-based
+  min_quantity: number | null;          // For quantity-based thresholds (nullable for days-based)
+  min_days: number | null;              // For days-based thresholds (min days of stock)
   days_warning: number;
   created_at: Date;
   updated_at: Date;
