@@ -57,7 +57,7 @@ export class UserTenantsRepository {
 
   async getTenantsForUser(userId: string): Promise<UserTenantWithTenant[]> {
     return this.db.query<UserTenantWithTenant>(
-      `SELECT ut.*, t.name as tenant_name, t.bsale_client_code, t.sync_status
+      `SELECT ut.*, t.bsale_client_name as tenant_name, t.bsale_client_code, t.sync_status
        FROM user_tenants ut
        JOIN tenants t ON ut.tenant_id = t.id
        WHERE ut.user_id = $1
