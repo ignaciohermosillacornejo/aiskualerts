@@ -1,7 +1,7 @@
 /**
  * Shared mock data factories for frontend tests
  */
-import type { Alert, Product, Threshold, DashboardStats, TenantSettings, User } from "../../src/frontend/types";
+import type { Alert, Product, Threshold, DashboardStats, TenantSettings, User, LimitInfo } from "../../src/frontend/types";
 
 // Factory functions for creating mock data
 
@@ -84,6 +84,19 @@ export function createMockTenantSettings(overrides: Partial<TenantSettings> = {}
     digestFrequency: "daily",
     subscriptionStatus: "none",
     subscriptionEndsAt: null,
+    ...overrides,
+  };
+}
+
+export function createMockLimitInfo(overrides: Partial<LimitInfo> = {}): LimitInfo {
+  return {
+    plan: "FREE",
+    thresholds: {
+      current: 5,
+      max: 10,
+      remaining: 5,
+      isOverLimit: false,
+    },
     ...overrides,
   };
 }
