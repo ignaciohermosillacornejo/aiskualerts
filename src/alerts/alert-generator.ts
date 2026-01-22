@@ -10,6 +10,8 @@ const VELOCITY_HISTORY_DAYS = 7;
 
 /**
  * Check if a threshold breach should trigger an alert
+ * Note: This function handles quantity-based thresholds.
+ * Days-based thresholds are handled separately via velocity calculations.
  */
 export function checkThresholdBreach(
   threshold: Threshold,
@@ -21,6 +23,16 @@ export function checkThresholdBreach(
       snapshot: null,
       shouldAlert: false,
       reason: "No stock snapshot found",
+    };
+  }
+
+  // Days-based thresholds are handled separately via velocity calculations
+  if (threshold.threshold_type === "days" || threshold.min_quantity === null) {
+    return {
+      threshold,
+      snapshot,
+      shouldAlert: false,
+      reason: "Days-based threshold - handled via velocity",
     };
   }
 

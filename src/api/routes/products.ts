@@ -55,9 +55,10 @@ export function createProductRoutes(deps: ProductRouteDeps): ProductRoutes {
           ]);
 
           // Create a map of variant thresholds for quick lookup
+          // Only include quantity-based thresholds with min_quantity set
           const thresholdMap = new Map<number, number>();
           for (const t of thresholds) {
-            if (t.bsale_variant_id !== null) {
+            if (t.bsale_variant_id !== null && t.min_quantity !== null) {
               thresholdMap.set(t.bsale_variant_id, t.min_quantity);
             }
           }
