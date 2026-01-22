@@ -3,8 +3,12 @@ import {
   VariantSchema,
   PriceListsResponseSchema,
   PriceListDetailsResponseSchema,
+  DocumentsResponseSchema,
   type StockItem,
   type Variant,
+  type GetDocumentsOptions,
+  type DocumentsResponse,
+  type BsaleDocument,
 } from "./types";
 import {
   BsaleAuthError,
@@ -143,6 +147,62 @@ export class BsaleClient {
       });
       return null;
     }
+  }
+
+  /**
+   * Fetch documents (sales) from Bsale API with optional filtering.
+   * Documents contain sales details including sold variants and quantities.
+   */
+  async getDocuments(options: GetDocumentsOptions): Promise<DocumentsResponse> {
+    const startTimestamp = Math.floor(options.startDate.getTime() / 1000);
+    const endTimestamp = Math.floor(options.endDate.getTime() / 1000);
+
+    const params = new URLSearchParams();
+    params.set("emissiondaterange", `[${String(startTimestamp)},${String(endTimestamp)}]`);
+
+    if (options.expand?.length) {
+      params.set("expand", `[${options.expand.join(",")}]`);
+    }
+    if (options.state !== undefined) {
+      params.set("state", String(options.state));
+    }
+    params.set("limit", String(options.limit ?? DEFAULT_PAGE_SIZE));
+    if (options.offset) {
+      params.set("offset", String(options.offset));
+    }
+
+    const response = await this.fetchWithRetry(`/v1/documents.json?${params.toString()}`);
+    return DocumentsResponseSchema.parse(response);
+  }
+
+  /**
+   * Fetch all documents (sales) within a date range, handling pagination automatically.
+   * Returns an array of all documents across all pages.
+   */
+  async getAllDocuments(options: Omit<GetDocumentsOptions, "offset" | "limit">): Promise<BsaleDocument[]> {
+    const allDocuments: BsaleDocument[] = [];
+    let offset = 0;
+    const limit = DEFAULT_PAGE_SIZE;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await this.getDocuments({
+        ...options,
+        limit,
+        offset,
+      });
+
+      allDocuments.push(...response.items);
+
+      if (response.items.length < limit || !response.next) {
+        hasMore = false;
+      } else {
+        offset += limit;
+        await this.delay();
+      }
+    }
+
+    return allDocuments;
   }
 
   /**
