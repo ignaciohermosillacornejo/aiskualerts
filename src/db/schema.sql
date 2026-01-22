@@ -60,11 +60,17 @@ CREATE TABLE thresholds (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     bsale_variant_id INTEGER,                 -- NULL = default for all SKUs
     bsale_office_id INTEGER,                  -- NULL = all locations
-    min_quantity INTEGER NOT NULL,            -- Alert when stock <= this
+    threshold_type TEXT NOT NULL DEFAULT 'quantity' CHECK (threshold_type IN ('quantity', 'days')),
+    min_quantity INTEGER,                     -- Alert when stock <= this (for quantity-based)
+    min_days INTEGER,                         -- Alert when days of stock <= this (for days-based)
     days_warning INTEGER DEFAULT 7,           -- Alert when days-to-stockout <= this
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id, bsale_variant_id, bsale_office_id)
+    UNIQUE(user_id, bsale_variant_id, bsale_office_id),
+    CONSTRAINT check_threshold_type_fields CHECK (
+        (threshold_type = 'quantity' AND min_quantity IS NOT NULL) OR
+        (threshold_type = 'days' AND min_days IS NOT NULL)
+    )
 );
 
 -- ===========================================
@@ -129,11 +135,11 @@ CREATE INDEX idx_magic_link_tokens_email_created ON magic_link_tokens(email, cre
 -- MIGRATION TRACKING
 -- ===========================================
 -- This table tracks which migrations have been applied.
--- Schema.sql includes all changes from migrations 1-5.
+-- Schema.sql includes all changes from migrations 1-9.
 CREATE TABLE schema_migrations (
     version INTEGER PRIMARY KEY,
     applied_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Mark migrations 1-5 as already applied (since schema.sql includes their changes)
-INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5);
+-- Mark migrations 1-9 as already applied (since schema.sql includes their changes)
+INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9);
