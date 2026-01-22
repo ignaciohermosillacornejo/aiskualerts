@@ -138,9 +138,8 @@ export async function handleMagicLinkVerify(
   let user = tenant ? await deps.userRepo.getByEmail(tenant.id, email) : null;
 
   if (!tenant) {
-    // For new signups, create tenant with placeholder owner, then user
-    const pendingOwnerId = "00000000-0000-0000-0000-000000000000";
-    tenant = await deps.tenantRepo.createForMagicLink(pendingOwnerId, email);
+    // For new signups, create tenant with null owner, then user, then set owner
+    tenant = await deps.tenantRepo.createForMagicLink(null, email);
     logger.info("Created new tenant for magic link user", { email, tenantId: tenant.id });
 
     // Create user
@@ -151,7 +150,8 @@ export async function handleMagicLinkVerify(
     });
     logger.info("Created new user for magic link", { email, userId: user.id });
 
-    // TODO: Update tenant.owner_id to user.id once we add updateOwner method
+    // Set the tenant owner to the newly created user
+    await deps.tenantRepo.updateOwner(tenant.id, user.id);
   } else if (!user) {
     // Tenant exists but user doesn't (shouldn't happen normally)
     user = await deps.userRepo.create({
