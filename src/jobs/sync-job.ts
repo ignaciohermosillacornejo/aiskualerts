@@ -5,6 +5,10 @@ import { UserRepository } from "@/db/repositories/user";
 import { ThresholdRepository } from "@/db/repositories/threshold";
 import { StockSnapshotRepository } from "@/db/repositories/stock-snapshot";
 import { AlertRepository } from "@/db/repositories/alert";
+import { TenantRepository } from "@/db/repositories/tenant";
+import { createDailyConsumptionRepository } from "@/db/repositories/daily-consumption";
+import { createConsumptionSyncService } from "@/sync/consumption-sync";
+import { BsaleClient } from "@/bsale/client";
 import { generateAlertsForUser } from "@/alerts/alert-generator";
 import type { AlertGeneratorDependencies } from "@/alerts/types";
 import type { SyncProgress } from "@/sync/types";
@@ -85,6 +89,31 @@ export async function runSyncForTenant(
 
   logger.info("Tenant synced", { tenantId, itemsSynced: syncResult.itemsSynced });
 
+  // Step 1.5: Sync consumption data for velocity calculations
+  try {
+    const tenantRepo = new TenantRepository(db);
+    const consumptionRepo = createDailyConsumptionRepository(db);
+    const tenant = await tenantRepo.getById(tenantId);
+    if (tenant?.bsale_access_token) {
+      const bsaleClient = new BsaleClient(tenant.bsale_access_token);
+      const consumptionSyncService = createConsumptionSyncService({
+        bsaleClient,
+        consumptionRepo,
+      });
+      const consumptionResult = await consumptionSyncService.syncConsumption(tenantId, 7);
+      logger.info("Consumption sync completed", {
+        tenantId,
+        ...consumptionResult,
+      });
+    }
+  } catch (error) {
+    // Log but don't fail the sync for consumption errors
+    logger.warn("Consumption sync failed", {
+      tenantId,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+
   // Step 2: Generate alerts for all users in the tenant
   logger.info("Phase 2: Generating alerts for users...");
   let totalAlertsCreated = 0;
@@ -149,7 +178,35 @@ export async function runSyncAndAlerts(
     .filter((r) => r.success)
     .map((r) => r.tenantId);
 
+  // Step 1.5: Sync consumption data for velocity calculations
+  const tenantRepo = new TenantRepository(db);
+  const consumptionRepo = createDailyConsumptionRepository(db);
+
   for (const tenantId of successfulTenantIds) {
+    // Sync consumption data for this tenant
+    try {
+      const tenant = await tenantRepo.getById(tenantId);
+      if (tenant?.bsale_access_token) {
+        const bsaleClient = new BsaleClient(tenant.bsale_access_token);
+        const consumptionSyncService = createConsumptionSyncService({
+          bsaleClient,
+          consumptionRepo,
+        });
+        const consumptionResult = await consumptionSyncService.syncConsumption(tenantId, 7);
+        logger.info("Consumption sync completed", {
+          tenantId,
+          ...consumptionResult,
+        });
+      }
+    } catch (error) {
+      // Log but don't fail the sync for consumption errors
+      logger.warn("Consumption sync failed", {
+        tenantId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+
+    // Generate alerts for users in this tenant
     const users = await userRepo.getWithNotificationsEnabled(tenantId);
 
     for (const user of users) {
