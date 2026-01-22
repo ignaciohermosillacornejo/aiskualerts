@@ -106,6 +106,8 @@ CREATE TABLE alerts (
     days_to_stockout INTEGER,                 -- For low_velocity type
     status TEXT DEFAULT 'pending',            -- pending | sent | dismissed
     sent_at TIMESTAMPTZ,
+    dismissed_at TIMESTAMPTZ,                 -- When user dismissed this alert (took action)
+    last_notified_at TIMESTAMPTZ,             -- Last time user was emailed about this alert
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -143,6 +145,7 @@ CREATE INDEX idx_thresholds_user ON thresholds(user_id);
 CREATE INDEX idx_thresholds_tenant_variant ON thresholds(tenant_id, bsale_variant_id);
 CREATE INDEX idx_alerts_user_status ON alerts(user_id, status);
 CREATE INDEX idx_alerts_tenant_date ON alerts(tenant_id, created_at DESC);
+CREATE INDEX idx_alerts_dismissed ON alerts(tenant_id, bsale_variant_id, status) WHERE status = 'dismissed';
 CREATE INDEX idx_sessions_token ON sessions(token);
 CREATE INDEX idx_sessions_expires ON sessions(expires_at);
 CREATE INDEX idx_tenants_subscription ON tenants(subscription_id) WHERE subscription_id IS NOT NULL;
@@ -153,11 +156,11 @@ CREATE INDEX idx_magic_link_tokens_email_created ON magic_link_tokens(email, cre
 -- MIGRATION TRACKING
 -- ===========================================
 -- This table tracks which migrations have been applied.
--- Schema.sql includes all changes from migrations 1-10.
+-- Schema.sql includes all changes from migrations 1-11.
 CREATE TABLE schema_migrations (
     version INTEGER PRIMARY KEY,
     applied_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Mark migrations 1-10 as already applied (since schema.sql includes their changes)
-INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+-- Mark migrations 1-11 as already applied (since schema.sql includes their changes)
+INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11);
