@@ -2,6 +2,7 @@ import { loadConfig, type Config } from "@/config";
 import { createServer, type ServerDependencies } from "@/server";
 import { Scheduler } from "@/scheduler";
 import { getDb, type DatabaseClient } from "@/db/client";
+import { validateSchemaOrDie as defaultValidateSchemaOrDie } from "@/db/validate";
 import { createSyncJob } from "@/jobs/sync-job";
 import { createSessionCleanupScheduler } from "@/jobs/session-cleanup-job";
 import { createDigestJob } from "@/jobs/digest-job";
@@ -32,6 +33,7 @@ import { logger as defaultLogger, type Logger } from "@/utils/logger";
 export interface MainDependencies {
   loadConfig: typeof loadConfig;
   getDb: typeof getDb;
+  validateSchemaOrDie: typeof defaultValidateSchemaOrDie;
   createSentryConfig: typeof createSentryConfig;
   initializeSentry: typeof initializeSentry;
   setupProcessErrorHandlers: typeof setupProcessErrorHandlers;
@@ -66,6 +68,7 @@ export function createMainDependencies(): MainDependencies {
   return {
     loadConfig,
     getDb,
+    validateSchemaOrDie: defaultValidateSchemaOrDie,
     createSentryConfig,
     initializeSentry,
     setupProcessErrorHandlers,
@@ -109,7 +112,7 @@ export interface MainResult {
   shutdown: () => Promise<void>;
 }
 
-export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
+export async function main(injectedDeps?: Partial<MainDependencies>): Promise<MainResult> {
   const deps = { ...createMainDependencies(), ...injectedDeps };
   const config = deps.loadConfig();
 
@@ -124,6 +127,10 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
 
   // Initialize database
   const db = deps.getDb();
+
+  // Validate schema before accepting any traffic (defense-in-depth)
+  // This ensures the app will not start if migrations haven't run
+  await deps.validateSchemaOrDie(db);
 
   // Create the sync job
   const syncJob = deps.createSyncJob(db, config);
@@ -316,5 +323,8 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
 
 // Only run when executed directly (not imported)
 if (import.meta.main) {
-  main();
+  main().catch((error: unknown) => {
+    console.error("Failed to start application:", error);
+    process.exit(1);
+  });
 }
