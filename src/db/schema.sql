@@ -52,6 +52,22 @@ CREATE TABLE stock_snapshots (
 );
 
 -- ===========================================
+-- DAILY CONSUMPTION (velocity tracking)
+-- ===========================================
+CREATE TABLE daily_consumption (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    bsale_variant_id INTEGER NOT NULL,
+    bsale_office_id INTEGER,
+    consumption_date DATE NOT NULL,
+    quantity_sold INTEGER NOT NULL DEFAULT 0,
+    document_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (tenant_id, bsale_variant_id, bsale_office_id, consumption_date)
+);
+
+-- ===========================================
 -- THRESHOLDS (user-defined alert triggers)
 -- ===========================================
 CREATE TABLE thresholds (
@@ -121,6 +137,8 @@ CREATE TABLE magic_link_tokens (
 -- ===========================================
 CREATE INDEX idx_snapshots_tenant_date ON stock_snapshots(tenant_id, snapshot_date DESC);
 CREATE INDEX idx_snapshots_variant ON stock_snapshots(tenant_id, bsale_variant_id, snapshot_date DESC);
+CREATE INDEX idx_consumption_tenant_variant_date ON daily_consumption(tenant_id, bsale_variant_id, consumption_date DESC);
+CREATE INDEX idx_consumption_date_range ON daily_consumption(tenant_id, consumption_date DESC);
 CREATE INDEX idx_thresholds_user ON thresholds(user_id);
 CREATE INDEX idx_thresholds_tenant_variant ON thresholds(tenant_id, bsale_variant_id);
 CREATE INDEX idx_alerts_user_status ON alerts(user_id, status);
@@ -135,11 +153,11 @@ CREATE INDEX idx_magic_link_tokens_email_created ON magic_link_tokens(email, cre
 -- MIGRATION TRACKING
 -- ===========================================
 -- This table tracks which migrations have been applied.
--- Schema.sql includes all changes from migrations 1-9.
+-- Schema.sql includes all changes from migrations 1-10.
 CREATE TABLE schema_migrations (
     version INTEGER PRIMARY KEY,
     applied_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Mark migrations 1-9 as already applied (since schema.sql includes their changes)
-INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9);
+-- Mark migrations 1-10 as already applied (since schema.sql includes their changes)
+INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
