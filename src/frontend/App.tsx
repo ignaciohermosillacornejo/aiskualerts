@@ -1,13 +1,11 @@
-import { Router, Route, Switch } from "wouter";
+import { Router, Route, Switch, Redirect } from "wouter";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Layout } from "./components/Layout";
 import { Landing } from "./pages/Landing";
 import { Dashboard } from "./pages/Dashboard";
-import { Alerts } from "./pages/Alerts";
 import { Products } from "./pages/Products";
-import { Thresholds } from "./pages/Thresholds";
 import { Settings } from "./pages/Settings";
 import { Login } from "./pages/Login";
 import { NotFound } from "./pages/NotFound";
@@ -29,12 +27,9 @@ export function App() {
                 </Layout>
               </ProtectedRoute>
             </Route>
+{/* Redirect alerts to products (alerts now integrated into products) */}
             <Route path="/app/alerts">
-              <ProtectedRoute>
-                <Layout>
-                  <Alerts />
-                </Layout>
-              </ProtectedRoute>
+              <Redirect to="/app/products" />
             </Route>
             <Route path="/app/products">
               <ProtectedRoute>
@@ -43,12 +38,9 @@ export function App() {
                 </Layout>
               </ProtectedRoute>
             </Route>
+{/* Redirect old thresholds URL to products (thresholds now integrated) */}
             <Route path="/app/thresholds">
-              <ProtectedRoute>
-                <Layout>
-                  <Thresholds />
-                </Layout>
-              </ProtectedRoute>
+              <Redirect to="/app/products" />
             </Route>
             <Route path="/app/settings">
               <ProtectedRoute>

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { api } from "../api/client";
 import { ConfirmModal } from "../components/ConfirmModal";
-import type { Product, Threshold, LimitInfo } from "../types";
+import type { Product, Threshold, LimitInfo, CreateThresholdInput } from "../types";
 
-type FilterType = "all" | "with_threshold" | "no_threshold" | "low_stock" | "ok";
+type FilterType = "all" | "with_threshold" | "no_threshold" | "low_stock" | "ok" | "dismissed";
+type ThresholdType = "quantity" | "days";
 
 interface ProductWithThreshold extends Product {
   thresholdData: Threshold | undefined;
@@ -24,6 +25,7 @@ export function Products() {
   // Inline edit state
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
+  const [editThresholdType, setEditThresholdType] = useState<ThresholdType>("quantity");
 
   // Delete confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; productId: string | null }>({
@@ -34,6 +36,7 @@ export function Products() {
   // Bulk threshold modal
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkThresholdValue, setBulkThresholdValue] = useState("10");
+  const [bulkThresholdType, setBulkThresholdType] = useState<ThresholdType>("quantity");
 
   const loadData = useCallback(async () => {
     try {
@@ -95,9 +98,11 @@ export function Products() {
         case "no_threshold":
           return p.thresholdData == null;
         case "low_stock":
-          return p.thresholdData != null && p.currentStock <= (p.thresholdData.minQuantity ?? 0);
+          return p.alertState === "alert";
+        case "dismissed":
+          return p.alertState === "dismissed";
         case "ok":
-          return p.thresholdData == null || p.currentStock > (p.thresholdData.minQuantity ?? 0);
+          return p.thresholdData == null || p.alertState === "ok";
         default:
           return true;
       }
@@ -128,24 +133,27 @@ export function Products() {
   };
 
   // Threshold handlers
-  const handleSetThreshold = async (productId: string, minQuantity: number) => {
-    const product = products.find(p => p.id === productId);
+  const handleSetThreshold = async (input: CreateThresholdInput) => {
+    const product = products.find(p => p.id === input.productId);
     if (!product) return;
 
     try {
       if (product.thresholdData) {
-        // Update existing
-        const updated = await api.updateThreshold(product.thresholdData.id, {
-          minQuantity,
-        });
+        // Update existing - only pass defined values
+        const updateData: Parameters<typeof api.updateThreshold>[1] = {
+          thresholdType: input.thresholdType,
+        };
+        if (input.minQuantity !== undefined) updateData.minQuantity = input.minQuantity;
+        if (input.minDays !== undefined) updateData.minDays = input.minDays;
+        const updated = await api.updateThreshold(product.thresholdData.id, updateData);
         setProducts(prev => prev.map(p =>
-          p.id === productId ? { ...p, thresholdData: updated } : p
+          p.id === input.productId ? { ...p, thresholdData: updated } : p
         ));
       } else {
         // Create new
-        const created = await api.createThreshold({ productId, thresholdType: "quantity", minQuantity });
+        const created = await api.createThreshold(input);
         setProducts(prev => prev.map(p =>
-          p.id === productId ? { ...p, thresholdData: created } : p
+          p.id === input.productId ? { ...p, thresholdData: created } : p
         ));
       }
     } catch (err) {
@@ -154,6 +162,23 @@ export function Products() {
 
     setEditingProductId(null);
     setEditValue("");
+    setEditThresholdType("quantity");
+  };
+
+  // Dismiss alert handler
+  const handleDismissAlert = async (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+
+    try {
+      await api.dismissAlert(productId);
+      // Update local state to reflect dismissed status
+      setProducts(prev => prev.map(p =>
+        p.id === productId ? { ...p, alertState: "dismissed" as const } : p
+      ));
+    } catch (err) {
+      console.error("Error dismissing alert:", err);
+    }
   };
 
   const handleRemoveThreshold = async (productId: string) => {
@@ -174,48 +199,71 @@ export function Products() {
 
   // Bulk threshold handler
   const handleBulkSetThreshold = async () => {
-    const minQuantity = parseInt(bulkThresholdValue, 10);
-    if (isNaN(minQuantity) || minQuantity < 0) return;
+    const value = parseInt(bulkThresholdValue, 10);
+    if (isNaN(value) || value < 0) return;
 
     const selectedProducts = products.filter(p => selectedIds.has(p.id));
 
     for (const product of selectedProducts) {
-      await handleSetThreshold(product.id, minQuantity);
+      const input: CreateThresholdInput = {
+        productId: product.id,
+        thresholdType: bulkThresholdType,
+        ...(bulkThresholdType === "quantity" ? { minQuantity: value } : { minDays: value }),
+      };
+      await handleSetThreshold(input);
     }
 
     setShowBulkModal(false);
+    setBulkThresholdType("quantity");
     clearSelection();
   };
 
   // Inline edit handlers
   const startEdit = (product: ProductWithThreshold) => {
     setEditingProductId(product.id);
-    setEditValue((product.thresholdData?.minQuantity ?? 10).toString());
+    const type = product.thresholdData?.thresholdType ?? "quantity";
+    setEditThresholdType(type);
+    setEditValue(
+      type === "days"
+        ? (product.thresholdData?.minDays ?? 7).toString()
+        : (product.thresholdData?.minQuantity ?? 10).toString()
+    );
   };
 
   const saveEdit = () => {
     if (!editingProductId) return;
-    const minQuantity = parseInt(editValue, 10);
-    if (!isNaN(minQuantity) && minQuantity >= 0) {
-      handleSetThreshold(editingProductId, minQuantity);
+    const value = parseInt(editValue, 10);
+    if (!isNaN(value) && value >= 0) {
+      const input: CreateThresholdInput = {
+        productId: editingProductId,
+        thresholdType: editThresholdType,
+        ...(editThresholdType === "quantity" ? { minQuantity: value } : { minDays: value }),
+      };
+      handleSetThreshold(input);
     } else {
       setEditingProductId(null);
       setEditValue("");
+      setEditThresholdType("quantity");
     }
   };
 
   const cancelEdit = () => {
     setEditingProductId(null);
     setEditValue("");
+    setEditThresholdType("quantity");
   };
 
-  // Get stock status
-  const getStockStatus = (product: ProductWithThreshold) => {
+  // Get stock status based on alert state and threshold
+  const getStockStatus = (product: ProductWithThreshold): "no_threshold" | "out_of_stock" | "low_stock" | "dismissed" | "ok" => {
     if (!product.thresholdData) return "no_threshold";
-    if (product.currentStock <= 0) return "out_of_stock";
-    if (product.currentStock <= (product.thresholdData.minQuantity ?? 0)) return "low_stock";
+    if (product.alertState === "dismissed") return "dismissed";
+    if (product.alertState === "alert") {
+      if (product.currentStock <= 0) return "out_of_stock";
+      return "low_stock";
+    }
     return "ok";
   };
+
 
   if (loading) {
     return (
@@ -243,8 +291,9 @@ export function Products() {
     all: products.length,
     with_threshold: products.filter(p => p.thresholdData != null).length,
     no_threshold: products.filter(p => p.thresholdData == null).length,
-    low_stock: products.filter(p => p.thresholdData != null && p.currentStock <= (p.thresholdData.minQuantity ?? 0)).length,
-    ok: products.filter(p => p.thresholdData == null || p.currentStock > (p.thresholdData.minQuantity ?? 0)).length,
+    low_stock: products.filter(p => p.alertState === "alert").length,
+    dismissed: products.filter(p => p.alertState === "dismissed").length,
+    ok: products.filter(p => p.thresholdData == null || p.alertState === "ok").length,
   };
 
   return (
@@ -324,6 +373,15 @@ export function Products() {
           >
             Sin alerta <span className="products-filter-count">{filterCounts.no_threshold}</span>
           </button>
+          {filterCounts.dismissed > 0 && (
+            <button
+              className={`products-filter-btn filter-dismissed ${filter === "dismissed" ? "active" : ""}`}
+              onClick={() => setFilter("dismissed")}
+              type="button"
+            >
+              📦 Pedido en camino <span className="products-filter-count">{filterCounts.dismissed}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -408,6 +466,17 @@ export function Products() {
                     <td className="col-threshold">
                       {isEditing ? (
                         <div className="threshold-edit">
+                          <select
+                            value={editThresholdType}
+                            onChange={(e) => {
+                              setEditThresholdType(e.target.value as ThresholdType);
+                              setEditValue(e.target.value === "days" ? "7" : "10");
+                            }}
+                            className="threshold-type-select"
+                          >
+                            <option value="quantity">Cantidad</option>
+                            <option value="days">Días</option>
+                          </select>
                           <span className="threshold-edit-prefix">≤</span>
                           <input
                             type="number"
@@ -417,21 +486,57 @@ export function Products() {
                               if (e.key === "Enter") saveEdit();
                               if (e.key === "Escape") cancelEdit();
                             }}
-                            onBlur={saveEdit}
                             autoFocus
                             min="0"
                             className="threshold-input"
                           />
-                          <span className="threshold-edit-suffix">unidades</span>
+                          <span className="threshold-edit-suffix">
+                            {editThresholdType === "days" ? "días" : "uds"}
+                          </span>
+                          <button type="button" onClick={saveEdit} className="threshold-save-btn">✓</button>
+                          <button type="button" onClick={cancelEdit} className="threshold-cancel-btn">✕</button>
                         </div>
                       ) : product.thresholdData ? (
-                        <button
-                          className="threshold-chip configured"
-                          onClick={() => startEdit(product)}
-                          type="button"
-                        >
-                          ≤ {(product.thresholdData.minQuantity ?? 0).toLocaleString()} uds
-                        </button>
+                        <div className="threshold-chip-container">
+                          <button
+                            className={`threshold-chip ${status === "low_stock" || status === "out_of_stock" ? "alert-active" : status === "dismissed" ? "alert-dismissed" : "configured"}`}
+                            onClick={() => startEdit(product)}
+                            type="button"
+                          >
+                            {status === "low_stock" || status === "out_of_stock" ? (
+                              <>
+                                ⚠️ {product.thresholdData.thresholdType === "days"
+                                  ? `${product.velocityInfo?.daysLeft ?? "?"} días restantes`
+                                  : `Stock ${product.currentStock}/${product.thresholdData.minQuantity}`}
+                              </>
+                            ) : status === "dismissed" ? (
+                              <>
+                                📦 Pedido en camino
+                                <span className="chip-subtext">
+                                  {product.thresholdData.thresholdType === "days"
+                                    ? `${product.velocityInfo?.daysLeft ?? "?"} días`
+                                    : `${product.currentStock}/${product.thresholdData.minQuantity} uds`}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                ✓ {product.thresholdData.thresholdType === "days"
+                                  ? `≤${product.thresholdData.minDays} días`
+                                  : `≤${(product.thresholdData.minQuantity ?? 0).toLocaleString()} uds`}
+                              </>
+                            )}
+                          </button>
+                          {(status === "low_stock" || status === "out_of_stock") && (
+                            <button
+                              className="dismiss-btn"
+                              onClick={(e) => { e.stopPropagation(); handleDismissAlert(product.id); }}
+                              title="Marcar como pedido"
+                              type="button"
+                            >
+                              ✓ Pedido
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <button
                           className="threshold-chip unconfigured"
@@ -448,6 +553,9 @@ export function Products() {
                       )}
                       {status === "low_stock" && (
                         <span className="status-badge warning">Stock bajo</span>
+                      )}
+                      {status === "dismissed" && (
+                        <span className="status-badge dismissed">📦 En camino</span>
                       )}
                       {status === "ok" && (
                         <span className="status-badge success">OK</span>
@@ -491,7 +599,25 @@ export function Products() {
               </button>
             </div>
             <div className="products-modal-body">
-              <p>Se enviará una alerta cuando el stock sea igual o menor a:</p>
+              <div className="bulk-form-group">
+                <label>Tipo de umbral</label>
+                <select
+                  value={bulkThresholdType}
+                  onChange={(e) => {
+                    setBulkThresholdType(e.target.value as ThresholdType);
+                    setBulkThresholdValue(e.target.value === "days" ? "7" : "10");
+                  }}
+                  className="bulk-type-select"
+                >
+                  <option value="quantity">Cantidad mínima (unidades)</option>
+                  <option value="days">Días de stock mínimo</option>
+                </select>
+              </div>
+              <p>
+                {bulkThresholdType === "quantity"
+                  ? "Se enviará una alerta cuando el stock sea igual o menor a:"
+                  : "Se enviará una alerta cuando el stock dure menos de:"}
+              </p>
               <div className="bulk-input-group">
                 <input
                   type="number"
@@ -501,7 +627,7 @@ export function Products() {
                   className="bulk-threshold-input"
                   autoFocus
                 />
-                <span>unidades</span>
+                <span>{bulkThresholdType === "days" ? "días" : "unidades"}</span>
               </div>
             </div>
             <div className="products-modal-footer">
@@ -920,6 +1046,65 @@ export function Products() {
           color: #4b5563;
         }
 
+        .threshold-chip.alert-active {
+          background: #fee2e2;
+          color: #991b1b;
+          border-color: #f87171;
+          animation: pulse 2s infinite;
+        }
+
+        .threshold-chip.alert-active:hover {
+          background: #fecaca;
+          border-color: #ef4444;
+        }
+
+        .threshold-chip.alert-dismissed {
+          background: #fef3c7;
+          color: #92400e;
+          border-color: #fbbf24;
+          flex-direction: column;
+          align-items: flex-start;
+          line-height: 1.2;
+        }
+
+        .threshold-chip.alert-dismissed:hover {
+          background: #fde68a;
+          border-color: #f59e0b;
+        }
+
+        .threshold-chip-container {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+        }
+
+        .chip-subtext {
+          display: block;
+          font-size: 0.7rem;
+          opacity: 0.8;
+        }
+
+        .dismiss-btn {
+          padding: 0.25rem 0.5rem;
+          font-size: 0.75rem;
+          background: #10b981;
+          color: white;
+          border: none;
+          border-radius: 0.375rem;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          white-space: nowrap;
+        }
+
+        .dismiss-btn:hover {
+          background: #059669;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
+
         /* Threshold edit */
         .threshold-edit {
           display: flex;
@@ -942,6 +1127,48 @@ export function Products() {
           text-align: center;
           outline: none;
           box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+
+        .threshold-type-select {
+          padding: 0.375rem 0.5rem;
+          border: 2px solid #e5e7eb;
+          border-radius: 0.375rem;
+          font-size: 0.75rem;
+          background: white;
+          cursor: pointer;
+        }
+
+        .threshold-type-select:focus {
+          outline: none;
+          border-color: #8b5cf6;
+        }
+
+        .threshold-save-btn,
+        .threshold-cancel-btn {
+          padding: 0.25rem 0.5rem;
+          border: none;
+          border-radius: 0.25rem;
+          font-size: 0.875rem;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .threshold-save-btn {
+          background: #10b981;
+          color: white;
+        }
+
+        .threshold-save-btn:hover {
+          background: #059669;
+        }
+
+        .threshold-cancel-btn {
+          background: #e5e7eb;
+          color: #6b7280;
+        }
+
+        .threshold-cancel-btn:hover {
+          background: #d1d5db;
         }
 
         /* Status badge */
@@ -972,6 +1199,46 @@ export function Products() {
         .status-badge.neutral {
           background: #f3f4f6;
           color: #9ca3af;
+        }
+
+        .status-badge.dismissed {
+          background: #fef3c7;
+          color: #92400e;
+        }
+
+        /* Filter dismissed */
+        .products-filter-btn.filter-dismissed.active {
+          border-color: #f59e0b;
+          background: #fffbeb;
+          color: #b45309;
+        }
+
+        /* Bulk form group */
+        .bulk-form-group {
+          margin-bottom: 1rem;
+        }
+
+        .bulk-form-group label {
+          display: block;
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: #374151;
+          margin-bottom: 0.375rem;
+        }
+
+        .bulk-type-select {
+          width: 100%;
+          padding: 0.625rem 0.875rem;
+          border: 2px solid #e5e7eb;
+          border-radius: 0.5rem;
+          font-size: 0.9375rem;
+          background: white;
+          cursor: pointer;
+        }
+
+        .bulk-type-select:focus {
+          outline: none;
+          border-color: #8b5cf6;
         }
 
         /* Action button */
