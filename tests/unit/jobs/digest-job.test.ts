@@ -117,6 +117,8 @@ const mockAlert: Alert = {
   status: "pending",
   sent_at: null,
   dismissed_by: null,
+  dismissed_at: null,
+  last_notified_at: null,
   created_at: new Date("2024-01-01"),
 };
 
