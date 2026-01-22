@@ -288,17 +288,18 @@ describe("Server Routes - Extended Coverage", () => {
       expect(body.details.some((d) => d.path === "productId")).toBe(true);
     });
 
-    test("returns 400 for missing minQuantity", async () => {
+    test("returns 400 for missing minQuantity when thresholdType is quantity", async () => {
       const response = await fetch(`${baseUrl}/api/thresholds`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: "p1" }),
+        body: JSON.stringify({ productId: "p1", thresholdType: "quantity" }),
       });
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: { path: string }[] };
+      const body = (await response.json()) as { error: string; details: { path: string; message: string }[] };
       expect(body.error).toBe("Validation failed");
-      expect(body.details.some((d) => d.path === "minQuantity")).toBe(true);
+      // The refine error includes the message about required fields
+      expect(body.details.some((d) => d.message.includes("minQuantity"))).toBe(true);
     });
 
     test("returns 400 for invalid minQuantity type", async () => {
@@ -345,16 +346,15 @@ describe("Server Routes - Extended Coverage", () => {
       expect(response.status).toBe(404);
     });
 
-    test("returns 400 for missing minQuantity", async () => {
+    test("allows empty update (no changes)", async () => {
       const response = await fetch(`${baseUrl}/api/thresholds/t2`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
 
-      expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: { path: string }[] };
-      expect(body.error).toBe("Validation failed");
+      // Empty update is valid - returns existing threshold unchanged
+      expect(response.status).toBe(200);
     });
 
     test("returns 400 for invalid minQuantity type", async () => {
