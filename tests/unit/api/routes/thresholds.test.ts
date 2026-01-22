@@ -10,8 +10,8 @@ describe("GET /api/thresholds with limit service", () => {
       getByUserPaginated: mock(() =>
         Promise.resolve({
           data: [
-            { id: "t1", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 100, min_quantity: 10, created_at: new Date(), updated_at: new Date() },
-            { id: "t2", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 200, min_quantity: 20, created_at: new Date(), updated_at: new Date() },
+            { id: "t1", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 100, threshold_type: "quantity" as const, min_quantity: 10, min_days: null, created_at: new Date(), updated_at: new Date() },
+            { id: "t2", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 200, threshold_type: "quantity" as const, min_quantity: 20, min_days: null, created_at: new Date(), updated_at: new Date() },
           ],
           pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
         })
@@ -51,8 +51,8 @@ describe("GET /api/thresholds with limit service", () => {
       getByUserPaginated: mock(() =>
         Promise.resolve({
           data: [
-            { id: "t1", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 100, min_quantity: 10, created_at: new Date(), updated_at: new Date() },
-            { id: "t2", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 200, min_quantity: 20, created_at: new Date(), updated_at: new Date() },
+            { id: "t1", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 100, threshold_type: "quantity" as const, min_quantity: 10, min_days: null, created_at: new Date(), updated_at: new Date() },
+            { id: "t2", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 200, threshold_type: "quantity" as const, min_quantity: 20, min_days: null, created_at: new Date(), updated_at: new Date() },
           ],
           pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
         })
@@ -87,7 +87,7 @@ describe("GET /api/thresholds with limit service", () => {
       getByUserPaginated: mock(() =>
         Promise.resolve({
           data: [
-            { id: "t1", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 100, min_quantity: 10, created_at: new Date(), updated_at: new Date() },
+            { id: "t1", user_id: "user-1", tenant_id: "tenant-1", bsale_variant_id: 100, threshold_type: "quantity" as const, min_quantity: 10, min_days: null, created_at: new Date(), updated_at: new Date() },
           ],
           pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
         })

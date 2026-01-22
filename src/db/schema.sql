@@ -52,6 +52,22 @@ CREATE TABLE stock_snapshots (
 );
 
 -- ===========================================
+-- DAILY CONSUMPTION (velocity tracking)
+-- ===========================================
+CREATE TABLE daily_consumption (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    bsale_variant_id INTEGER NOT NULL,
+    bsale_office_id INTEGER,
+    consumption_date DATE NOT NULL,
+    quantity_sold INTEGER NOT NULL DEFAULT 0,
+    document_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (tenant_id, bsale_variant_id, bsale_office_id, consumption_date)
+);
+
+-- ===========================================
 -- THRESHOLDS (user-defined alert triggers)
 -- ===========================================
 CREATE TABLE thresholds (
@@ -60,11 +76,17 @@ CREATE TABLE thresholds (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     bsale_variant_id INTEGER,                 -- NULL = default for all SKUs
     bsale_office_id INTEGER,                  -- NULL = all locations
-    min_quantity INTEGER NOT NULL,            -- Alert when stock <= this
+    threshold_type TEXT NOT NULL DEFAULT 'quantity' CHECK (threshold_type IN ('quantity', 'days')),
+    min_quantity INTEGER,                     -- Alert when stock <= this (for quantity-based)
+    min_days INTEGER,                         -- Alert when days of stock <= this (for days-based)
     days_warning INTEGER DEFAULT 7,           -- Alert when days-to-stockout <= this
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id, bsale_variant_id, bsale_office_id)
+    UNIQUE(user_id, bsale_variant_id, bsale_office_id),
+    CONSTRAINT check_threshold_type_fields CHECK (
+        (threshold_type = 'quantity' AND min_quantity IS NOT NULL) OR
+        (threshold_type = 'days' AND min_days IS NOT NULL)
+    )
 );
 
 -- ===========================================
@@ -84,6 +106,8 @@ CREATE TABLE alerts (
     days_to_stockout INTEGER,                 -- For low_velocity type
     status TEXT DEFAULT 'pending',            -- pending | sent | dismissed
     sent_at TIMESTAMPTZ,
+    dismissed_at TIMESTAMPTZ,                 -- When user dismissed this alert (took action)
+    last_notified_at TIMESTAMPTZ,             -- Last time user was emailed about this alert
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -115,10 +139,13 @@ CREATE TABLE magic_link_tokens (
 -- ===========================================
 CREATE INDEX idx_snapshots_tenant_date ON stock_snapshots(tenant_id, snapshot_date DESC);
 CREATE INDEX idx_snapshots_variant ON stock_snapshots(tenant_id, bsale_variant_id, snapshot_date DESC);
+CREATE INDEX idx_consumption_tenant_variant_date ON daily_consumption(tenant_id, bsale_variant_id, consumption_date DESC);
+CREATE INDEX idx_consumption_date_range ON daily_consumption(tenant_id, consumption_date DESC);
 CREATE INDEX idx_thresholds_user ON thresholds(user_id);
 CREATE INDEX idx_thresholds_tenant_variant ON thresholds(tenant_id, bsale_variant_id);
 CREATE INDEX idx_alerts_user_status ON alerts(user_id, status);
 CREATE INDEX idx_alerts_tenant_date ON alerts(tenant_id, created_at DESC);
+CREATE INDEX idx_alerts_dismissed ON alerts(tenant_id, bsale_variant_id, status) WHERE status = 'dismissed';
 CREATE INDEX idx_sessions_token ON sessions(token);
 CREATE INDEX idx_sessions_expires ON sessions(expires_at);
 CREATE INDEX idx_tenants_subscription ON tenants(subscription_id) WHERE subscription_id IS NOT NULL;
@@ -129,11 +156,11 @@ CREATE INDEX idx_magic_link_tokens_email_created ON magic_link_tokens(email, cre
 -- MIGRATION TRACKING
 -- ===========================================
 -- This table tracks which migrations have been applied.
--- Schema.sql includes all changes from migrations 1-5.
+-- Schema.sql includes all changes from migrations 1-11.
 CREATE TABLE schema_migrations (
     version INTEGER PRIMARY KEY,
     applied_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Mark migrations 1-5 as already applied (since schema.sql includes their changes)
-INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5);
+-- Mark migrations 1-11 as already applied (since schema.sql includes their changes)
+INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11);

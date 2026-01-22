@@ -233,7 +233,7 @@ describe("Thresholds", () => {
 
     test("initial minQuantity is from threshold when editing", () => {
       const threshold = createMockThreshold({ minQuantity: 50 });
-      const minQuantity = threshold.minQuantity;
+      const minQuantity = threshold.minQuantity ?? 0;
       expect(minQuantity).toBe(50);
     });
 
@@ -394,7 +394,7 @@ describe("Thresholds", () => {
       const product = createMockProduct({ id: "prod-1", currentStock: 5 });
       const threshold = createMockThreshold({ productId: "prod-1", minQuantity: 10 });
 
-      const isBelowThreshold = product.currentStock <= threshold.minQuantity;
+      const isBelowThreshold = product.currentStock <= (threshold.minQuantity ?? 0);
       expect(isBelowThreshold).toBe(true);
     });
 
@@ -402,7 +402,7 @@ describe("Thresholds", () => {
       const product = createMockProduct({ id: "prod-1", currentStock: 50 });
       const threshold = createMockThreshold({ productId: "prod-1", minQuantity: 10 });
 
-      const isBelowThreshold = product.currentStock <= threshold.minQuantity;
+      const isBelowThreshold = product.currentStock <= (threshold.minQuantity ?? 0);
       expect(isBelowThreshold).toBe(false);
     });
 

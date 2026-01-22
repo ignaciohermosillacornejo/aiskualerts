@@ -228,14 +228,14 @@ export function Thresholds() {
               <tbody>
                 {thresholds.map((threshold) => {
                   const product = products.find((p) => p.id === threshold.productId);
-                  const isBelowThreshold = product && product.currentStock <= threshold.minQuantity;
+                  const isBelowThreshold = product && product.currentStock <= (threshold.minQuantity ?? 0);
                   const isInactive = !threshold.isActive;
 
                   return (
                     <tr key={threshold.id} style={isInactive ? { opacity: 0.6 } : undefined}>
                       <td>{sanitizeText(threshold.productName)}</td>
                       <td>
-                        <strong>{threshold.minQuantity.toLocaleString()}</strong>
+                        <strong>{(threshold.minQuantity ?? 0).toLocaleString()}</strong>
                       </td>
                       <td>{product?.currentStock.toLocaleString() ?? "-"}</td>
                       <td>
@@ -303,6 +303,7 @@ export function Thresholds() {
 
 interface ThresholdFormData {
   productId: string;
+  thresholdType: "quantity" | "days";
   minQuantity: number;
 }
 
@@ -321,7 +322,7 @@ function ThresholdModal({ threshold, products, limits, onSave, onClose }: Thresh
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!productId) return;
-    onSave({ productId, minQuantity });
+    onSave({ productId, thresholdType: "quantity", minQuantity });
   }
 
   return (
@@ -374,6 +375,7 @@ function ThresholdModal({ threshold, products, limits, onSave, onClose }: Thresh
             <label className="form-label">Cantidad Minima</label>
             <input
               type="number"
+              name="minQuantity"
               className="form-input"
               value={minQuantity}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMinQuantity(parseInt(e.target.value, 10) || 0)}

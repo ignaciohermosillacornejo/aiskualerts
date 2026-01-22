@@ -246,7 +246,7 @@ export class TenantRepository {
   /**
    * Create a tenant for magic link users (without Bsale connection)
    */
-  async createForMagicLink(ownerId: string, email: string, name?: string): Promise<Tenant> {
+  async createForMagicLink(ownerId: string | null, email: string, name?: string): Promise<Tenant> {
     const tenants = await this.db.query<Tenant>(
       `INSERT INTO tenants (owner_id, bsale_client_code, bsale_client_name, bsale_access_token, sync_status)
        VALUES ($1, NULL, $2, NULL, 'not_connected')

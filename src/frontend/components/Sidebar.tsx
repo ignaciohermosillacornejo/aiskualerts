@@ -1,16 +1,17 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
+import { api } from "../api/client";
 
 interface NavItem {
   path: string;
   label: string;
   icon: string;
+  showBadge?: boolean;
 }
 
 const navItems: NavItem[] = [
   { path: "/app", label: "Dashboard", icon: "chart-bar" },
-  { path: "/app/alerts", label: "Alertas", icon: "bell" },
-  { path: "/app/products", label: "Productos", icon: "cube" },
-  { path: "/app/thresholds", label: "Umbrales", icon: "adjustments" },
+  { path: "/app/products", label: "Inventario", icon: "cube", showBadge: true },
   { path: "/app/settings", label: "Configuracion", icon: "cog" },
 ];
 
@@ -51,6 +52,22 @@ import type { ReactNode } from "react";
 
 export function Sidebar() {
   const [location] = useLocation();
+  const [alertCount, setAlertCount] = useState(0);
+
+  useEffect(() => {
+    function fetchAlertCount() {
+      api.getAlerts({ status: "pending", limit: 0 })
+        .then(({ total }) => setAlertCount(total))
+        .catch(() => {
+          // Silently fail
+        });
+    }
+    fetchAlertCount();
+
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchAlertCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <aside className="sidebar">
@@ -64,9 +81,26 @@ export function Sidebar() {
           >
             <NavIcon icon={item.icon} />
             <span>{item.label}</span>
+            {item.showBadge && alertCount > 0 && (
+              <span className="alert-badge">{alertCount}</span>
+            )}
           </Link>
         ))}
       </nav>
+
+      <style>{`
+        .alert-badge {
+          background: #ef4444;
+          color: white;
+          font-size: 0.7rem;
+          font-weight: 600;
+          padding: 0.15rem 0.4rem;
+          border-radius: 9999px;
+          margin-left: auto;
+          min-width: 1.25rem;
+          text-align: center;
+        }
+      `}</style>
     </aside>
   );
 }

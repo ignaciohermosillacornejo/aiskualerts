@@ -6,7 +6,8 @@ import {
   generateAlertsForUser,
 } from "@/alerts/alert-generator";
 import type { Threshold, StockSnapshot, AlertInput } from "@/db/repositories/types";
-import type { AlertGeneratorDependencies } from "@/alerts/types";
+import type { AlertGeneratorDependencies, HasActiveOrDismissedResult } from "@/alerts/types";
+import type { createVelocityCalculator } from "@/services/velocity-calculator";
 
 const mockThreshold: Threshold = {
   id: "threshold-123",
@@ -15,8 +16,25 @@ const mockThreshold: Threshold = {
   created_by: "user-456",
   bsale_variant_id: 100,
   bsale_office_id: 1,
+  threshold_type: "quantity",
   min_quantity: 10,
+  min_days: null,
   days_warning: 7,
+  created_at: new Date(),
+  updated_at: new Date(),
+};
+
+const mockDaysThreshold: Threshold = {
+  id: "threshold-days-123",
+  tenant_id: "tenant-123",
+  user_id: "user-456",
+  created_by: "user-456",
+  bsale_variant_id: 100,
+  bsale_office_id: 1,
+  threshold_type: "days",
+  min_quantity: null,
+  min_days: 7,
+  days_warning: 14,
   created_at: new Date(),
   updated_at: new Date(),
 };
@@ -210,6 +228,8 @@ describe("generateAlertsForUser", () => {
     getHistoricalSnapshots?: ReturnType<typeof mock>;
     hasPendingAlert?: ReturnType<typeof mock>;
     createAlerts?: ReturnType<typeof mock>;
+    velocityCalculator?: ReturnType<typeof createVelocityCalculator>;
+    hasActiveOrDismissedAlert?: ReturnType<typeof mock>;
   }
 
   interface MockDepsResult {
@@ -220,6 +240,8 @@ describe("generateAlertsForUser", () => {
       getHistoricalSnapshots: ReturnType<typeof mock>;
       hasPendingAlert: ReturnType<typeof mock>;
       createAlerts: ReturnType<typeof mock>;
+      velocityCalculator?: ReturnType<typeof createVelocityCalculator>;
+      hasActiveOrDismissedAlert?: ReturnType<typeof mock>;
     };
   }
 
@@ -232,19 +254,38 @@ describe("generateAlertsForUser", () => {
       overrides.getHistoricalSnapshots ?? mock(() => Promise.resolve([] as StockSnapshot[]));
     const hasPendingAlert = overrides.hasPendingAlert ?? mock(() => Promise.resolve(false));
     const createAlerts = overrides.createAlerts ?? mock(() => Promise.resolve(0));
+    const velocityCalculator = overrides.velocityCalculator;
+    const hasActiveOrDismissedAlert = overrides.hasActiveOrDismissedAlert;
 
-    const mocks = {
+    // Build mocks object, only including optional properties if they have values
+    const mocks: MockDepsResult["mocks"] = {
       getThresholdsByUser,
       getStockSnapshot,
       getHistoricalSnapshots,
       hasPendingAlert,
       createAlerts,
+      ...(velocityCalculator ? { velocityCalculator } : {}),
+      ...(hasActiveOrDismissedAlert ? { hasActiveOrDismissedAlert } : {}),
     };
 
-    return {
-      deps: mocks as unknown as AlertGeneratorDependencies,
-      mocks,
+    // Build deps object - start with required properties
+    const deps: AlertGeneratorDependencies = {
+      getThresholdsByUser: mocks.getThresholdsByUser as AlertGeneratorDependencies["getThresholdsByUser"],
+      getStockSnapshot: mocks.getStockSnapshot as AlertGeneratorDependencies["getStockSnapshot"],
+      getHistoricalSnapshots: mocks.getHistoricalSnapshots as AlertGeneratorDependencies["getHistoricalSnapshots"],
+      hasPendingAlert: mocks.hasPendingAlert as AlertGeneratorDependencies["hasPendingAlert"],
+      createAlerts: mocks.createAlerts as AlertGeneratorDependencies["createAlerts"],
     };
+
+    // Add optional properties using Object.assign to avoid exactOptionalPropertyTypes issues
+    if (velocityCalculator) {
+      Object.assign(deps, { velocityCalculator });
+    }
+    if (hasActiveOrDismissedAlert) {
+      Object.assign(deps, { hasActiveOrDismissedAlert: hasActiveOrDismissedAlert as AlertGeneratorDependencies["hasActiveOrDismissedAlert"] });
+    }
+
+    return { deps, mocks };
   }
 
   function createHistoricalSnapshot(daysAgo: number, quantity: number): StockSnapshot {
@@ -678,5 +719,252 @@ describe("generateAlertsForUser", () => {
 
     expect(result.thresholdsChecked).toBe(1);
     expect(result.alertsCreated).toBe(0);
+  });
+
+  // Days-based threshold tests
+  describe("days-based threshold alerts", () => {
+    interface MockVelocityCalculatorResult {
+      calculator: ReturnType<typeof createVelocityCalculator>;
+      calculateDaysLeftMock: ReturnType<typeof mock>;
+    }
+
+    function createMockVelocityCalculator(daysLeft: number): MockVelocityCalculatorResult {
+      const calculateDaysLeftMock = mock(() =>
+        Promise.resolve({
+          daysLeft,
+          avgDailyConsumption: 5,
+          currentStock: 50,
+        })
+      );
+
+      const calculator: ReturnType<typeof createVelocityCalculator> = {
+        calculateDaysLeft: calculateDaysLeftMock,
+        isBelowDaysThreshold: mock(() => Promise.resolve(daysLeft < 7)),
+        getVelocityInfo: mock(() =>
+          Promise.resolve({
+            daysLeft,
+            avgDailyConsumption: 5,
+            weeklyConsumption: 35,
+            velocityTrend: "stable" as const,
+          })
+        ),
+      };
+
+      return { calculator, calculateDaysLeftMock };
+    }
+
+    test("generates alert when days left below threshold", async () => {
+      const stockSnapshot: StockSnapshot = {
+        ...mockSnapshot,
+        quantity_available: 15,
+      };
+
+      // 3 days left is below min_days of 7
+      const { calculator: velocityCalculator } = createMockVelocityCalculator(3);
+
+      const { deps, mocks } = createMockDeps({
+        getThresholdsByUser: mock(() => Promise.resolve([mockDaysThreshold])),
+        getStockSnapshot: mock(() => Promise.resolve(stockSnapshot)),
+        hasPendingAlert: mock(() => Promise.resolve(false)),
+        createAlerts: mock((alerts: AlertInput[]) => Promise.resolve(alerts.length)),
+        velocityCalculator,
+      });
+
+      const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+      expect(result.thresholdsChecked).toBe(1);
+      expect(result.alertsCreated).toBe(1);
+      expect(mocks.createAlerts).toHaveBeenCalled();
+
+      const createAlertsCall = mocks.createAlerts.mock.calls[0] as unknown as [AlertInput[]];
+      const alerts = createAlertsCall[0];
+      expect(alerts.length).toBe(1);
+      const firstAlert = alerts[0];
+      expect(firstAlert?.alert_type).toBe("low_velocity");
+      expect(firstAlert?.days_to_stockout).toBe(3);
+    });
+
+    test("does not generate alert when days left above threshold", async () => {
+      const stockSnapshot: StockSnapshot = {
+        ...mockSnapshot,
+        quantity_available: 50,
+      };
+
+      // 10 days left is above min_days of 7
+      const { calculator: velocityCalculator } = createMockVelocityCalculator(10);
+
+      const { deps, mocks } = createMockDeps({
+        getThresholdsByUser: mock(() => Promise.resolve([mockDaysThreshold])),
+        getStockSnapshot: mock(() => Promise.resolve(stockSnapshot)),
+        hasPendingAlert: mock(() => Promise.resolve(false)),
+        velocityCalculator,
+      });
+
+      const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+      expect(result.thresholdsChecked).toBe(1);
+      expect(result.alertsCreated).toBe(0);
+      expect(mocks.createAlerts).not.toHaveBeenCalled();
+    });
+
+    test("skips alert if dismissed", async () => {
+      const stockSnapshot: StockSnapshot = {
+        ...mockSnapshot,
+        quantity_available: 15,
+      };
+
+      // 3 days left is below threshold, but alert was dismissed
+      const { calculator: velocityCalculator } = createMockVelocityCalculator(3);
+      const hasActiveOrDismissedMock = mock(() =>
+        Promise.resolve({ hasActive: false, hasDismissed: true } as HasActiveOrDismissedResult)
+      );
+
+      const { deps, mocks } = createMockDeps({
+        getThresholdsByUser: mock(() => Promise.resolve([mockDaysThreshold])),
+        getStockSnapshot: mock(() => Promise.resolve(stockSnapshot)),
+        velocityCalculator,
+        hasActiveOrDismissedAlert: hasActiveOrDismissedMock,
+      });
+
+      const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+      expect(result.thresholdsChecked).toBe(1);
+      expect(result.alertsCreated).toBe(0);
+      expect(mocks.createAlerts).not.toHaveBeenCalled();
+    });
+
+    test("skips alert if already active", async () => {
+      const stockSnapshot: StockSnapshot = {
+        ...mockSnapshot,
+        quantity_available: 15,
+      };
+
+      // 3 days left is below threshold, but alert is already active
+      const { calculator: velocityCalculator } = createMockVelocityCalculator(3);
+      const hasActiveOrDismissedMock = mock(() =>
+        Promise.resolve({ hasActive: true, hasDismissed: false } as HasActiveOrDismissedResult)
+      );
+
+      const { deps, mocks } = createMockDeps({
+        getThresholdsByUser: mock(() => Promise.resolve([mockDaysThreshold])),
+        getStockSnapshot: mock(() => Promise.resolve(stockSnapshot)),
+        velocityCalculator,
+        hasActiveOrDismissedAlert: hasActiveOrDismissedMock,
+      });
+
+      const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+      expect(result.thresholdsChecked).toBe(1);
+      expect(result.alertsCreated).toBe(0);
+      expect(mocks.createAlerts).not.toHaveBeenCalled();
+    });
+
+    test("does not check velocity for days threshold when stock is zero", async () => {
+      const outOfStockSnapshot: StockSnapshot = {
+        ...mockSnapshot,
+        quantity_available: 0,
+      };
+
+      const { calculator: velocityCalculator, calculateDaysLeftMock } = createMockVelocityCalculator(0);
+
+      const { deps } = createMockDeps({
+        getThresholdsByUser: mock(() => Promise.resolve([mockDaysThreshold])),
+        getStockSnapshot: mock(() => Promise.resolve(outOfStockSnapshot)),
+        velocityCalculator,
+        hasPendingAlert: mock(() => Promise.resolve(false)),
+      });
+
+      const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+      expect(result.thresholdsChecked).toBe(1);
+      expect(result.alertsCreated).toBe(0);
+      // Should not call velocity calculator when stock is zero
+      expect(calculateDaysLeftMock).not.toHaveBeenCalled();
+    });
+
+    test("uses hasActiveOrDismissedAlert for quantity thresholds when provided", async () => {
+      const lowStockSnapshot: StockSnapshot = {
+        ...mockSnapshot,
+        quantity_available: 5,
+      };
+
+      // Quantity threshold, but alert was dismissed
+      const hasActiveOrDismissedMock = mock(() =>
+        Promise.resolve({ hasActive: false, hasDismissed: true } as HasActiveOrDismissedResult)
+      );
+
+      const { deps, mocks } = createMockDeps({
+        getThresholdsByUser: mock(() => Promise.resolve([mockThreshold])),
+        getStockSnapshot: mock(() => Promise.resolve(lowStockSnapshot)),
+        hasActiveOrDismissedAlert: hasActiveOrDismissedMock,
+      });
+
+      const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+      expect(result.thresholdsChecked).toBe(1);
+      expect(result.alertsCreated).toBe(0);
+      expect(mocks.createAlerts).not.toHaveBeenCalled();
+    });
+
+    test("falls back to hasPendingAlert when hasActiveOrDismissedAlert not provided", async () => {
+      const lowStockSnapshot: StockSnapshot = {
+        ...mockSnapshot,
+        quantity_available: 5,
+      };
+
+      const { deps, mocks } = createMockDeps({
+        getThresholdsByUser: mock(() => Promise.resolve([mockThreshold])),
+        getStockSnapshot: mock(() => Promise.resolve(lowStockSnapshot)),
+        hasPendingAlert: mock(() => Promise.resolve(false)),
+        createAlerts: mock((alerts: AlertInput[]) => Promise.resolve(alerts.length)),
+        // No hasActiveOrDismissedAlert provided, should use hasPendingAlert
+      });
+
+      const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+      expect(result.thresholdsChecked).toBe(1);
+      expect(result.alertsCreated).toBe(1);
+      expect(mocks.hasPendingAlert).toHaveBeenCalled();
+    });
+
+    test("handles Infinity days left (no consumption)", async () => {
+      const stockSnapshot: StockSnapshot = {
+        ...mockSnapshot,
+        quantity_available: 50,
+      };
+
+      // Infinity days left - no consumption pattern
+      const velocityCalculator: ReturnType<typeof createVelocityCalculator> = {
+        calculateDaysLeft: mock(() =>
+          Promise.resolve({
+            daysLeft: Infinity,
+            avgDailyConsumption: 0,
+            currentStock: 50,
+          })
+        ),
+        isBelowDaysThreshold: mock(() => Promise.resolve(false)),
+        getVelocityInfo: mock(() =>
+          Promise.resolve({
+            daysLeft: Infinity,
+            avgDailyConsumption: 0,
+            weeklyConsumption: 0,
+            velocityTrend: "stable" as const,
+          })
+        ),
+      };
+
+      const { deps, mocks } = createMockDeps({
+        getThresholdsByUser: mock(() => Promise.resolve([mockDaysThreshold])),
+        getStockSnapshot: mock(() => Promise.resolve(stockSnapshot)),
+        velocityCalculator,
+        hasPendingAlert: mock(() => Promise.resolve(false)),
+      });
+
+      const result = await generateAlertsForUser("user-456", "tenant-123", deps);
+
+      expect(result.thresholdsChecked).toBe(1);
+      expect(result.alertsCreated).toBe(0);
+      expect(mocks.createAlerts).not.toHaveBeenCalled();
+    });
   });
 });

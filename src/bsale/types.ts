@@ -96,3 +96,44 @@ export type PriceList = z.infer<typeof PriceListSchema>;
 export type PriceListsResponse = z.infer<typeof PriceListsResponseSchema>;
 export type PriceListDetail = z.infer<typeof PriceListDetailSchema>;
 export type PriceListDetailsResponse = z.infer<typeof PriceListDetailsResponseSchema>;
+
+// Document types for sales data
+export const BsaleDocumentDetailSchema = z.object({
+  id: numericId,
+  quantity: z.number(),
+  variant: z.object({
+    id: numericId,
+    code: z.string().nullable(),
+  }),
+});
+
+export const BsaleDocumentSchema = z.object({
+  id: numericId,
+  emissionDate: z.number(), // Unix timestamp
+  state: z.number(),
+  details: z.object({
+    items: z.array(BsaleDocumentDetailSchema),
+  }),
+});
+
+export const DocumentsResponseSchema = z.object({
+  href: z.string().optional(),
+  count: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+  items: z.array(BsaleDocumentSchema),
+  next: z.string().nullable().optional(),
+});
+
+export interface GetDocumentsOptions {
+  startDate: Date;
+  endDate: Date;
+  expand?: string[];
+  state?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export type BsaleDocumentDetail = z.infer<typeof BsaleDocumentDetailSchema>;
+export type BsaleDocument = z.infer<typeof BsaleDocumentSchema>;
+export type DocumentsResponse = z.infer<typeof DocumentsResponseSchema>;

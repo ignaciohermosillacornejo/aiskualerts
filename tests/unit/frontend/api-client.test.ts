@@ -206,13 +206,13 @@ describe("API Client", () => {
         )
       );
 
-      const result = await api.createThreshold({ productId: "p1", minQuantity: 10 });
+      const result = await api.createThreshold({ productId: "p1", thresholdType: "quantity", minQuantity: 10 });
 
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/thresholds",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ productId: "p1", minQuantity: 10 }),
+          body: JSON.stringify({ productId: "p1", thresholdType: "quantity", minQuantity: 10 }),
         })
       );
       expect(result.productId).toBe("p1");
@@ -220,13 +220,47 @@ describe("API Client", () => {
 
     test("validates input before sending", async () => {
       await expect(
-        api.createThreshold({ productId: "", minQuantity: 10 })
+        api.createThreshold({ productId: "", thresholdType: "quantity", minQuantity: 10 })
       ).rejects.toThrow();
     });
 
     test("rejects negative quantity", async () => {
       await expect(
-        api.createThreshold({ productId: "p1", minQuantity: -5 })
+        api.createThreshold({ productId: "p1", thresholdType: "quantity", minQuantity: -5 })
+      ).rejects.toThrow();
+    });
+
+    test("creates days-based threshold", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ id: "t2", productId: "p1", thresholdType: "days", minDays: 7 }), {
+            status: 201,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      const result = await api.createThreshold({ productId: "p1", thresholdType: "days", minDays: 7 });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/thresholds",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ productId: "p1", thresholdType: "days", minDays: 7 }),
+        })
+      );
+      expect(result.productId).toBe("p1");
+    });
+
+    test("rejects quantity type without minQuantity", async () => {
+      await expect(
+        api.createThreshold({ productId: "p1", thresholdType: "quantity" })
+      ).rejects.toThrow();
+    });
+
+    test("rejects days type without minDays", async () => {
+      await expect(
+        api.createThreshold({ productId: "p1", thresholdType: "days" })
       ).rejects.toThrow();
     });
   });
@@ -242,13 +276,34 @@ describe("API Client", () => {
         )
       );
 
-      await api.updateThreshold("t1", { productId: "p1", minQuantity: 20 });
+      await api.updateThreshold("t1", { minQuantity: 20 });
 
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/thresholds/t1",
         expect.objectContaining({
           method: "PUT",
-          body: JSON.stringify({ productId: "p1", minQuantity: 20 }),
+          body: JSON.stringify({ minQuantity: 20 }),
+        })
+      );
+    });
+
+    test("updates threshold type to days", async () => {
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ id: "t1", productId: "p1", thresholdType: "days", minDays: 14 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
+      );
+
+      await api.updateThreshold("t1", { thresholdType: "days", minDays: 14 });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/thresholds/t1",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ thresholdType: "days", minDays: 14 }),
         })
       );
     });
@@ -256,13 +311,13 @@ describe("API Client", () => {
     test("rejects invalid threshold ID", async () => {
       const longId = "a".repeat(101);
       await expect(
-        api.updateThreshold(longId, { productId: "p1", minQuantity: 10 })
+        api.updateThreshold(longId, { minQuantity: 10 })
       ).rejects.toThrow("Invalid threshold ID");
     });
 
     test("rejects empty threshold ID", async () => {
       await expect(
-        api.updateThreshold("", { productId: "p1", minQuantity: 10 })
+        api.updateThreshold("", { minQuantity: 10 })
       ).rejects.toThrow("Invalid threshold ID");
     });
   });

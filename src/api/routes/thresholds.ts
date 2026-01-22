@@ -13,11 +13,23 @@ export interface ThresholdRouteDeps {
 // Zod schemas for API request validation
 export const CreateThresholdSchema = z.object({
   productId: z.string().min(1, "productId is required"),
-  minQuantity: z.number().int().nonnegative("minQuantity must be a non-negative integer"),
-});
+  thresholdType: z.enum(["quantity", "days"]).default("quantity"),
+  minQuantity: z.number().int().nonnegative().optional(),
+  minDays: z.number().int().positive().optional(),
+}).refine(
+  (data) => {
+    // Check if appropriate field is provided based on threshold type
+    const type = data.thresholdType;
+    if (type === "quantity") return data.minQuantity !== undefined;
+    return data.minDays !== undefined;
+  },
+  { message: "minQuantity required for quantity type, minDays required for days type" }
+);
 
 export const UpdateThresholdSchema = z.object({
-  minQuantity: z.number().int().nonnegative("minQuantity must be a non-negative integer"),
+  thresholdType: z.enum(["quantity", "days"]).optional(),
+  minQuantity: z.number().int().nonnegative().optional(),
+  minDays: z.number().int().positive().optional(),
 });
 
 // Mock product data for name lookup
@@ -33,7 +45,9 @@ interface MockThreshold {
   id: string;
   productId: string;
   productName: string;
-  minQuantity: number;
+  thresholdType: "quantity" | "days";
+  minQuantity: number | null;
+  minDays: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,9 +66,9 @@ export interface ThresholdRoutes {
 export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes {
   // Per-instance mock data to avoid test isolation issues
   const mockThresholds: MockThreshold[] = [
-    { id: "t1", productId: "p1", productName: "Producto A - SKU001", minQuantity: 10, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: "t2", productId: "p2", productName: "Producto B - SKU002", minQuantity: 20, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    { id: "t3", productId: "p3", productName: "Producto C - SKU003", minQuantity: 5, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: "t1", productId: "p1", productName: "Producto A - SKU001", thresholdType: "quantity", minQuantity: 10, minDays: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: "t2", productId: "p2", productName: "Producto B - SKU002", thresholdType: "quantity", minQuantity: 20, minDays: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    { id: "t3", productId: "p3", productName: "Producto C - SKU003", thresholdType: "quantity", minQuantity: 5, minDays: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   ];
 
   // Helper to authenticate request and return context or null (for optional auth)
@@ -103,7 +117,9 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
             productName: t.bsale_variant_id
               ? `Product ${String(t.bsale_variant_id)}`
               : "Default Threshold",
+            thresholdType: t.threshold_type,
             minQuantity: t.min_quantity,
+            minDays: t.min_days,
             createdAt: t.created_at.toISOString(),
             updatedAt: t.updated_at.toISOString(),
             // If no limit service or it failed, treat all as active
@@ -146,7 +162,9 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
             tenant_id: authContext.tenantId,
             created_by: authContext.userId,
             bsale_variant_id: parseInt(body.productId, 10) || null,
-            min_quantity: body.minQuantity,
+            threshold_type: body.thresholdType,
+            min_quantity: body.minQuantity ?? null,
+            min_days: body.minDays ?? null,
           });
 
           return jsonWithCors(
@@ -158,7 +176,9 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
               productName: threshold.bsale_variant_id
                 ? `Product ${String(threshold.bsale_variant_id)}`
                 : "Default Threshold",
+              thresholdType: threshold.threshold_type,
               minQuantity: threshold.min_quantity,
+              minDays: threshold.min_days,
               createdAt: threshold.created_at.toISOString(),
               updatedAt: threshold.updated_at.toISOString(),
             },
@@ -172,7 +192,9 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
           productId: body.productId,
           productName:
             mockProducts.find((p) => p.id === body.productId)?.name ?? "Unknown",
-          minQuantity: body.minQuantity,
+          thresholdType: body.thresholdType,
+          minQuantity: body.minQuantity ?? null,
+          minDays: body.minDays ?? null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -204,9 +226,12 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
             return jsonWithCors({ error: "Threshold not found" }, { status: 404 });
           }
 
-          const updated = await deps.thresholdRepo.update(id, {
-            min_quantity: body.minQuantity,
-          });
+          const updateInput: Parameters<typeof deps.thresholdRepo.update>[1] = {};
+          if (body.thresholdType !== undefined) updateInput.threshold_type = body.thresholdType;
+          if (body.minQuantity !== undefined) updateInput.min_quantity = body.minQuantity;
+          if (body.minDays !== undefined) updateInput.min_days = body.minDays;
+
+          const updated = await deps.thresholdRepo.update(id, updateInput);
 
           return jsonWithCors({
             id: updated.id,
@@ -216,7 +241,9 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
             productName: updated.bsale_variant_id
               ? `Product ${String(updated.bsale_variant_id)}`
               : "Default Threshold",
+            thresholdType: updated.threshold_type,
             minQuantity: updated.min_quantity,
+            minDays: updated.min_days,
             createdAt: updated.created_at.toISOString(),
             updatedAt: updated.updated_at.toISOString(),
           });
@@ -233,7 +260,9 @@ export function createThresholdRoutes(deps: ThresholdRouteDeps): ThresholdRoutes
           // eslint-disable-next-line security/detect-object-injection -- idx is validated numeric index from findIndex, -1 case handled above
           mockThresholds[idx] = {
             ...existing,
-            minQuantity: body.minQuantity,
+            thresholdType: body.thresholdType ?? existing.thresholdType,
+            minQuantity: body.minQuantity ?? existing.minQuantity,
+            minDays: body.minDays ?? existing.minDays,
             updatedAt: new Date().toISOString(),
           };
         }

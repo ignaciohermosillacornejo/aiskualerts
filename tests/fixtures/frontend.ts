@@ -1,7 +1,7 @@
 /**
  * Shared mock data factories for frontend tests
  */
-import type { Alert, Product, Threshold, DashboardStats, TenantSettings, User } from "../../src/frontend/types";
+import type { Alert, Product, Threshold, DashboardStats, TenantSettings, User, LimitInfo } from "../../src/frontend/types";
 
 // Factory functions for creating mock data
 
@@ -36,6 +36,10 @@ export function createMockProduct(overrides: Partial<Product> = {}): Product {
     name: "Test Product",
     currentStock: 100,
     threshold: 10,
+    thresholdType: "quantity",
+    minDays: null,
+    velocityInfo: null,
+    alertState: "ok",
     unitPrice: 1000,
     lastSyncAt: new Date().toISOString(),
     ...overrides,
@@ -47,7 +51,9 @@ export function createMockThreshold(overrides: Partial<Threshold> = {}): Thresho
     id: `threshold-${String(Date.now())}-${Math.random().toString(36).substring(7)}`,
     productId: "prod-1",
     productName: "Test Product",
+    thresholdType: "quantity",
     minQuantity: 10,
+    minDays: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     isActive: true,
@@ -78,6 +84,19 @@ export function createMockTenantSettings(overrides: Partial<TenantSettings> = {}
     digestFrequency: "daily",
     subscriptionStatus: "none",
     subscriptionEndsAt: null,
+    ...overrides,
+  };
+}
+
+export function createMockLimitInfo(overrides: Partial<LimitInfo> = {}): LimitInfo {
+  return {
+    plan: "FREE",
+    thresholds: {
+      current: 5,
+      max: 10,
+      remaining: 5,
+      isOverLimit: false,
+    },
     ...overrides,
   };
 }

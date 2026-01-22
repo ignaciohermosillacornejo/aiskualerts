@@ -68,6 +68,18 @@ function createMocks() {
         updated_at: new Date(),
       })
     ),
+    updateOwner: mock(() =>
+      Promise.resolve({
+        id: "tenant-1",
+        owner_id: "user-1",
+        bsale_client_code: null,
+        bsale_client_name: null,
+        bsale_access_token: null,
+        sync_status: "not_connected",
+        created_at: new Date(),
+        updated_at: new Date(),
+      })
+    ),
   };
 
   const userRepo = {
@@ -362,9 +374,9 @@ describe("handleMagicLinkVerify", () => {
 
       await handleMagicLinkVerify({ token: "valid-token" }, deps);
 
-      // First arg is placeholder owner_id, second is email
+      // First arg is null (owner set after user creation), second is email
       expect(tenantRepo.createForMagicLink).toHaveBeenCalledWith(
-        "00000000-0000-0000-0000-000000000000",
+        null,
         "test@example.com"
       );
       expect(userRepo.create).toHaveBeenCalled();

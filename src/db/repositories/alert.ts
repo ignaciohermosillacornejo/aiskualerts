@@ -177,9 +177,61 @@ export class AlertRepository {
 
   async markAsDismissed(alertId: string, dismissedBy: string): Promise<void> {
     await this.db.execute(
-      `UPDATE alerts SET status = 'dismissed', dismissed_by = $2 WHERE id = $1`,
+      `UPDATE alerts
+       SET status = 'dismissed',
+           dismissed_by = $2,
+           dismissed_at = now()
+       WHERE id = $1`,
       [alertId, dismissedBy]
     );
+  }
+
+  async findDismissedByVariant(
+    tenantId: string,
+    variantId: number,
+    officeId: number | null
+  ): Promise<Alert[]> {
+    return this.db.query<Alert>(
+      `SELECT * FROM alerts
+       WHERE tenant_id = $1
+         AND bsale_variant_id = $2
+         AND bsale_office_id IS NOT DISTINCT FROM $3
+         AND status = 'dismissed'
+       ORDER BY created_at DESC`,
+      [tenantId, variantId, officeId]
+    );
+  }
+
+  async resetAlert(alertId: string): Promise<void> {
+    await this.db.execute(
+      `UPDATE alerts SET status = 'resolved' WHERE id = $1`,
+      [alertId]
+    );
+  }
+
+  async hasActiveOrDismissedAlert(
+    tenantId: string,
+    variantId: number,
+    officeId: number | null,
+    alertType: string
+  ): Promise<{ hasActive: boolean; hasDismissed: boolean }> {
+    const result = await this.db.queryOne<{
+      has_active: boolean;
+      has_dismissed: boolean;
+    }>(
+      `SELECT
+         EXISTS(SELECT 1 FROM alerts WHERE tenant_id = $1 AND bsale_variant_id = $2
+                AND bsale_office_id IS NOT DISTINCT FROM $3 AND alert_type = $4
+                AND status = 'pending') as has_active,
+         EXISTS(SELECT 1 FROM alerts WHERE tenant_id = $1 AND bsale_variant_id = $2
+                AND bsale_office_id IS NOT DISTINCT FROM $3 AND alert_type = $4
+                AND status = 'dismissed') as has_dismissed`,
+      [tenantId, variantId, officeId, alertType]
+    );
+    return {
+      hasActive: result?.has_active ?? false,
+      hasDismissed: result?.has_dismissed ?? false,
+    };
   }
 
   async hasPendingAlert(

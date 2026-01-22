@@ -10,6 +10,7 @@ import {
   createMockProducts,
   createMockProduct,
   createMockTenantSettings,
+  createMockLimitInfo,
   createFetchMock,
   mockResponse,
 } from "../../fixtures/frontend";
@@ -285,10 +286,14 @@ describe("Products", () => {
     test("loads products on mount", async () => {
       const mockProducts = { data: createMockProducts(5), pagination: { total: 5, page: 1, limit: 20, totalPages: 1 } };
       const mockSettings = createMockTenantSettings({ bsaleConnected: true });
+      const mockLimits = createMockLimitInfo();
 
       globalThis.fetch = mock((url: string) => {
         if (url.includes("/auth/me")) {
           return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings/limits")) {
+          return Promise.resolve(mockResponse(mockLimits));
         }
         if (url.includes("/settings")) {
           return Promise.resolve(mockResponse(mockSettings));
@@ -339,10 +344,14 @@ describe("Products", () => {
     test("renders search input", async () => {
       const mockProducts = { data: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 0 } };
       const mockSettings = createMockTenantSettings({ bsaleConnected: true });
+      const mockLimits = createMockLimitInfo();
 
       globalThis.fetch = mock((url: string) => {
         if (url.includes("/auth/me")) {
           return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings/limits")) {
+          return Promise.resolve(mockResponse(mockLimits));
         }
         if (url.includes("/settings")) {
           return Promise.resolve(mockResponse(mockSettings));
@@ -383,10 +392,14 @@ describe("Products", () => {
     test("renders products count in title", async () => {
       const mockProducts = { data: createMockProducts(5), pagination: { total: 5, page: 1, limit: 20, totalPages: 1 } };
       const mockSettings = createMockTenantSettings({ bsaleConnected: true });
+      const mockLimits = createMockLimitInfo();
 
       globalThis.fetch = mock((url: string) => {
         if (url.includes("/auth/me")) {
           return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings/limits")) {
+          return Promise.resolve(mockResponse(mockLimits));
         }
         if (url.includes("/settings")) {
           return Promise.resolve(mockResponse(mockSettings));
@@ -414,7 +427,7 @@ describe("Products", () => {
           setTimeout(resolve, 300);
         });
 
-        expect(container.textContent).toContain("Productos");
+        expect(container.textContent).toContain("Inventario");
 
         root.unmount();
       } finally {
@@ -427,11 +440,15 @@ describe("Products", () => {
     test("renders table when products exist", async () => {
       const mockProducts = { data: createMockProducts(3), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } };
       const mockSettings = createMockTenantSettings({ bsaleConnected: true });
+      const mockLimits = createMockLimitInfo();
 
       // URL-based mock to handle parallel requests
       globalThis.fetch = mock((url: string) => {
         if (url.includes("/auth/me")) {
           return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings/limits")) {
+          return Promise.resolve(mockResponse(mockLimits));
         }
         if (url.includes("/settings")) {
           return Promise.resolve(mockResponse(mockSettings));
@@ -474,10 +491,14 @@ describe("Products", () => {
     test("shows connection prompt when Bsale is not connected", async () => {
       const mockProducts = { data: createMockProducts(3), pagination: { total: 3, page: 1, limit: 20, totalPages: 1 } };
       const mockSettings = createMockTenantSettings({ bsaleConnected: false });
+      const mockLimits = createMockLimitInfo();
 
       globalThis.fetch = mock((url: string) => {
         if (url.includes("/auth/me")) {
           return Promise.resolve(mockResponse({ user: null }, { ok: false, status: 401 }));
+        }
+        if (url.includes("/settings/limits")) {
+          return Promise.resolve(mockResponse(mockLimits));
         }
         if (url.includes("/settings")) {
           return Promise.resolve(mockResponse(mockSettings));

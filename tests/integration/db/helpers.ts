@@ -32,9 +32,12 @@ export async function cleanDatabase(db: DatabaseClient): Promise<void> {
  */
 export async function dropAllTables(db: DatabaseClient): Promise<void> {
   await db.execute("DROP TABLE IF EXISTS sessions CASCADE");
+  await db.execute("DROP TABLE IF EXISTS magic_links CASCADE");
   await db.execute("DROP TABLE IF EXISTS alerts CASCADE");
   await db.execute("DROP TABLE IF EXISTS thresholds CASCADE");
+  await db.execute("DROP TABLE IF EXISTS daily_consumption CASCADE");
   await db.execute("DROP TABLE IF EXISTS stock_snapshots CASCADE");
+  await db.execute("DROP TABLE IF EXISTS user_tenants CASCADE");
   await db.execute("DROP TABLE IF EXISTS users CASCADE");
   await db.execute("DROP TABLE IF EXISTS tenants CASCADE");
   await db.execute("DROP TABLE IF EXISTS schema_migrations CASCADE");
