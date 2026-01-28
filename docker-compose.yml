@@ -9,15 +9,32 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./src/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aiskualerts}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
 
+  # Database migrations (runs once and exits)
+  # Uses dbmate for single source of truth migration management
+  migrations:
+    image: ghcr.io/amacneil/dbmate:2.22
+    container_name: aiskualerts-migrations
+    command: ["--wait", "--wait-timeout", "30s", "up"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    volumes:
+      - ./db/migrations:/db/migrations:ro
+      - ./db/schema.sql:/db/schema.sql
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # Application server
+  # IMPORTANT: App only starts after migrations complete successfully
   app:
     image: ghcr.io/ignaciohermosillacornejo/aiskualerts:latest
     build:
@@ -32,6 +49,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "bun", "run", "-e", "fetch('http://localhost:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1))"]

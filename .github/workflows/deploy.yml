@@ -96,13 +96,14 @@ jobs:
           ssh-keyscan -H "$HETZNER_SERVER_IP" >> ~/.ssh/known_hosts
 
           # Create directory structure
-          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts/src"
+          ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "mkdir -p /opt/aiskualerts/db"
 
           # Copy files
           scp -i ~/.ssh/deploy_key .env root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
           scp -i ~/.ssh/deploy_key docker-compose.yml root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
           scp -i ~/.ssh/deploy_key nginx.conf root@"$HETZNER_SERVER_IP":/opt/aiskualerts/
-          scp -i ~/.ssh/deploy_key -r src/db root@"$HETZNER_SERVER_IP":/opt/aiskualerts/src/
+          scp -i ~/.ssh/deploy_key -r db/migrations root@"$HETZNER_SERVER_IP":/opt/aiskualerts/db/
+          scp -i ~/.ssh/deploy_key db/schema.sql root@"$HETZNER_SERVER_IP":/opt/aiskualerts/db/
 
           # Set permissions
           ssh -i ~/.ssh/deploy_key root@"$HETZNER_SERVER_IP" "chmod 600 /opt/aiskualerts/.env"
@@ -124,42 +125,40 @@ jobs:
             # Tag it as latest for docker-compose
             docker tag ghcr.io/${{ github.repository }}:${{ github.sha }} ghcr.io/${{ github.repository }}:latest
 
+            # Pull dbmate image for migrations
+            docker pull ghcr.io/amacneil/dbmate:2.22
+
             # Stop and remove old containers
             docker compose down
 
-            # Start new containers
-            docker compose up -d
+            # Start database and wait for it to be healthy
+            echo "Starting database..."
+            docker compose up -d postgres
 
-            # Docker compose already waits for DB health via depends_on
-            # Small buffer for app to fully initialize
-            echo "Waiting for services to stabilize..."
-            sleep 3
+            # Wait for postgres to be healthy
+            echo "Waiting for PostgreSQL to be ready..."
+            for i in {1..30}; do
+              if docker compose exec -T postgres pg_isready -U aiskualerts > /dev/null 2>&1; then
+                echo "✅ PostgreSQL is ready"
+                break
+              fi
+              echo "Waiting for PostgreSQL... (\$i/30)"
+              sleep 2
+            done
 
-            # Seed schema_migrations if database exists but migration tracking doesn't
-            # This handles databases initialized from schema.sql before migration tracking was added
-            # NOTE: Only seed migrations whose schema is already in schema.sql
-            # New migrations should be applied by migrate.ts, not seeded here
-            echo "Checking migration tracking..."
-            docker compose exec -T postgres psql -U aiskualerts -d aiskualerts -c "
-              CREATE TABLE IF NOT EXISTS schema_migrations (
-                version INTEGER PRIMARY KEY,
-                applied_at TIMESTAMPTZ DEFAULT NOW()
-              );
-              -- Seed versions 1-6 (their schema is in schema.sql)
-              -- New migrations will be applied by migrate.ts
-              INSERT INTO schema_migrations (version) VALUES (1), (2), (3), (4), (5), (6)
-              ON CONFLICT (version) DO NOTHING;
-            "
-            echo "✅ Migration tracking initialized"
-
-            # Run database migrations (fail deployment if migrations fail)
+            # Run migrations using dbmate container
+            # The migrations service will apply any pending migrations
             echo "Running database migrations..."
-            if ! docker compose exec -T app bun src/db/migrate.ts; then
+            if ! docker compose run --rm migrations; then
               echo "❌ Database migration failed - rolling back deployment"
               docker compose down
               exit 1
             fi
             echo "✅ Migrations completed successfully"
+
+            # Start all services (app depends on migrations completing successfully)
+            echo "Starting application..."
+            docker compose up -d
 
             # Clean up old images
             docker image prune -f
