@@ -15,6 +15,7 @@ import { StockSnapshotRepository } from "@/db/repositories/stock-snapshot";
 import { ThresholdRepository } from "@/db/repositories/threshold";
 import { AlertRepository } from "@/db/repositories/alert";
 import { UserTenantsRepository } from "@/db/repositories/user-tenants";
+import { createDailyConsumptionRepository } from "@/db/repositories/daily-consumption";
 import { OAuthStateStore } from "@/utils/oauth-state-store";
 import {
   initializeSentry,
@@ -144,6 +145,7 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
   const thresholdRepo = new deps.ThresholdRepository(db);
   const alertRepo = new deps.AlertRepository(db);
   const userTenantsRepo = new deps.UserTenantsRepository(db);
+  const consumptionRepo = createDailyConsumptionRepository(db);
 
   // Initialize session cleanup scheduler (runs every hour)
   const sessionCleanupScheduler = deps.createSessionCleanupScheduler(
@@ -177,6 +179,7 @@ export function main(injectedDeps?: Partial<MainDependencies>): MainResult {
     alertRepo,
     magicLinkRepo,
     userTenantsRepo,
+    consumptionRepo,
     thresholdLimitService,
   };
 
