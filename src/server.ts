@@ -209,6 +209,7 @@ export interface ServerDependencies {
   sessionRepo?: SessionRepository;
   magicLinkRepo?: MagicLinkRepository;
   userTenantsRepo?: UserTenantsRepository;
+  consumptionRepo?: import("@/db/repositories/daily-consumption").DailyConsumptionRepository;
 }
 
 export function createHealthResponse(): HealthResponse {
@@ -292,6 +293,7 @@ export function createServer(
   const productRoutes = createProductRoutes({
     thresholdRepo: deps?.thresholdRepo,
     stockSnapshotRepo: deps?.stockSnapshotRepo,
+    consumptionRepo: deps?.consumptionRepo,
     authMiddleware: authMiddleware ?? undefined,
   });
 
