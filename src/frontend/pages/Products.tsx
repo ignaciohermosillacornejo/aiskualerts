@@ -412,6 +412,7 @@ export function Products() {
                 <th className="col-product">Producto</th>
                 <th className="col-sku">SKU</th>
                 <th className="col-stock">Stock actual</th>
+                <th className="col-days-left">Días restantes</th>
                 <th className="col-threshold">Alerta cuando</th>
                 <th className="col-status">Estado</th>
                 <th className="col-actions"></th>
@@ -462,6 +463,17 @@ export function Products() {
                           </div>
                         )}
                       </div>
+                    </td>
+                    <td className="col-days-left">
+                      {product.velocityInfo == null ? (
+                        <span className="days-left-value none">—</span>
+                      ) : product.velocityInfo.daysLeft == null ? (
+                        <span className="days-left-value safe">∞</span>
+                      ) : (
+                        <span className={`days-left-value ${product.velocityInfo.daysLeft < 7 ? "danger" : product.velocityInfo.daysLeft < 14 ? "warning" : "safe"}`}>
+                          {Math.round(product.velocityInfo.daysLeft)}
+                        </span>
+                      )}
                     </td>
                     <td className="col-threshold">
                       {isEditing ? (
@@ -927,6 +939,7 @@ export function Products() {
         .col-product { min-width: 200px; }
         .col-sku { width: 140px; }
         .col-stock { width: 160px; }
+        .col-days-left { width: 120px; }
         .col-threshold { width: 180px; }
         .col-status { width: 120px; }
         .col-actions { width: 60px; }
@@ -944,6 +957,28 @@ export function Products() {
         .product-name {
           font-weight: 500;
           color: #1f2937;
+        }
+
+        /* Days left */
+        .days-left-value {
+          font-weight: 600;
+          font-size: 1rem;
+        }
+
+        .days-left-value.danger {
+          color: #dc2626;
+        }
+
+        .days-left-value.warning {
+          color: #f59e0b;
+        }
+
+        .days-left-value.safe {
+          color: #10b981;
+        }
+
+        .days-left-value.none {
+          color: #9ca3af;
         }
 
         /* SKU badge */
