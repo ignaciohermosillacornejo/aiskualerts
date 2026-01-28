@@ -202,6 +202,7 @@ export function createDailyConsumptionRepository(
       variantId: number,
       officeId: number | null
     ): Promise<number> {
+      // Try exact office match first
       const result = await db.queryOne<{ avg: string | null }>(
         `SELECT AVG(quantity_sold) as avg
          FROM daily_consumption
@@ -211,10 +212,27 @@ export function createDailyConsumptionRepository(
            AND consumption_date >= CURRENT_DATE - INTERVAL '7 days'`,
         [tenantId, variantId, officeId]
       );
-      if (!result?.avg) {
-        return 0;
+      if (result?.avg) {
+        return parseFloat(result.avg);
       }
-      return parseFloat(result.avg);
+
+      // Fallback: consumption data may not have office info (stored as NULL),
+      // so query without office filter if exact match found nothing
+      if (officeId !== null) {
+        const fallback = await db.queryOne<{ avg: string | null }>(
+          `SELECT AVG(quantity_sold) as avg
+           FROM daily_consumption
+           WHERE tenant_id = $1
+             AND bsale_variant_id = $2
+             AND consumption_date >= CURRENT_DATE - INTERVAL '7 days'`,
+          [tenantId, variantId]
+        );
+        if (fallback?.avg) {
+          return parseFloat(fallback.avg);
+        }
+      }
+
+      return 0;
     },
 
     async getConsumptionHistory(
