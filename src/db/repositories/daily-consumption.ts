@@ -1,5 +1,10 @@
 import type { DatabaseClient } from "@/db/client";
 
+/** Format a Date as YYYY-MM-DD for PostgreSQL DATE columns */
+function toDateStr(date: Date): string {
+  return date.toISOString().split("T")[0] ?? "";
+}
+
 export interface DailyConsumption {
   id: string;
   tenantId: string;
@@ -91,7 +96,7 @@ export function createDailyConsumptionRepository(
           input.tenantId,
           input.bsaleVariantId,
           input.bsaleOfficeId ?? null,
-          input.consumptionDate,
+          toDateStr(input.consumptionDate),
           input.quantitySold,
           input.documentCount,
         ]
@@ -115,7 +120,7 @@ export function createDailyConsumptionRepository(
           [
             input.tenantId,
             input.bsaleVariantId,
-            input.consumptionDate,
+            toDateStr(input.consumptionDate),
             input.quantitySold,
             input.documentCount,
           ]
@@ -151,7 +156,7 @@ export function createDailyConsumptionRepository(
           input.tenantId,
           input.bsaleVariantId,
           input.bsaleOfficeId ?? null,
-          input.consumptionDate,
+          toDateStr(input.consumptionDate),
           input.quantitySold,
           input.documentCount
         );
@@ -187,7 +192,7 @@ export function createDailyConsumptionRepository(
            AND bsale_variant_id = $2
            AND bsale_office_id IS NOT DISTINCT FROM $3
            AND consumption_date = $4`,
-        [tenantId, variantId, officeId, date]
+        [tenantId, variantId, officeId, toDateStr(date)]
       );
       return result ? mapRow(result) : null;
     },
