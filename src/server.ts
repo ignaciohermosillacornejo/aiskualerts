@@ -320,7 +320,10 @@ export function createServer(
   // Create test routes (only in non-production environments)
   const testRoutes =
     config.nodeEnv !== "production" && deps?.magicLinkRepo
-      ? createTestRoutes({ magicLinkRepo: deps.magicLinkRepo })
+      ? createTestRoutes({
+          magicLinkRepo: deps.magicLinkRepo,
+          ...(deps.consumptionRepo && { consumptionRepo: deps.consumptionRepo }),
+        })
       : null;
 
   return Bun.serve({
@@ -442,6 +445,14 @@ export function createServer(
           if (url.pathname === "/api/test/magic-link-token" && request.method === "GET") {
             const response = await traceRequest("GET", "/api/test/magic-link-token", async () => {
               return await testRoutes.getMagicLinkToken(request);
+            });
+            recordRequestMetrics(response.status);
+            return response;
+          }
+
+          if (url.pathname === "/api/test/seed-consumption" && request.method === "POST") {
+            const response = await traceRequest("POST", "/api/test/seed-consumption", async () => {
+              return await testRoutes.seedConsumption(request);
             });
             recordRequestMetrics(response.status);
             return response;

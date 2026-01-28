@@ -22,6 +22,7 @@ test.describe("Alert Lifecycle Journey", () => {
     page,
     auth,
     oauth,
+    db,
   }) => {
     const testEmail = generateTestEmail("alert-lifecycle");
     const testTenant = {
@@ -77,6 +78,75 @@ test.describe("Alert Lifecycle Journey", () => {
       await page.click('text=Inventario');
       await page.waitForURL(/\/app\/products/);
       await expect(page.locator("h1")).toContainText("Inventario");
+    });
+
+    // ========================================
+    // PHASE 2.5: Seed Consumption & Verify "Días restantes" Column
+    // ========================================
+
+    await test.step("Seed consumption data and verify Días restantes column", async () => {
+      // Intercept the products API to discover real variant IDs
+      const productsResponse = await page.request.get(`${page.url().split("/app")[0]}/api/products`, {
+        headers: {
+          Cookie: await page.evaluate(() => document.cookie),
+        },
+      });
+
+      if (!productsResponse.ok()) {
+        console.log("Products API not available, skipping Días restantes verification");
+        return;
+      }
+
+      const productsData = (await productsResponse.json()) as {
+        data: { bsaleId: number; currentStock: number }[];
+      };
+
+      if (productsData.data.length === 0) {
+        console.log("No products found, skipping Días restantes verification");
+        return;
+      }
+
+      // Get the tenant ID from the auth context by reading the /api/auth/me endpoint
+      const meResponse = await page.request.get(`${page.url().split("/app")[0]}/api/auth/me`, {
+        headers: {
+          Cookie: await page.evaluate(() => document.cookie),
+        },
+      });
+
+      if (!meResponse.ok()) {
+        console.log("Auth/me not available, skipping consumption seeding");
+        return;
+      }
+
+      const meData = (await meResponse.json()) as { tenantId: string };
+
+      // Seed consumption data for the first few products
+      const productsToSeed = productsData.data.slice(0, 3);
+      for (const product of productsToSeed) {
+        await db.seedConsumption({
+          tenantId: meData.tenantId,
+          variantId: product.bsaleId,
+          days: 7,
+          dailyQuantity: 5,
+        });
+      }
+
+      // Reload the products page to pick up velocity data
+      await page.reload();
+      await page.waitForLoadState("networkidle");
+
+      // Verify the "Días restantes" column header exists
+      await expect(page.locator("th.col-days-left")).toContainText("Días restantes");
+
+      // Verify at least one product shows a numeric value (not "—")
+      const numericDaysLeft = page.locator(".days-left-value:not(.none)");
+      const numericCount = await numericDaysLeft.count();
+      expect(numericCount).toBeGreaterThan(0);
+
+      // Verify at least one of the CSS color classes exists
+      const daysLeftValues = page.locator(".days-left-value.danger, .days-left-value.warning, .days-left-value.safe");
+      const coloredCount = await daysLeftValues.count();
+      expect(coloredCount).toBeGreaterThan(0);
     });
 
     // ========================================

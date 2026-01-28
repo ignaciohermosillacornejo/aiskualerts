@@ -94,6 +94,17 @@ export interface DatabaseFixture {
    * Get threshold count for a tenant via test API
    */
   getThresholdCount: (tenantId: string) => Promise<number>;
+
+  /**
+   * Seed daily consumption data for velocity/days-remaining calculation
+   */
+  seedConsumption: (opts: {
+    tenantId: string;
+    variantId: number;
+    officeId?: number | null;
+    days: number;
+    dailyQuantity: number;
+  }) => Promise<void>;
 }
 
 /**
@@ -282,6 +293,22 @@ export const databaseTest = base.extend<{ db: DatabaseFixture }>({
 
         const data = (await response.json()) as { count: number };
         return data.count;
+      },
+
+      async seedConsumption(opts: {
+        tenantId: string;
+        variantId: number;
+        officeId?: number | null;
+        days: number;
+        dailyQuantity: number;
+      }): Promise<void> {
+        const response = await request.post(testApiUrl("/seed-consumption"), {
+          data: opts,
+        });
+
+        if (!response.ok()) {
+          console.warn(`Test API /api/test/seed-consumption not available (status: ${String(response.status())})`);
+        }
       },
     };
 
