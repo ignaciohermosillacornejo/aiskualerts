@@ -91,13 +91,13 @@ export function createProductRoutes(deps: ProductRouteDeps): ProductRoutes {
           const products = await Promise.all(paginatedSnapshots.data.map(async (s) => {
             const threshold = thresholdMap.get(s.bsale_variant_id);
 
-            // Calculate velocity for days-based thresholds
+            // Calculate velocity for all products (used for "Días restantes" column)
             let velocityInfo: {
               daysLeft: number | null;
               avgDailyConsumption: number;
               weeklyConsumption: number;
             } | null = null;
-            if (threshold?.thresholdType === "days" && velocityCalculator) {
+            if (velocityCalculator) {
               const velocity = await velocityCalculator.getVelocityInfo({
                 tenantId: authContext.tenantId,
                 variantId: s.bsale_variant_id,
