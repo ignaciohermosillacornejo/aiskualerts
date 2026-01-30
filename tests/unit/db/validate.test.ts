@@ -30,9 +30,7 @@ describe("validateSchema", () => {
     test("passes when current version >= required version", async () => {
       const db = createMockDb({
         query: async (sql: string) => {
-          if (sql.includes("schema_migrations")) {
-            return [{ version: "20240601000011" }];
-          }
+          // Check pg_tables first since the IN clause contains 'schema_migrations'
           if (sql.includes("pg_tables")) {
             return [
               { tablename: "tenants" },
@@ -46,6 +44,9 @@ describe("validateSchema", () => {
               { tablename: "daily_consumption" },
               { tablename: "schema_migrations" },
             ];
+          }
+          if (sql.includes("schema_migrations")) {
+            return [{ version: "20240601000011" }];
           }
           return [];
         },
@@ -61,9 +62,7 @@ describe("validateSchema", () => {
     test("passes when current version > required version", async () => {
       const db = createMockDb({
         query: async (sql: string) => {
-          if (sql.includes("schema_migrations")) {
-            return [{ version: "20250101000001" }]; // Future version
-          }
+          // Check pg_tables first since the IN clause contains 'schema_migrations'
           if (sql.includes("pg_tables")) {
             return [
               { tablename: "tenants" },
@@ -77,6 +76,9 @@ describe("validateSchema", () => {
               { tablename: "daily_consumption" },
               { tablename: "schema_migrations" },
             ];
+          }
+          if (sql.includes("schema_migrations")) {
+            return [{ version: "20250101000001" }]; // Future version
           }
           return [];
         },
@@ -91,9 +93,7 @@ describe("validateSchema", () => {
     test("fails when current version < required version", async () => {
       const db = createMockDb({
         query: async (sql: string) => {
-          if (sql.includes("schema_migrations")) {
-            return [{ version: "20240101000001" }]; // Old version
-          }
+          // Check pg_tables first since the IN clause contains 'schema_migrations'
           if (sql.includes("pg_tables")) {
             return [
               { tablename: "tenants" },
@@ -107,6 +107,9 @@ describe("validateSchema", () => {
               { tablename: "daily_consumption" },
               { tablename: "schema_migrations" },
             ];
+          }
+          if (sql.includes("schema_migrations")) {
+            return [{ version: "20240101000001" }]; // Old version
           }
           return [];
         },
@@ -122,11 +125,12 @@ describe("validateSchema", () => {
     test("fails when no migrations found", async () => {
       const db = createMockDb({
         query: async (sql: string) => {
-          if (sql.includes("schema_migrations")) {
-            return [{ version: null }];
-          }
+          // Check pg_tables first since the IN clause contains 'schema_migrations'
           if (sql.includes("pg_tables")) {
             return [];
+          }
+          if (sql.includes("schema_migrations")) {
+            return [{ version: null }];
           }
           return [];
         },
@@ -144,9 +148,7 @@ describe("validateSchema", () => {
     test("passes when all critical tables exist", async () => {
       const db = createMockDb({
         query: async (sql: string) => {
-          if (sql.includes("schema_migrations")) {
-            return [{ version: "20240601000011" }];
-          }
+          // Check pg_tables first since the IN clause contains 'schema_migrations'
           if (sql.includes("pg_tables")) {
             return [
               { tablename: "tenants" },
@@ -161,6 +163,9 @@ describe("validateSchema", () => {
               { tablename: "schema_migrations" },
             ];
           }
+          if (sql.includes("schema_migrations")) {
+            return [{ version: "20240601000011" }];
+          }
           return [];
         },
       });
@@ -174,15 +179,16 @@ describe("validateSchema", () => {
     test("fails when critical tables are missing", async () => {
       const db = createMockDb({
         query: async (sql: string) => {
-          if (sql.includes("schema_migrations")) {
-            return [{ version: "20240601000011" }];
-          }
+          // Check pg_tables first since the IN clause contains 'schema_migrations'
           if (sql.includes("pg_tables")) {
             return [
               { tablename: "tenants" },
               { tablename: "users" },
               // Missing: sessions, stock_snapshots, thresholds, alerts, etc.
             ];
+          }
+          if (sql.includes("schema_migrations")) {
+            return [{ version: "20240601000011" }];
           }
           return [];
         },
@@ -200,11 +206,12 @@ describe("validateSchema", () => {
     test("reports all missing tables", async () => {
       const db = createMockDb({
         query: async (sql: string) => {
-          if (sql.includes("schema_migrations")) {
-            return [{ version: "20240601000011" }];
-          }
+          // Check pg_tables first since the IN clause contains 'schema_migrations'
           if (sql.includes("pg_tables")) {
             return []; // No tables at all
+          }
+          if (sql.includes("schema_migrations")) {
+            return [{ version: "20240601000011" }];
           }
           return [];
         },
@@ -258,9 +265,7 @@ describe("validateSchema", () => {
     test("returns complete result object", async () => {
       const db = createMockDb({
         query: async (sql: string) => {
-          if (sql.includes("schema_migrations")) {
-            return [{ version: "20240601000011" }];
-          }
+          // Check pg_tables first since the IN clause contains 'schema_migrations'
           if (sql.includes("pg_tables")) {
             return [
               { tablename: "tenants" },
@@ -274,6 +279,9 @@ describe("validateSchema", () => {
               { tablename: "daily_consumption" },
               { tablename: "schema_migrations" },
             ];
+          }
+          if (sql.includes("schema_migrations")) {
+            return [{ version: "20240601000011" }];
           }
           return [];
         },
@@ -313,9 +321,7 @@ describe("createValidateSchemaOrDie", () => {
 
     const db = createMockDb({
       query: async (sql: string) => {
-        if (sql.includes("schema_migrations")) {
-          return [{ version: "20240601000011" }];
-        }
+        // Check pg_tables first since the IN clause contains 'schema_migrations'
         if (sql.includes("pg_tables")) {
           return [
             { tablename: "tenants" },
@@ -329,6 +335,9 @@ describe("createValidateSchemaOrDie", () => {
             { tablename: "daily_consumption" },
             { tablename: "schema_migrations" },
           ];
+        }
+        if (sql.includes("schema_migrations")) {
+          return [{ version: "20240601000011" }];
         }
         return [];
       },
@@ -353,11 +362,12 @@ describe("createValidateSchemaOrDie", () => {
 
     const db = createMockDb({
       query: async (sql: string) => {
-        if (sql.includes("schema_migrations")) {
-          return [{ version: "20240101000001" }]; // Old version
-        }
+        // Check pg_tables first since the IN clause contains 'schema_migrations'
         if (sql.includes("pg_tables")) {
           return [];
+        }
+        if (sql.includes("schema_migrations")) {
+          return [{ version: "20240101000001" }]; // Old version
         }
         return [];
       },

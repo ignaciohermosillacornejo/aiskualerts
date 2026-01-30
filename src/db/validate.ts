@@ -83,11 +83,12 @@ export async function validateSchema(
     }
 
     // Check critical tables exist (fast: system catalog query)
+    // Build the IN clause directly since Bun.sql doesn't handle array parameters well
+    const tableList = CRITICAL_TABLES.map((t) => `'${t}'`).join(", ");
     const tables = await db.query<TableRow>(
       `SELECT tablename FROM pg_tables
        WHERE schemaname = 'public'
-       AND tablename = ANY($1)`,
-      [CRITICAL_TABLES as unknown as string[]]
+       AND tablename IN (${tableList})`
     );
 
     const foundTables = new Set(tables.map((t) => t.tablename));
