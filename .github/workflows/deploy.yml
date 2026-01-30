@@ -147,19 +147,34 @@ jobs:
               sleep 2
             done
 
-            # Run migrations using dbmate container
-            # The migrations service will apply any pending migrations
-            echo "Running database migrations..."
-            if ! docker compose run --rm migrations; then
-              echo "❌ Database migration failed - rolling back deployment"
-              docker compose down
-              exit 1
-            fi
-            echo "✅ Migrations completed successfully"
-
-            # Start all services (app depends on migrations completing successfully)
-            echo "Starting application..."
+            # Start all services
+            # Docker Compose handles the dependency order:
+            # 1. postgres starts and becomes healthy
+            # 2. migrations runs and completes (service_completed_successfully)
+            # 3. app starts only after migrations succeed
+            echo "Starting all services..."
             docker compose up -d
+
+            # Wait for app to be healthy (migrations run automatically as dependency)
+            echo "Waiting for application to start..."
+            for i in {1..60}; do
+              if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+                echo "✅ Application is healthy!"
+                break
+              fi
+              # Check if migrations failed
+              if docker compose ps migrations 2>/dev/null | grep -q "Exit"; then
+                EXIT_CODE=$(docker compose ps migrations --format json 2>/dev/null | jq -r '.[0].ExitCode // empty')
+                if [ "$EXIT_CODE" != "0" ] && [ -n "$EXIT_CODE" ]; then
+                  echo "❌ Migrations failed with exit code $EXIT_CODE"
+                  docker compose logs migrations
+                  docker compose down
+                  exit 1
+                fi
+              fi
+              echo "Waiting... (\$i/60)"
+              sleep 2
+            done
 
             # Clean up old images
             docker image prune -f
