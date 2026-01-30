@@ -55,9 +55,14 @@ jobs:
 
       - name: Compare schemas
         run: |
-          # Normalize both files (remove trailing whitespace, ensure newline at end)
+          # Normalize both files:
+          # - Remove trailing whitespace
+          # - Remove \restrict and \unrestrict lines (pg_dump markers that change each run)
+          # - Remove empty lines at start/end
           sed -i 's/[[:space:]]*$//' db/schema.sql
           sed -i 's/[[:space:]]*$//' generated_schema.sql
+          sed -i '/^\\restrict\|^\\unrestrict/d' db/schema.sql
+          sed -i '/^\\restrict\|^\\unrestrict/d' generated_schema.sql
 
           echo "Comparing db/schema.sql with generated schema..."
 
