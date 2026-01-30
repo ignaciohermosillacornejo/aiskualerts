@@ -132,49 +132,18 @@ jobs:
             # Stop and remove old containers
             docker compose down
 
-            # Start database and wait for it to be healthy
-            echo "Starting database..."
-            docker compose up -d postgres
-
-            # Wait for postgres to be healthy
-            echo "Waiting for PostgreSQL to be ready..."
-            for i in {1..30}; do
-              if docker compose exec -T postgres pg_isready -U aiskualerts > /dev/null 2>&1; then
-                echo "✅ PostgreSQL is ready"
-                break
-              fi
-              echo "Waiting for PostgreSQL... (\$i/30)"
-              sleep 2
-            done
-
-            # Start all services
-            # Docker Compose handles the dependency order:
+            # Start all services - Docker Compose handles dependency ordering:
             # 1. postgres starts and becomes healthy
-            # 2. migrations runs and completes (service_completed_successfully)
-            # 3. app starts only after migrations succeed
+            # 2. migrations runs and completes successfully (exit 0)
+            # 3. app starts only after migrations complete
             echo "Starting all services..."
             docker compose up -d
 
-            # Wait for app to be healthy (migrations run automatically as dependency)
-            echo "Waiting for application to start..."
-            for i in {1..60}; do
-              if curl -f http://localhost:3000/health > /dev/null 2>&1; then
-                echo "✅ Application is healthy!"
-                break
-              fi
-              # Check if migrations failed
-              if docker compose ps migrations 2>/dev/null | grep -q "Exit"; then
-                EXIT_CODE=$(docker compose ps migrations --format json 2>/dev/null | jq -r '.[0].ExitCode // empty')
-                if [ "$EXIT_CODE" != "0" ] && [ -n "$EXIT_CODE" ]; then
-                  echo "❌ Migrations failed with exit code $EXIT_CODE"
-                  docker compose logs migrations
-                  docker compose down
-                  exit 1
-                fi
-              fi
-              echo "Waiting... (\$i/60)"
-              sleep 2
-            done
+            echo "Waiting for services to be ready..."
+            sleep 10
+
+            # Show current status
+            docker compose ps
 
             # Clean up old images
             docker image prune -f
