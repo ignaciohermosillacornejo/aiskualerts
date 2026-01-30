@@ -6,6 +6,14 @@
 -- Run `dbmate up && dbmate dump` to regenerate.
 -- ===========================================
 
+--
+-- PostgreSQL database dump
+--
+
+
+-- Dumped from database version 16.11
+-- Dumped by pg_dump version 16.11
+
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
@@ -17,225 +25,641 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
--- ===========================================
--- TENANTS (Bsale accounts)
--- ===========================================
-CREATE TABLE public.tenants (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    bsale_client_code TEXT UNIQUE,            -- RUT (Chile), RUC (Peru), RFC (Mexico) - NULL if not connected
-    bsale_client_name TEXT,                   -- NULL if not connected to Bsale
-    bsale_access_token TEXT,                  -- Encrypted at rest - NULL if not connected
-    sync_status TEXT DEFAULT 'not_connected', -- not_connected | pending | syncing | success | failed
-    last_sync_at TIMESTAMPTZ,
-    -- Billing (provider-agnostic)
-    subscription_id TEXT UNIQUE,
-    subscription_status TEXT DEFAULT 'none',
-    subscription_ends_at TIMESTAMPTZ,
-    owner_id UUID,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+SET default_tablespace = '';
 
--- ===========================================
--- USERS (belong to a tenant)
--- ===========================================
-CREATE TABLE public.users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    email TEXT NOT NULL,
-    name TEXT,
-    notification_enabled BOOLEAN DEFAULT true,
-    notification_email TEXT,                  -- Override email for notifications
-    digest_frequency TEXT DEFAULT 'daily' CHECK (digest_frequency IN ('daily', 'weekly', 'none')),
-    subscription_id TEXT UNIQUE,
-    subscription_status TEXT DEFAULT 'none' CHECK (subscription_status IN ('none', 'active', 'cancelled', 'past_due')),
-    subscription_ends_at TIMESTAMPTZ,
-    last_tenant_id UUID,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(tenant_id, email)
-);
+SET default_table_access_method = heap;
 
--- ===========================================
--- USER_TENANTS (junction table for multi-tenant users)
--- ===========================================
-CREATE TABLE public.user_tenants (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL,
-    tenant_id UUID NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'member',
-    notification_enabled BOOLEAN NOT NULL DEFAULT true,
-    notification_email VARCHAR(255),
-    digest_frequency VARCHAR(50) NOT NULL DEFAULT 'daily',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, tenant_id)
-);
+--
+-- Name: alerts; Type: TABLE; Schema: public; Owner: -
+--
 
--- ===========================================
--- STOCK SNAPSHOTS (daily sync from Bsale)
--- ===========================================
-CREATE TABLE public.stock_snapshots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    bsale_variant_id INTEGER NOT NULL,
-    bsale_office_id INTEGER,                  -- NULL if single location
-    sku TEXT,
-    barcode TEXT,
-    product_name TEXT,
-    quantity INTEGER NOT NULL,                -- Physical quantity
-    quantity_reserved INTEGER DEFAULT 0,      -- Reserved in pending docs
-    quantity_available INTEGER NOT NULL,      -- Available for sale
-    unit_price DECIMAL(12, 2) DEFAULT NULL,   -- Price from Bsale
-    snapshot_date DATE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(tenant_id, bsale_variant_id, bsale_office_id, snapshot_date)
-);
-
--- ===========================================
--- DAILY CONSUMPTION (velocity tracking)
--- ===========================================
-CREATE TABLE public.daily_consumption (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    bsale_variant_id INTEGER NOT NULL,
-    bsale_office_id INTEGER,
-    consumption_date DATE NOT NULL,
-    quantity_sold INTEGER NOT NULL DEFAULT 0,
-    document_count INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now(),
-    UNIQUE (tenant_id, bsale_variant_id, bsale_office_id, consumption_date)
-);
-
--- ===========================================
--- THRESHOLDS (user-defined alert triggers)
--- ===========================================
-CREATE TABLE public.thresholds (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    bsale_variant_id INTEGER,                 -- NULL = default for all SKUs
-    bsale_office_id INTEGER,                  -- NULL = all locations
-    threshold_type TEXT NOT NULL DEFAULT 'quantity' CHECK (threshold_type IN ('quantity', 'days')),
-    min_quantity INTEGER,                     -- Alert when stock <= this (for quantity-based)
-    min_days INTEGER,                         -- Alert when days of stock <= this (for days-based)
-    days_warning INTEGER DEFAULT 7,           -- Alert when days-to-stockout <= this
-    created_by UUID,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id, bsale_variant_id, bsale_office_id),
-    CONSTRAINT check_threshold_type_fields CHECK (
-        (threshold_type = 'quantity' AND min_quantity IS NOT NULL) OR
-        (threshold_type = 'days' AND min_days IS NOT NULL)
-    )
-);
-
--- ===========================================
--- ALERTS (generated alerts awaiting/sent)
--- ===========================================
 CREATE TABLE public.alerts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    bsale_variant_id INTEGER NOT NULL,
-    bsale_office_id INTEGER,
-    sku TEXT,
-    product_name TEXT,
-    alert_type TEXT NOT NULL,                 -- 'threshold_breach' | 'low_velocity'
-    current_quantity INTEGER NOT NULL,
-    threshold_quantity INTEGER,               -- For threshold_breach type
-    days_to_stockout INTEGER,                 -- For low_velocity type
-    status TEXT DEFAULT 'pending',            -- pending | sent | dismissed
-    sent_at TIMESTAMPTZ,
-    dismissed_at TIMESTAMPTZ,                 -- When user dismissed this alert (took action)
-    last_notified_at TIMESTAMPTZ,             -- Last time user was emailed about this alert
-    dismissed_by UUID,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    bsale_variant_id integer NOT NULL,
+    bsale_office_id integer,
+    sku text,
+    product_name text,
+    alert_type text NOT NULL,
+    current_quantity integer NOT NULL,
+    threshold_quantity integer,
+    days_to_stockout integer,
+    status text DEFAULT 'pending'::text,
+    sent_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    dismissed_by uuid,
+    dismissed_at timestamp with time zone,
+    last_notified_at timestamp with time zone
 );
 
--- ===========================================
--- SESSIONS (cookie-based auth)
--- ===========================================
-CREATE TABLE public.sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    token TEXT UNIQUE NOT NULL,
-    expires_at TIMESTAMPTZ NOT NULL,
-    current_tenant_id UUID,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
 
--- ===========================================
--- MAGIC LINK TOKENS (passwordless auth)
--- ===========================================
-CREATE TABLE public.magic_link_tokens (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email TEXT NOT NULL,
-    token TEXT UNIQUE NOT NULL,
-    expires_at TIMESTAMPTZ NOT NULL,
-    used_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+--
+-- Name: COLUMN alerts.dismissed_at; Type: COMMENT; Schema: public; Owner: -
+--
 
--- ===========================================
--- SCHEMA MIGRATIONS (dbmate tracking)
--- ===========================================
-CREATE TABLE public.schema_migrations (
-    version VARCHAR(255) PRIMARY KEY
-);
-
--- ===========================================
--- INDEXES
--- ===========================================
-CREATE INDEX idx_snapshots_tenant_date ON public.stock_snapshots(tenant_id, snapshot_date DESC);
-CREATE INDEX idx_snapshots_variant ON public.stock_snapshots(tenant_id, bsale_variant_id, snapshot_date DESC);
-CREATE INDEX idx_consumption_tenant_variant_date ON public.daily_consumption(tenant_id, bsale_variant_id, consumption_date DESC);
-CREATE INDEX idx_consumption_date_range ON public.daily_consumption(tenant_id, consumption_date DESC);
-CREATE INDEX idx_thresholds_user ON public.thresholds(user_id);
-CREATE INDEX idx_thresholds_tenant_variant ON public.thresholds(tenant_id, bsale_variant_id);
-CREATE INDEX idx_alerts_user_status ON public.alerts(user_id, status);
-CREATE INDEX idx_alerts_tenant_date ON public.alerts(tenant_id, created_at DESC);
-CREATE INDEX idx_alerts_dismissed ON public.alerts(tenant_id, bsale_variant_id, status) WHERE status = 'dismissed';
-CREATE INDEX idx_sessions_token ON public.sessions(token);
-CREATE INDEX idx_sessions_expires ON public.sessions(expires_at);
-CREATE INDEX idx_tenants_subscription ON public.tenants(subscription_id) WHERE subscription_id IS NOT NULL;
-CREATE INDEX idx_users_subscription ON public.users(subscription_id) WHERE subscription_id IS NOT NULL;
-CREATE INDEX idx_magic_link_tokens_token ON public.magic_link_tokens(token) WHERE used_at IS NULL;
-CREATE INDEX idx_magic_link_tokens_email_created ON public.magic_link_tokens(email, created_at DESC);
-CREATE INDEX idx_user_tenants_user ON public.user_tenants(user_id);
-CREATE INDEX idx_user_tenants_tenant ON public.user_tenants(tenant_id);
-
--- ===========================================
--- FOREIGN KEY CONSTRAINTS
--- ===========================================
-ALTER TABLE public.user_tenants ADD CONSTRAINT fk_user_tenants_user
-    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-ALTER TABLE public.user_tenants ADD CONSTRAINT fk_user_tenants_tenant
-    FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
-ALTER TABLE public.tenants ADD CONSTRAINT fk_tenants_owner
-    FOREIGN KEY (owner_id) REFERENCES public.users(id);
-ALTER TABLE public.users ADD CONSTRAINT fk_users_last_tenant
-    FOREIGN KEY (last_tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
-ALTER TABLE public.sessions ADD CONSTRAINT fk_sessions_current_tenant
-    FOREIGN KEY (current_tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
-ALTER TABLE public.thresholds ADD CONSTRAINT fk_thresholds_created_by
-    FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
-ALTER TABLE public.alerts ADD CONSTRAINT fk_alerts_dismissed_by
-    FOREIGN KEY (dismissed_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
--- ===========================================
--- COLUMN COMMENTS
--- ===========================================
-COMMENT ON COLUMN public.users.digest_frequency IS 'Email digest frequency: daily, weekly, or none';
-COMMENT ON COLUMN public.thresholds.threshold_type IS 'Type of threshold: quantity (min units) or days (min days of stock)';
-COMMENT ON COLUMN public.thresholds.min_days IS 'Minimum days of stock remaining before alert (for days-based thresholds)';
-COMMENT ON COLUMN public.daily_consumption IS 'Daily sales quantities per variant, aggregated from Bsale documents';
 COMMENT ON COLUMN public.alerts.dismissed_at IS 'When user dismissed this alert (took action)';
+
+
+--
+-- Name: COLUMN alerts.last_notified_at; Type: COMMENT; Schema: public; Owner: -
+--
+
 COMMENT ON COLUMN public.alerts.last_notified_at IS 'Last time user was emailed about this alert';
 
--- ===========================================
--- MIGRATION TRACKING DATA
--- ===========================================
--- This data ensures fresh databases are marked with all applied migrations
+
+--
+-- Name: daily_consumption; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.daily_consumption (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    bsale_variant_id integer NOT NULL,
+    bsale_office_id integer,
+    consumption_date date NOT NULL,
+    quantity_sold integer DEFAULT 0 NOT NULL,
+    document_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: TABLE daily_consumption; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.daily_consumption IS 'Daily sales quantities per variant, aggregated from Bsale documents';
+
+
+--
+-- Name: magic_link_tokens; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.magic_link_tokens (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    email text NOT NULL,
+    token text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    used_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.schema_migrations (
+    version character varying NOT NULL
+);
+
+
+--
+-- Name: sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    token text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    current_tenant_id uuid
+);
+
+
+--
+-- Name: stock_snapshots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.stock_snapshots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    bsale_variant_id integer NOT NULL,
+    bsale_office_id integer,
+    sku text,
+    barcode text,
+    product_name text,
+    quantity integer NOT NULL,
+    quantity_reserved integer DEFAULT 0,
+    quantity_available integer NOT NULL,
+    snapshot_date date NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    unit_price numeric(12,2) DEFAULT NULL::numeric
+);
+
+
+--
+-- Name: tenants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tenants (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    bsale_client_code text,
+    bsale_client_name text,
+    bsale_access_token text,
+    sync_status text DEFAULT 'not_connected'::text,
+    last_sync_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    subscription_id text,
+    subscription_status text DEFAULT 'none'::text,
+    subscription_ends_at timestamp with time zone,
+    owner_id uuid
+);
+
+
+--
+-- Name: thresholds; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.thresholds (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    bsale_variant_id integer,
+    bsale_office_id integer,
+    min_quantity integer,
+    days_warning integer DEFAULT 7,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    created_by uuid,
+    threshold_type text DEFAULT 'quantity'::text NOT NULL,
+    min_days integer,
+    CONSTRAINT check_threshold_type_fields CHECK ((((threshold_type = 'quantity'::text) AND (min_quantity IS NOT NULL)) OR ((threshold_type = 'days'::text) AND (min_days IS NOT NULL)))),
+    CONSTRAINT thresholds_threshold_type_check CHECK ((threshold_type = ANY (ARRAY['quantity'::text, 'days'::text])))
+);
+
+
+--
+-- Name: COLUMN thresholds.threshold_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.thresholds.threshold_type IS 'Type of threshold: quantity (min units) or days (min days of stock)';
+
+
+--
+-- Name: COLUMN thresholds.min_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.thresholds.min_days IS 'Minimum days of stock remaining before alert (for days-based thresholds)';
+
+
+--
+-- Name: user_tenants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_tenants (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    role character varying(50) DEFAULT 'member'::character varying NOT NULL,
+    notification_enabled boolean DEFAULT true NOT NULL,
+    notification_email character varying(255),
+    digest_frequency character varying(50) DEFAULT 'daily'::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.users (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    email text NOT NULL,
+    name text,
+    notification_enabled boolean DEFAULT true,
+    notification_email text,
+    created_at timestamp with time zone DEFAULT now(),
+    digest_frequency text DEFAULT 'daily'::text,
+    subscription_id text,
+    subscription_status text DEFAULT 'none'::text,
+    subscription_ends_at timestamp with time zone,
+    last_tenant_id uuid,
+    CONSTRAINT users_digest_frequency_check CHECK ((digest_frequency = ANY (ARRAY['daily'::text, 'weekly'::text, 'none'::text]))),
+    CONSTRAINT users_subscription_status_check CHECK ((subscription_status = ANY (ARRAY['none'::text, 'active'::text, 'cancelled'::text, 'past_due'::text])))
+);
+
+
+--
+-- Name: COLUMN users.digest_frequency; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.users.digest_frequency IS 'Email digest frequency: daily, weekly, or none';
+
+
+--
+-- Name: alerts alerts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alerts
+    ADD CONSTRAINT alerts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: daily_consumption daily_consumption_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.daily_consumption
+    ADD CONSTRAINT daily_consumption_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: daily_consumption daily_consumption_tenant_id_bsale_variant_id_bsale_office_i_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.daily_consumption
+    ADD CONSTRAINT daily_consumption_tenant_id_bsale_variant_id_bsale_office_i_key UNIQUE (tenant_id, bsale_variant_id, bsale_office_id, consumption_date);
+
+
+--
+-- Name: magic_link_tokens magic_link_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.magic_link_tokens
+    ADD CONSTRAINT magic_link_tokens_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: magic_link_tokens magic_link_tokens_token_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.magic_link_tokens
+    ADD CONSTRAINT magic_link_tokens_token_key UNIQUE (token);
+
+
+--
+-- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.schema_migrations
+    ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
+
+
+--
+-- Name: sessions sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT sessions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sessions sessions_token_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT sessions_token_key UNIQUE (token);
+
+
+--
+-- Name: stock_snapshots stock_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stock_snapshots
+    ADD CONSTRAINT stock_snapshots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stock_snapshots stock_snapshots_tenant_id_bsale_variant_id_bsale_office_id__key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stock_snapshots
+    ADD CONSTRAINT stock_snapshots_tenant_id_bsale_variant_id_bsale_office_id__key UNIQUE (tenant_id, bsale_variant_id, bsale_office_id, snapshot_date);
+
+
+--
+-- Name: tenants tenants_bsale_client_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenants
+    ADD CONSTRAINT tenants_bsale_client_code_key UNIQUE (bsale_client_code);
+
+
+--
+-- Name: tenants tenants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenants
+    ADD CONSTRAINT tenants_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tenants tenants_subscription_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenants
+    ADD CONSTRAINT tenants_subscription_id_key UNIQUE (subscription_id);
+
+
+--
+-- Name: thresholds thresholds_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.thresholds
+    ADD CONSTRAINT thresholds_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: thresholds thresholds_user_id_bsale_variant_id_bsale_office_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.thresholds
+    ADD CONSTRAINT thresholds_user_id_bsale_variant_id_bsale_office_id_key UNIQUE (user_id, bsale_variant_id, bsale_office_id);
+
+
+--
+-- Name: user_tenants user_tenants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_tenants
+    ADD CONSTRAINT user_tenants_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_tenants user_tenants_user_id_tenant_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_tenants
+    ADD CONSTRAINT user_tenants_user_id_tenant_id_key UNIQUE (user_id, tenant_id);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: users users_subscription_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_subscription_id_key UNIQUE (subscription_id);
+
+
+--
+-- Name: users users_tenant_id_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_tenant_id_email_key UNIQUE (tenant_id, email);
+
+
+--
+-- Name: idx_alerts_dismissed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_alerts_dismissed ON public.alerts USING btree (tenant_id, bsale_variant_id, status) WHERE (status = 'dismissed'::text);
+
+
+--
+-- Name: idx_alerts_tenant_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_alerts_tenant_date ON public.alerts USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: idx_alerts_user_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_alerts_user_status ON public.alerts USING btree (user_id, status);
+
+
+--
+-- Name: idx_consumption_date_range; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consumption_date_range ON public.daily_consumption USING btree (tenant_id, consumption_date DESC);
+
+
+--
+-- Name: idx_consumption_tenant_variant_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consumption_tenant_variant_date ON public.daily_consumption USING btree (tenant_id, bsale_variant_id, consumption_date DESC);
+
+
+--
+-- Name: idx_magic_link_tokens_email_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_magic_link_tokens_email_created ON public.magic_link_tokens USING btree (email, created_at DESC);
+
+
+--
+-- Name: idx_magic_link_tokens_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_magic_link_tokens_token ON public.magic_link_tokens USING btree (token) WHERE (used_at IS NULL);
+
+
+--
+-- Name: idx_sessions_expires; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_sessions_expires ON public.sessions USING btree (expires_at);
+
+
+--
+-- Name: idx_sessions_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_sessions_token ON public.sessions USING btree (token);
+
+
+--
+-- Name: idx_snapshots_tenant_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snapshots_tenant_date ON public.stock_snapshots USING btree (tenant_id, snapshot_date DESC);
+
+
+--
+-- Name: idx_snapshots_variant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snapshots_variant ON public.stock_snapshots USING btree (tenant_id, bsale_variant_id, snapshot_date DESC);
+
+
+--
+-- Name: idx_tenants_subscription; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_tenants_subscription ON public.tenants USING btree (subscription_id) WHERE (subscription_id IS NOT NULL);
+
+
+--
+-- Name: idx_thresholds_tenant_variant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_thresholds_tenant_variant ON public.thresholds USING btree (tenant_id, bsale_variant_id);
+
+
+--
+-- Name: idx_thresholds_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_thresholds_user ON public.thresholds USING btree (user_id);
+
+
+--
+-- Name: idx_user_tenants_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_tenants_tenant ON public.user_tenants USING btree (tenant_id);
+
+
+--
+-- Name: idx_user_tenants_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_tenants_user ON public.user_tenants USING btree (user_id);
+
+
+--
+-- Name: idx_users_subscription; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_users_subscription ON public.users USING btree (subscription_id) WHERE (subscription_id IS NOT NULL);
+
+
+--
+-- Name: alerts alerts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alerts
+    ADD CONSTRAINT alerts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: alerts alerts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alerts
+    ADD CONSTRAINT alerts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: daily_consumption daily_consumption_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.daily_consumption
+    ADD CONSTRAINT daily_consumption_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: alerts fk_alerts_dismissed_by; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alerts
+    ADD CONSTRAINT fk_alerts_dismissed_by FOREIGN KEY (dismissed_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: sessions fk_sessions_current_tenant; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT fk_sessions_current_tenant FOREIGN KEY (current_tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tenants fk_tenants_owner; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenants
+    ADD CONSTRAINT fk_tenants_owner FOREIGN KEY (owner_id) REFERENCES public.users(id);
+
+
+--
+-- Name: thresholds fk_thresholds_created_by; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.thresholds
+    ADD CONSTRAINT fk_thresholds_created_by FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: user_tenants fk_user_tenants_tenant; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_tenants
+    ADD CONSTRAINT fk_user_tenants_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_tenants fk_user_tenants_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_tenants
+    ADD CONSTRAINT fk_user_tenants_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: users fk_users_last_tenant; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT fk_users_last_tenant FOREIGN KEY (last_tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: sessions sessions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: stock_snapshots stock_snapshots_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.stock_snapshots
+    ADD CONSTRAINT stock_snapshots_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: thresholds thresholds_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.thresholds
+    ADD CONSTRAINT thresholds_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: thresholds thresholds_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.thresholds
+    ADD CONSTRAINT thresholds_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: users users_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+
+
+--
+-- Dbmate schema migrations
+--
+
 INSERT INTO public.schema_migrations (version) VALUES
     ('20240101000001'),
     ('20240115000002'),
