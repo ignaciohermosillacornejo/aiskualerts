@@ -66,7 +66,8 @@ jobs:
 
           # URL-encode the password to handle special characters (@, #, /, etc.)
           PG_PASS_ENCODED=$(printf '%s' "$PG_PASS" | jq -sRr @uri)
-          echo "DATABASE_URL=postgresql://${PG_USER}:${PG_PASS_ENCODED}@postgres:5432/${PG_DB}" >> .env
+          # sslmode=disable is required because PostgreSQL container doesn't have SSL enabled
+          echo "DATABASE_URL=postgresql://${PG_USER}:${PG_PASS_ENCODED}@postgres:5432/${PG_DB}?sslmode=disable" >> .env
 
           chmod 600 .env
           echo "✅ Generated .env file with secrets from 1Password"
