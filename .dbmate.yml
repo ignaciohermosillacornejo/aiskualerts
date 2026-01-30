@@ -1,0 +1,23 @@
+# dbmate configuration
+# See: https://github.com/amacneil/dbmate#configuration
+
+# Database connection (loaded from environment)
+# DATABASE_URL should be set in .env or environment
+
+# Migration files location
+migrations-dir: ./db/migrations
+
+# Schema dump location (auto-generated, never hand-edited)
+schema-file: ./db/schema.sql
+
+# Migration table name (compatible with existing setup)
+migrations-table: schema_migrations
+
+# Disable automatic schema dump (we'll run it explicitly)
+no-dump-schema: false
+
+# Don't create database (assume it exists)
+no-create: true
+
+# Use strict mode (fail on warning)
+strict: true

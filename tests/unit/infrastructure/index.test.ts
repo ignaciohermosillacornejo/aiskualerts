@@ -10,6 +10,7 @@ function createMockDependencies(): MainDependencies & {
   mocks: {
     loadConfig: Mock<() => Config>;
     getDb: Mock<() => unknown>;
+    validateSchemaOrDie: Mock<() => Promise<void>>;
     createSentryConfig: Mock<(config: Config) => unknown>;
     initializeSentry: Mock<() => boolean>;
     setupProcessErrorHandlers: Mock<() => void>;
@@ -68,6 +69,7 @@ function createMockDependencies(): MainDependencies & {
     execute: mock(() => Promise.resolve()),
     close: dbClose,
   }));
+  const validateSchemaOrDie = mock(() => Promise.resolve());
 
   const createSentryConfig = mock((_config: Config) => ({
     dsn: undefined,
@@ -180,6 +182,7 @@ function createMockDependencies(): MainDependencies & {
   return {
     loadConfig: loadConfig as unknown as MainDependencies["loadConfig"],
     getDb: getDb as unknown as MainDependencies["getDb"],
+    validateSchemaOrDie: validateSchemaOrDie as unknown as MainDependencies["validateSchemaOrDie"],
     createSentryConfig: createSentryConfig as unknown as MainDependencies["createSentryConfig"],
     initializeSentry: initializeSentry as unknown as MainDependencies["initializeSentry"],
     setupProcessErrorHandlers: setupProcessErrorHandlers as unknown as MainDependencies["setupProcessErrorHandlers"],
@@ -225,6 +228,7 @@ function createMockDependencies(): MainDependencies & {
     mocks: {
       loadConfig,
       getDb,
+      validateSchemaOrDie,
       createSentryConfig,
       initializeSentry,
       setupProcessErrorHandlers,
@@ -257,12 +261,12 @@ describe("Application Bootstrap (src/index.ts)", () => {
   });
 
   describe("Config loading", () => {
-    test("loads configuration at startup", () => {
-      main(deps);
+    test("loads configuration at startup", async () => {
+      await main(deps);
       expect(deps.mocks.loadConfig).toHaveBeenCalledTimes(1);
     });
 
-    test("logs the startup mode from config", () => {
+    test("logs the startup mode from config", async () => {
       deps.mocks.loadConfig.mockReturnValue({
         port: 3000,
         nodeEnv: "production",
@@ -282,7 +286,7 @@ describe("Application Bootstrap (src/index.ts)", () => {
         magicLinkRateLimitPerHour: 5,
       });
 
-      main(deps);
+      await main(deps);
 
       const calls = deps.mocks.loggerInfo.mock.calls;
       const startupCall = calls.find(
@@ -295,65 +299,65 @@ describe("Application Bootstrap (src/index.ts)", () => {
   });
 
   describe("Sentry initialization", () => {
-    test("creates Sentry config from app config", () => {
-      main(deps);
+    test("creates Sentry config from app config", async () => {
+      await main(deps);
       expect(deps.mocks.createSentryConfig).toHaveBeenCalled();
     });
 
-    test("initializes Sentry with created config", () => {
-      main(deps);
+    test("initializes Sentry with created config", async () => {
+      await main(deps);
       expect(deps.mocks.initializeSentry).toHaveBeenCalled();
     });
 
-    test("sets up process error handlers when Sentry is enabled", () => {
+    test("sets up process error handlers when Sentry is enabled", async () => {
       deps.mocks.initializeSentry.mockReturnValue(true);
-      main(deps);
+      await main(deps);
       expect(deps.mocks.setupProcessErrorHandlers).toHaveBeenCalled();
     });
 
-    test("does not set up process error handlers when Sentry is disabled", () => {
+    test("does not set up process error handlers when Sentry is disabled", async () => {
       deps.mocks.initializeSentry.mockReturnValue(false);
-      main(deps);
+      await main(deps);
       expect(deps.mocks.setupProcessErrorHandlers).not.toHaveBeenCalled();
     });
   });
 
   describe("Scheduler startup", () => {
-    test("creates sync job with database and config", () => {
-      main(deps);
+    test("creates sync job with database and config", async () => {
+      await main(deps);
       expect(deps.mocks.createSyncJob).toHaveBeenCalled();
     });
 
-    test("creates scheduler and starts it", () => {
-      main(deps);
+    test("creates scheduler and starts it", async () => {
+      await main(deps);
       // The scheduler is created and started, which we verify via schedulerStart being called
       expect(deps.mocks.schedulerStart).toHaveBeenCalled();
     });
 
-    test("starts the scheduler", () => {
-      main(deps);
+    test("starts the scheduler", async () => {
+      await main(deps);
       expect(deps.mocks.schedulerStart).toHaveBeenCalled();
     });
 
-    test("creates session cleanup scheduler", () => {
-      main(deps);
+    test("creates session cleanup scheduler", async () => {
+      await main(deps);
       expect(deps.mocks.createSessionCleanupScheduler).toHaveBeenCalled();
     });
 
-    test("starts session cleanup scheduler", () => {
-      main(deps);
+    test("starts session cleanup scheduler", async () => {
+      await main(deps);
       expect(deps.mocks.sessionCleanupStart).toHaveBeenCalled();
     });
   });
 
   describe("Server startup", () => {
-    test("creates HTTP server with config", () => {
-      main(deps);
+    test("creates HTTP server with config", async () => {
+      await main(deps);
       expect(deps.mocks.createServer).toHaveBeenCalled();
     });
 
-    test("logs server port on startup", () => {
-      main(deps);
+    test("logs server port on startup", async () => {
+      await main(deps);
 
       const calls = deps.mocks.loggerInfo.mock.calls;
       const serverCall = calls.find(
@@ -366,7 +370,7 @@ describe("Application Bootstrap (src/index.ts)", () => {
   });
 
   describe("OAuth initialization", () => {
-    test("enables OAuth when all config values are present", () => {
+    test("enables OAuth when all config values are present", async () => {
       deps.mocks.loadConfig.mockReturnValue({
         port: 3000,
         nodeEnv: "test",
@@ -389,7 +393,7 @@ describe("Application Bootstrap (src/index.ts)", () => {
         magicLinkRateLimitPerHour: 5,
       });
 
-      main(deps);
+      await main(deps);
 
       // Check that OAuth enabled log was called
       const calls = deps.mocks.loggerInfo.mock.calls;
@@ -397,7 +401,7 @@ describe("Application Bootstrap (src/index.ts)", () => {
       expect(oauthCall).toBeDefined();
     });
 
-    test("disables OAuth when config values are missing", () => {
+    test("disables OAuth when config values are missing", async () => {
       deps.mocks.loadConfig.mockReturnValue({
         port: 3000,
         nodeEnv: "test",
@@ -418,7 +422,7 @@ describe("Application Bootstrap (src/index.ts)", () => {
         // No OAuth config
       });
 
-      main(deps);
+      await main(deps);
 
       const calls = deps.mocks.loggerInfo.mock.calls;
       const disabledCall = calls.find(
@@ -429,16 +433,16 @@ describe("Application Bootstrap (src/index.ts)", () => {
   });
 
   describe("Signal handling", () => {
-    test("registers SIGINT handler", () => {
-      main(deps);
+    test("registers SIGINT handler", async () => {
+      await main(deps);
 
       const calls = deps.mocks.processOn.mock.calls;
       const sigintCall = calls.find((call) => call[0] === "SIGINT");
       expect(sigintCall).toBeDefined();
     });
 
-    test("registers SIGTERM handler", () => {
-      main(deps);
+    test("registers SIGTERM handler", async () => {
+      await main(deps);
 
       const calls = deps.mocks.processOn.mock.calls;
       const sigtermCall = calls.find((call) => call[0] === "SIGTERM");
@@ -448,7 +452,7 @@ describe("Application Bootstrap (src/index.ts)", () => {
 
   describe("Graceful shutdown", () => {
     test("SIGINT handler triggers shutdown sequence", async () => {
-      result = main(deps);
+      result = await main(deps);
 
       // Call shutdown directly from result
       await result.shutdown();
@@ -458,7 +462,7 @@ describe("Application Bootstrap (src/index.ts)", () => {
     });
 
     test("SIGTERM handler triggers shutdown sequence", async () => {
-      result = main(deps);
+      result = await main(deps);
 
       // Call shutdown directly from result
       await result.shutdown();
@@ -468,28 +472,28 @@ describe("Application Bootstrap (src/index.ts)", () => {
     });
 
     test("shutdown stops the HTTP server", async () => {
-      result = main(deps);
+      result = await main(deps);
       await result.shutdown();
 
       expect(deps.mocks.serverStop).toHaveBeenCalledWith(true);
     });
 
     test("shutdown closes database connection", async () => {
-      result = main(deps);
+      result = await main(deps);
       await result.shutdown();
 
       expect(deps.mocks.dbClose).toHaveBeenCalled();
     });
 
     test("shutdown flushes Sentry events", async () => {
-      result = main(deps);
+      result = await main(deps);
       await result.shutdown();
 
       expect(deps.mocks.flushSentry).toHaveBeenCalled();
     });
 
     test("shutdown logs completion message", async () => {
-      result = main(deps);
+      result = await main(deps);
       await result.shutdown();
 
       const calls = deps.mocks.loggerInfo.mock.calls;
@@ -498,7 +502,7 @@ describe("Application Bootstrap (src/index.ts)", () => {
     });
 
     test("shutdown calls process.exit(0)", async () => {
-      result = main(deps);
+      result = await main(deps);
       await result.shutdown();
 
       expect(deps.mocks.processExit).toHaveBeenCalledWith(0);
@@ -506,37 +510,42 @@ describe("Application Bootstrap (src/index.ts)", () => {
   });
 
   describe("Database initialization", () => {
-    test("gets database connection at startup", () => {
-      main(deps);
+    test("gets database connection at startup", async () => {
+      await main(deps);
       expect(deps.mocks.getDb).toHaveBeenCalled();
+    });
+
+    test("validates schema after connecting", async () => {
+      await main(deps);
+      expect(deps.mocks.validateSchemaOrDie).toHaveBeenCalled();
     });
   });
 
   describe("MainResult return value", () => {
-    test("returns config from result", () => {
-      result = main(deps);
+    test("returns config from result", async () => {
+      result = await main(deps);
       expect(result.config).toBeDefined();
       expect(result.config.port).toBe(3000);
     });
 
-    test("returns db from result", () => {
-      result = main(deps);
+    test("returns db from result", async () => {
+      result = await main(deps);
       expect(result.db).toBeDefined();
     });
 
-    test("returns server from result", () => {
-      result = main(deps);
+    test("returns server from result", async () => {
+      result = await main(deps);
       expect(result.server).toBeDefined();
       expect(result.server.port).toBe(3000);
     });
 
-    test("returns scheduler from result", () => {
-      result = main(deps);
+    test("returns scheduler from result", async () => {
+      result = await main(deps);
       expect(result.scheduler).toBeDefined();
     });
 
-    test("returns shutdown function from result", () => {
-      result = main(deps);
+    test("returns shutdown function from result", async () => {
+      result = await main(deps);
       expect(result.shutdown).toBeInstanceOf(Function);
     });
   });

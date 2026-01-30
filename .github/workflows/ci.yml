@@ -87,7 +87,7 @@ jobs:
 
       - name: Initialize database schema
         run: |
-          PGPASSWORD=test psql -h localhost -p 5433 -U test -d aiskualerts_test -f src/db/schema.sql
+          PGPASSWORD=test psql -h localhost -p 5433 -U test -d aiskualerts_test -f db/schema.sql
         env:
           PGPASSWORD: test
 
@@ -134,7 +134,7 @@ jobs:
 
       - name: Initialize database schema
         run: |
-          PGPASSWORD=test psql -h localhost -p 5432 -U test -d aiskualerts_test -f src/db/schema.sql
+          PGPASSWORD=test psql -h localhost -p 5432 -U test -d aiskualerts_test -f db/schema.sql
 
       - name: Verify container starts and health check passes
         run: |

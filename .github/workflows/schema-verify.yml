@@ -1,0 +1,149 @@
+name: Verify Schema Consistency
+
+on:
+  push:
+    paths:
+      - 'db/**'
+      - 'src/db/**'
+  pull_request:
+    paths:
+      - 'db/**'
+      - 'src/db/**'
+
+jobs:
+  verify:
+    name: Verify Schema Matches Migrations
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install dbmate
+        run: |
+          curl -fsSL -o /usr/local/bin/dbmate https://github.com/amacneil/dbmate/releases/download/v2.22.0/dbmate-linux-amd64
+          chmod +x /usr/local/bin/dbmate
+          dbmate --version
+
+      - name: Apply migrations and dump schema
+        env:
+          DATABASE_URL: postgres://test:test@localhost:5432/test?sslmode=disable
+        run: |
+          # Apply all migrations
+          dbmate --migrations-dir ./db/migrations up
+
+          # Dump the schema to a temporary file
+          dbmate --migrations-dir ./db/migrations --schema-file ./generated_schema.sql dump
+
+          echo "Generated schema from migrations:"
+          head -100 ./generated_schema.sql
+
+      - name: Compare schemas
+        run: |
+          # Normalize both files:
+          # - Remove trailing whitespace
+          # - Remove \restrict and \unrestrict lines (pg_dump markers that change each run)
+          # - Remove empty lines at start/end
+          sed -i 's/[[:space:]]*$//' db/schema.sql
+          sed -i 's/[[:space:]]*$//' generated_schema.sql
+          sed -i '/^\\restrict\|^\\unrestrict/d' db/schema.sql
+          sed -i '/^\\restrict\|^\\unrestrict/d' generated_schema.sql
+
+          echo "Comparing db/schema.sql with generated schema..."
+
+          if ! diff -q db/schema.sql generated_schema.sql > /dev/null 2>&1; then
+            echo ""
+            echo "::error::db/schema.sql is out of sync with migrations!"
+            echo ""
+            echo "The committed schema.sql does not match the schema generated from migrations."
+            echo "This can happen when:"
+            echo "  1. You modified schema.sql manually (never do this!)"
+            echo "  2. You added/modified migrations but forgot to update schema.sql"
+            echo ""
+            echo "To fix this:"
+            echo "  1. Run: dbmate up && dbmate dump"
+            echo "  2. Commit the regenerated db/schema.sql"
+            echo ""
+            echo "Differences:"
+            diff -u db/schema.sql generated_schema.sql || true
+            exit 1
+          fi
+
+          echo ""
+          echo "Schema verification passed!"
+          echo "db/schema.sql matches the schema generated from migrations."
+
+      - name: Verify migration tracking data
+        env:
+          DATABASE_URL: postgres://test:test@localhost:5432/test?sslmode=disable
+        run: |
+          # Verify that schema.sql includes INSERT statements for migration versions
+          if ! grep -q "INSERT INTO.*schema_migrations" db/schema.sql; then
+            echo "::error::db/schema.sql is missing migration tracking INSERT statements!"
+            echo ""
+            echo "The schema.sql file should include INSERT statements that mark all migrations"
+            echo "as applied. This ensures fresh databases are consistent with incremental databases."
+            echo ""
+            echo "Expected format (at end of file):"
+            echo "INSERT INTO public.schema_migrations (version) VALUES"
+            echo "    ('20240101000001'),"
+            echo "    ('20240115000002'),"
+            echo "    ..."
+            exit 1
+          fi
+
+          echo "Migration tracking data verification passed!"
+
+      - name: Test fresh database initialization
+        env:
+          DATABASE_URL: postgres://test:test@localhost:5432/test_fresh?sslmode=disable
+        run: |
+          # Create a fresh database
+          PGPASSWORD=test psql -h localhost -U test -d test -c "CREATE DATABASE test_fresh;"
+
+          # Load schema.sql directly (simulating fresh database setup)
+          PGPASSWORD=test psql -h localhost -U test -d test_fresh -f db/schema.sql
+
+          # Verify migrations table has all versions
+          MIGRATION_COUNT=$(PGPASSWORD=test psql -h localhost -U test -d test_fresh -t -c "SELECT COUNT(*) FROM schema_migrations;")
+          MIGRATION_COUNT=$(echo "$MIGRATION_COUNT" | tr -d ' ')
+
+          EXPECTED_COUNT=$(ls -1 db/migrations/*.sql | wc -l)
+
+          if [ "$MIGRATION_COUNT" != "$EXPECTED_COUNT" ]; then
+            echo "::error::Fresh database has incorrect migration count!"
+            echo "Expected: $EXPECTED_COUNT migrations"
+            echo "Found: $MIGRATION_COUNT migrations"
+            exit 1
+          fi
+
+          # Run dbmate up on fresh database - should have no pending migrations
+          dbmate --migrations-dir ./db/migrations up 2>&1 | tee dbmate_output.txt
+
+          if ! grep -q "no migrations to run" dbmate_output.txt && ! grep -q "Applied: 0" dbmate_output.txt; then
+            # Check if any migrations were applied
+            if grep -q "Applying:" dbmate_output.txt; then
+              echo "::error::Fresh database from schema.sql required additional migrations!"
+              echo "This means schema.sql is out of sync with migrations."
+              cat dbmate_output.txt
+              exit 1
+            fi
+          fi
+
+          echo "Fresh database initialization test passed!"
+          echo "Schema.sql correctly bootstraps a database with all migrations marked as applied."
