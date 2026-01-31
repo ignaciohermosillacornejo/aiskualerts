@@ -488,7 +488,7 @@ This requires the SSH key to be at `~/.ssh/hetzner_aiskualerts` and uses `op run
 
 ## Next Steps
 
-- Set up automated backups
-- Configure monitoring and alerts
+- Configure monitoring and alerts (Sentry is set up, consider uptime monitoring)
 - Review and optimize Docker image size
-- Plan database backup strategy
+
+**Note**: Automated database backups are already configured. See [Deployment & Migrations](./DEPLOYMENT.md#database-backups) for details.
