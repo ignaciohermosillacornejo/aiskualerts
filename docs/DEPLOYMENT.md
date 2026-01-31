@@ -171,6 +171,86 @@ The app validates schema at startup (`src/db/validate.ts`):
 
 This is defense-in-depth - even if Docker ordering fails, the app won't start with wrong schema.
 
+## Database Backups
+
+### Backup System
+
+Automated daily backups run via GitHub Actions (`.github/workflows/backup.yml`):
+
+- **Schedule**: Daily at 4 AM UTC
+- **Storage**: Backblaze B2 (`daily/backup-YYYY-MM-DD.sql.gz.gpg`)
+- **Encryption**: AES256 via GPG (key in 1Password)
+- **Compression**: gzip
+- **Retention**: Managed by Backblaze B2 lifecycle rules (fully automatic)
+
+### How Backups Work
+
+```
+pg_dump → gzip → gpg encrypt → upload to B2
+```
+
+The backup workflow:
+1. SSHs into production server
+2. Runs `pg_dump` inside the PostgreSQL container
+3. Streams output through gzip compression
+4. Encrypts with GPG (AES256, symmetric key)
+5. Uploads to Backblaze B2
+
+### Restoring from Backup
+
+Use the Database Rollback workflow (`.github/workflows/rollback.yml`):
+
+1. Go to **Actions** → **Database Rollback**
+2. Click **Run workflow**
+3. Enter backup filename (e.g., `backup-2026-01-15.sql.gz.gpg`) or `latest`
+4. Type `RESTORE` to confirm
+5. Click **Run workflow**
+
+The restore process:
+1. Downloads backup from B2
+2. Decrypts with GPG
+3. Decompresses with gunzip
+4. Streams directly into PostgreSQL
+
+**Warning**: Restore replaces all data in the database. The app continues running during restore but may experience brief inconsistencies.
+
+### Manual Restore (Emergency)
+
+If GitHub Actions is unavailable:
+
+```bash
+# On local machine with 1Password CLI
+
+# Get credentials
+B2_KEY_ID=$(op read 'op://Dev/B2_KEY_ID/credential')
+B2_APPLICATION_KEY=$(op read 'op://Dev/B2_APPLICATION_KEY/credential')
+B2_BUCKET_NAME=$(op read 'op://Dev/B2_BUCKET_NAME/credential')
+B2_BUCKET_REGION=$(op read 'op://Dev/B2_BUCKET_REGION/credential')
+BACKUP_ENCRYPTION_KEY=$(op read 'op://Dev/BACKUP_ENCRYPTION_KEY/credential')
+
+# Download latest backup
+AWS_ACCESS_KEY_ID="$B2_KEY_ID" AWS_SECRET_ACCESS_KEY="$B2_APPLICATION_KEY" \
+  aws s3 cp "s3://$B2_BUCKET_NAME/daily/backup-2026-01-15.sql.gz.gpg" backup.sql.gz.gpg \
+  --endpoint-url "https://$B2_BUCKET_REGION"
+
+# Decrypt and restore
+gpg --decrypt --batch --passphrase "$BACKUP_ENCRYPTION_KEY" backup.sql.gz.gpg \
+  | gunzip \
+  | ssh aiskualerts "docker exec -i aiskualerts-db psql -U aiskualerts -d aiskualerts"
+```
+
+### Verifying Backups
+
+Check recent backup runs:
+```bash
+gh run list --workflow=backup.yml --limit 5
+```
+
+List backups in B2 (requires AWS CLI configured):
+```bash
+aws s3 ls "s3://$B2_BUCKET_NAME/daily/" --endpoint-url "https://$B2_BUCKET_REGION"
+```
+
 ## DATABASE_URL Configuration
 
 **Important:** The `DATABASE_URL` must include `?sslmode=disable` for internal Docker connections:
@@ -312,6 +392,8 @@ On every PR that touches `db/**`:
 | `docker-compose.yml` | Container orchestration |
 | `.github/workflows/deploy.yml` | Deployment workflow |
 | `.github/workflows/schema-verify.yml` | Schema consistency check |
+| `.github/workflows/backup.yml` | Daily database backups to B2 |
+| `.github/workflows/rollback.yml` | Database restore from backup |
 | `src/db/validate.ts` | Runtime schema validation |
 
 ## Quick Reference
